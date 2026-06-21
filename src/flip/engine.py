@@ -13,6 +13,7 @@ config replaces hardcoded assumptions:
 import datetime
 import json
 import random
+import re
 
 from . import store
 from . import translate
@@ -23,23 +24,17 @@ from .deck import Deck
 
 # ---- pure helpers (also unit-tested) ----
 
-def question_key(chapter, q):
-    """Stable identity string for a question, used as the join key across
-    tiku.json, marked.json, and wrong/*.json.
+def question_id(q):
+    """Return a normalized stable question id, or None when absent."""
+    qid = q.get("id") if isinstance(q, dict) else None
+    if qid is None:
+        return None
+    qid = str(qid).strip()
+    return qid or None
 
-    Serializes a *content* projection of the question (chapter + topic +
-    answer + options) to sorted JSON. Two important properties:
 
-    1. Order-independent: dict keys are sorted, so re-ordering fields when
-       editing tiku.json by hand does NOT change the key (no orphaned marks).
-    2. Content-addressed: it ignores derived/runtime fields (marked, zh,
-       ai_explanation, user_note), so annotating a question never detaches
-       its marks/wrong-history. Editing `topic`/`options`/`answer`, however,
-       *does* change the key — treat those as identity-defining.
-
-    This is the single source of identity for the whole engine; every index
-    file references questions by this string.
-    """
+def content_question_key(chapter, q):
+    """Legacy content-addressed key used before stable question ids existed."""
     return json.dumps(
         {
             "chapter": str(chapter),
@@ -50,6 +45,72 @@ def question_key(chapter, q):
         ensure_ascii=False,
         sort_keys=True,
     )
+
+
+def question_key(chapter, q):
+    """Stable identity string for a question, used as the join key across
+    tiku.json, marked.json, and wrong/*.json.
+
+    Newer decks identify questions by their explicit `id`, so edits to
+    topic/options/answer do not orphan marks or wrong-history. Older decks
+    without `id` fall back to the legacy content-addressed key for compatibility.
+    """
+    qid = question_id(q)
+    if qid:
+        return json.dumps({"id": qid}, ensure_ascii=False, sort_keys=True)
+    return content_question_key(chapter, q)
+
+
+def question_keys(chapter, q):
+    """All keys that may identify a question.
+
+    The first key is the canonical key to write now. Extra keys are legacy
+    aliases so old index files still resolve after ids are added to tiku.json.
+    """
+    keys = [question_key(chapter, q)]
+    legacy = content_question_key(chapter, q)
+    if legacy not in keys:
+        keys.append(legacy)
+    return keys
+
+
+def _id_part(value):
+    value = str(value).strip().lower()
+    value = re.sub(r"[^a-z0-9]+", "-", value).strip("-")
+    return value or "x"
+
+
+def _generated_question_id(prefix, chapter, index):
+    base = _id_part(prefix) if prefix else "q"
+    return f"{base}-{_id_part(chapter)}-{index:03d}"
+
+
+def ensure_question_ids(data, *, prefix=None):
+    """Fill missing question `id` fields in-place and return how many were added."""
+    if not isinstance(data, dict):
+        return 0
+    used = set()
+    for _, q in iter_question_records(data):
+        qid = question_id(q)
+        if qid:
+            used.add(qid)
+
+    added = 0
+    counters = {}
+    for chapter, q in iter_question_records(data):
+        if question_id(q):
+            continue
+        counters[chapter] = counters.get(chapter, 0) + 1
+        index = counters[chapter]
+        candidate = _generated_question_id(prefix, chapter, index)
+        while candidate in used:
+            index += 1
+            candidate = _generated_question_id(prefix, chapter, index)
+        counters[chapter] = index
+        q["id"] = candidate
+        used.add(candidate)
+        added += 1
+    return added
 
 
 def parse_answer(s, alphabet="ABCD"):
@@ -216,7 +277,7 @@ def _records_from_index_data(data, deck, selector=None, source_file=None):
         for chapter, q in records:
             if str(chapter).isdigit() and int(chapter) in selected:
                 kept.append((chapter, q))
-                kept_keys.add(question_key(chapter, q))
+                kept_keys.update(question_keys(chapter, q))
         sources = {k: v for k, v in sources.items() if k in kept_keys}
         records = kept
     return records, sources
@@ -244,14 +305,15 @@ def _index_meta(item):
 
 
 def build_tiku_index(deck):
-    """Map question_key -> (chapter, q) for the whole deck."""
+    """Map every current/legacy question key -> (chapter, q) for the whole deck."""
     data = store.load_tiku(deck)
     if data is None:
         return {}
-    return {
-        question_key(chapter, q): (str(chapter), q)
-        for chapter, q in iter_question_records(data)
-    }
+    index = {}
+    for chapter, q in iter_question_records(data):
+        for key in question_keys(chapter, q):
+            index[key] = (str(chapter), q)
+    return index
 
 
 # ---- marking ----
@@ -259,8 +321,8 @@ def build_tiku_index(deck):
 def is_marked(deck, chapter, q):
     if q.get("marked"):
         return True
-    key = question_key(chapter, q)
-    return any(_index_key(item) == key for item in store.load_marked(deck))
+    keys = set(question_keys(chapter, q))
+    return any(_index_key(item) in keys for item in store.load_marked(deck))
 
 
 def _sync_marked_from_tiku(deck):
@@ -272,6 +334,7 @@ def _sync_marked_from_tiku(deck):
             records.append({
                 "key": question_key(chapter, q),
                 "chapter": str(chapter),
+                "topic": q.get("topic", ""),
                 "marked_at": q.get("marked_at", now),
             })
     store.save_marked(deck, records)
@@ -311,10 +374,15 @@ def save_question_field(deck, chapter, q):
     """
     data = store.load_tiku(deck)
     if isinstance(data, dict):
-        target_key = question_key(chapter, q)
+        target_id = question_id(q)
+        target_keys = set(question_keys(chapter, q))
         for ch, qlist in data.items():
             for i, existing in enumerate(qlist):
-                if question_key(ch, existing) == target_key:
+                if target_id and question_id(existing) == target_id:
+                    qlist[i] = q
+                    store.save_tiku(deck, data)
+                    return
+                if not target_id and question_key(ch, existing) in target_keys:
                     qlist[i] = q
                     store.save_tiku(deck, data)
                     return
@@ -434,8 +502,12 @@ def pick_questions(deck, config, selector=None, shuffle=True, filters=None,
 def records_from_data(data, selector=None):
     records = []
     if isinstance(data, dict):
-        selected = chapter_selector(selector, len(data)) if selector else None
+        numeric_chapters = [int(ch) for ch, _ in iter_question_records(data) if str(ch).isdigit()]
+        max_chapter = max(numeric_chapters) if numeric_chapters else 0
+        selected = chapter_selector(selector, max_chapter) if selector else None
         for ch, qlist in data.items():
+            if not _is_chapter_key(ch):
+                continue
             if selected is not None and not str(ch).isdigit():
                 continue
             if selected is not None and int(ch) not in selected:
@@ -448,19 +520,21 @@ def records_from_data(data, selector=None):
 
 
 def remove_from_active_index(selected, chapter, q):
-    key = question_key(chapter, q)
-    source_files = selected.index_sources.get(key, set())
+    keys = set(question_keys(chapter, q))
+    source_files = set()
+    for key in keys:
+        source_files.update(selected.index_sources.get(key, set()))
     removed = False
     for path in list(source_files):
-        removed = _remove_key_from_index_file(path, key) or removed
+        removed = _remove_keys_from_index_file(path, keys) or removed
     return removed
 
 
-def _remove_key_from_index_file(path, remove_key):
+def _remove_keys_from_index_file(path, remove_keys):
     data = store.read_json(path, default=None)
     if not isinstance(data, list):
         return False
-    kept = [item for item in data if _index_key(item) != remove_key]
+    kept = [item for item in data if _index_key(item) not in remove_keys]
     if len(kept) == len(data):
         return False
     store.write_json(path, kept)
@@ -473,6 +547,7 @@ def incorrect_record(chapter, q, wrong_input, alphabet):
     return {
         "key": question_key(chapter, q),
         "chapter": str(chapter),
+        "topic": q.get("topic", ""),
         "wrong_input": wrong_input,
         "wrong_answer": parse_answer(str(wrong_input), alphabet),
         "wrong_at": datetime.datetime.now().isoformat(timespec="seconds"),

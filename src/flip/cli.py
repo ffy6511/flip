@@ -289,9 +289,8 @@ def import_cmd(
     Extracting a source from PDF/HTML is the flip-deck-init skill's job.
     """
     import json
-    import shutil
-
     from .importers import import_csv, validate_tiku
+    from . import engine as _engine
 
     config = load_config()
 
@@ -315,9 +314,11 @@ def import_cmd(
                 typer.echo(f"  {e}", err=True)
             raise typer.Exit(1)
         detected_alphabet = _detect_alphabet_from_tiku(tiku_data)
-        qcount = sum(len(qs) for qs in tiku_data.values())
-        typer.echo(f"validated {qcount} questions across {len(tiku_data)} chapter(s); "
-                   f"alphabet={detected_alphabet}")
+        assigned_ids = _engine.ensure_question_ids(tiku_data, prefix=slug)
+        qcount = sum(1 for _ in _engine.iter_question_records(tiku_data))
+        chcount = len({ch for ch, _ in _engine.iter_question_records(tiku_data)})
+        typer.echo(f"validated {qcount} questions across {chcount} chapter(s); "
+                   f"alphabet={detected_alphabet}; assigned_ids={assigned_ids}")
         # If the source dir has a manifest, prefer its name/source_lang as defaults.
         src_manifest = src_dir / "manifest.toml"
         if src_manifest.is_file():
@@ -341,8 +342,12 @@ def import_cmd(
                 raise typer.Exit(1)
             tiku_data = result.chapters
             detected_alphabet = result.answer_alphabet
-            typer.echo(f"parsed {result.question_count} questions across "
-                       f"{len(result.chapters)} chapter(s); alphabet={detected_alphabet}")
+            assigned_ids = _engine.ensure_question_ids(tiku_data, prefix=slug)
+            qcount = sum(1 for _ in _engine.iter_question_records(tiku_data))
+            chcount = len({ch for ch, _ in _engine.iter_question_records(tiku_data)})
+            typer.echo(f"parsed {qcount} questions across "
+                       f"{chcount} chapter(s); alphabet={detected_alphabet}; "
+                       f"assigned_ids={assigned_ids}")
         else:
             try:
                 tiku_data = json.loads(source.read_text(encoding="utf-8"))
@@ -356,9 +361,11 @@ def import_cmd(
                     typer.echo(f"  {e}", err=True)
                 raise typer.Exit(1)
             detected_alphabet = _detect_alphabet_from_tiku(tiku_data)
-            qcount = sum(len(qs) for qs in tiku_data.values())
-            typer.echo(f"validated {qcount} questions across {len(tiku_data)} chapter(s); "
-                       f"alphabet={detected_alphabet}")
+            assigned_ids = _engine.ensure_question_ids(tiku_data, prefix=slug)
+            qcount = sum(1 for _ in _engine.iter_question_records(tiku_data))
+            chcount = len({ch for ch, _ in _engine.iter_question_records(tiku_data)})
+            typer.echo(f"validated {qcount} questions across {chcount} chapter(s); "
+                       f"alphabet={detected_alphabet}; assigned_ids={assigned_ids}")
 
     dest_dir = config.decks_dir / slug
     if dest_dir.exists() and not force and not dry_run:
@@ -389,6 +396,7 @@ def import_cmd(
     dest_tiku = dest_dir / "tiku.json"
     if is_dir_mode:
         report = store.import_dir(source, deck)
+        store.save_tiku(deck, tiku_data)
         (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
         typer.echo(f"imported deck {slug} -> {dest_tiku} (from directory {source})")
         extra = []
@@ -400,13 +408,7 @@ def import_cmd(
             typer.echo(f"migrated: {', '.join(extra)}")
         typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
     else:
-        if fmt_resolved == "csv":
-            dest_tiku.write_text(
-                json.dumps(tiku_data, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-        else:
-            shutil.copyfile(source, dest_tiku)
+        store.write_json(dest_tiku, tiku_data)
         (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
         typer.echo(f"imported deck {slug} -> {dest_tiku}")
         typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
@@ -462,13 +464,12 @@ def _resolve_import_format(source: Path, fmt):
 
 def _detect_alphabet_from_tiku(data):
     """Find the widest option set across all questions; default ABCD."""
+    from . import engine as _engine
     letters = set("ABCD")
-    for questions in data.values() if isinstance(data, dict) else []:
-        for q in questions:
-            if isinstance(q, dict):
-                for opt in q.get("options", []):
-                    if isinstance(opt, str) and opt:
-                        letters.add(opt[0].upper())
+    for _, q in _engine.iter_question_records(data):
+        for opt in q.get("options", []):
+            if isinstance(opt, str) and opt:
+                letters.add(opt[0].upper())
     # Keep only A-J, sort.
     valid = sorted(l for l in letters if l in "ABCDEFGHIJ")
     return "".join(valid) if valid else "ABCD"

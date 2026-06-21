@@ -255,6 +255,7 @@ def validate_tiku(data):
     if not data:
         return ["tiku is empty (no chapters)"]
 
+    seen_ids = {}
     for chapter, questions in data.items():
         # Skip metadata keys like `_chapter_titles` (not real chapters).
         if str(chapter).startswith("_"):
@@ -273,6 +274,15 @@ def validate_tiku(data):
             for field in ("topic", "options", "answer"):
                 if field not in q:
                     errs.append(f"{prefix}: missing required field {field!r}")
+            if "id" in q:
+                qid = q["id"]
+                if not isinstance(qid, str) or not qid.strip():
+                    errs.append(f"{prefix}: id must be a non-empty string")
+                else:
+                    if qid in seen_ids:
+                        errs.append(f"{prefix}: duplicate id {qid!r} (first seen at {seen_ids[qid]})")
+                    else:
+                        seen_ids[qid] = prefix
             if "options" in q and not isinstance(q["options"], list):
                 errs.append(f"{prefix}: options must be a list")
             elif isinstance(q.get("options"), list):

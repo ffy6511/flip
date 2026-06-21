@@ -42,6 +42,7 @@ to human-readable names, purely for display:
 
 | Field    | Type     | Notes |
 |----------|----------|-------|
+| `id`     | string   | Stable question identity. New imports should write it; old decks without it still load. Keep it unchanged when editing a question so marks and wrong-history stay attached. |
 | `topic`  | string   | The question **stem text**. Often starts with `"N. "` (the question's own ordinal), but the engine does not parse that prefix. |
 | `options`| string[] | Each entry is `LABEL + ". " + text` — a **3-character prefix** (`"A. "`, `"B. "`, …). `_split_option` relies on this exact shape. |
 | `answer` | string   | Letters of the correct option(s), concatenated and sorted, e.g. `"A"`, `"AC"`, `"BDE"`. Single select → one letter; multiple select → multiple letters. |
@@ -71,13 +72,15 @@ All optional fields are **persisted to disk** (not runtime-only). A re-read of `
 
 ```jsonc
 [
-  { "key": "<serialized question key>", "chapter": "5", "marked_at": "2026-06-20T14:40:11" },
+  { "key": "<serialized question key>", "chapter": "5", "topic": "...", "marked_at": "2026-06-20T14:40:11" },
   ...
 ]
 ```
 
-- `key` is the output of `question_key(chapter, q)` — a stable, sorted JSON serialization of `{chapter, topic, answer, options}`. It is the identity of a question across `tiku.json` and all index files.
+- `key` is the output of `question_key(chapter, q)`. For questions with `id`, it is a sorted JSON serialization of `{id}`. For legacy questions without `id`, it falls back to the older content key `{chapter, topic, answer, options}`.
+- The engine can still resolve older content keys after `id` is added, because `build_tiku_index` registers both the id key and the legacy content key as aliases.
 - `chapter` is duplicated at the top level for convenience (also appears serialized inside `key`).
+- `topic` is copied for read-only listings. The live question text still comes from `tiku.json`.
 
 ## wrong/ (error index directory)
 
@@ -88,6 +91,7 @@ All optional fields are **persisted to disk** (not runtime-only). A re-read of `
   {
     "key": "...",
     "chapter": "5",
+    "topic": "...",
     "wrong_input": "B",
     "wrong_answer": "B",
     "wrong_at": "2026-06-20T14:40:11"

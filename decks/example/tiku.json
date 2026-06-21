@@ -1,6 +1,7 @@
 {
   "1": [
     {
+      "id": "example-1-001",
       "topic": "1. What is 2 + 2?",
       "options": ["A. 3", "B. 4", "C. 5", "D. 6"],
       "answer": "B",
@@ -8,6 +9,7 @@
       "user_note": ""
     },
     {
+      "id": "example-1-002",
       "topic": "2. Which are prime? (multiple)",
       "options": ["A. 2", "B. 4", "C. 7", "D. 9"],
       "answer": "AC",
@@ -19,6 +21,7 @@
   ],
   "2": [
     {
+      "id": "example-2-001",
       "topic": "1. Capital of France?",
       "options": ["A. Berlin", "B. Madrid", "C. Paris", "D. Rome"],
       "answer": "C",
@@ -26,6 +29,7 @@
       "user_note": "易错：不要和意大利搞混。"
     },
     {
+      "id": "example-2-002",
       "topic": "2. RGB primary colors? (multiple)",
       "options": ["A. Red", "B. Green", "C. Blue", "D. Yellow"],
       "answer": "ABC",
@@ -33,6 +37,7 @@
       "user_note": ""
     },
     {
+      "id": "example-2-003",
       "topic": "3. A pentagon option E sanity check.",
       "options": ["A. one", "B. two", "C. three", "D. four", "E. five"],
       "answer": "E",

@@ -131,13 +131,14 @@ def index_summary(record):
     """
     import json as _json
     chapter = record.get("chapter", "?")
-    topic = ""
+    topic = record.get("topic", "")
     key = record.get("key", "")
-    try:
-        parsed = _json.loads(key) if isinstance(key, str) else (key or {})
-        topic = parsed.get("topic", "")
-    except (ValueError, TypeError):
-        topic = ""
+    if not topic:
+        try:
+            parsed = _json.loads(key) if isinstance(key, str) else (key or {})
+            topic = parsed.get("topic", "")
+        except (ValueError, TypeError):
+            topic = ""
     extra = {k: v for k, v in record.items() if k not in ("key", "chapter")}
     return chapter, topic, extra
 

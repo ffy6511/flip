@@ -215,3 +215,18 @@ class TestValidateTiku:
         }
         errs = validate_tiku(data)
         assert errs == [], f"_chapter_titles should be skipped, got: {errs}"
+
+    def test_duplicate_id_is_rejected(self):
+        data = {
+            "1": [
+                {"id": "q1", "topic": "a", "options": ["A. x"], "answer": "A"},
+                {"id": "q1", "topic": "b", "options": ["A. y"], "answer": "A"},
+            ],
+        }
+        errs = validate_tiku(data)
+        assert any("duplicate id" in e for e in errs)
+
+    def test_blank_id_is_rejected(self):
+        data = {"1": [{"id": "", "topic": "t", "options": ["A. x"], "answer": "A"}]}
+        errs = validate_tiku(data)
+        assert any("id must be" in e for e in errs)
