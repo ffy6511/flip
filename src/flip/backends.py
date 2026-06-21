@@ -34,9 +34,21 @@ class BackendError(Exception):
 
 
 def render_command(template, *, prompt, model, outfile=None):
-    """Substitute placeholders into the template. Pure function (testable).
+    """Substitute placeholders into the backend command template.
 
-    Raises BackendError if {prompt} is missing or {outfile} is needed but absent.
+    Placeholder contract:
+      {prompt}   — the explanation prompt text. ALWAYS required (a backend
+                   with no prompt input is meaningless). Missing -> BackendError.
+      {model}    — resolved model id. Substituted even if absent from the
+                   template (no-op), so users can ignore it for backends that
+                   don't take a model flag.
+      {outfile}  — path to a tempfile. Only meaningful when the backend writes
+                   its result to a file rather than stdout. If the template
+                   contains {outfile} but none was passed (i.e. output mode is
+                   "stdout"), we raise rather than emit a literal "{outfile}".
+
+    Returns the fully-rendered command string. Pure function — no subprocess,
+    no tempfile creation — so it's directly unit-testable.
     """
     if "{prompt}" not in template:
         raise BackendError("explain.command is missing the {prompt} placeholder")
@@ -55,8 +67,12 @@ def render_command(template, *, prompt, model, outfile=None):
 def run_explanation(prompt, *, model, config: ExplainConfig, cwd=None):
     """Execute the configured backend and return its plain-text output.
 
-    Returns a string (the explanation, or a "生成失败" diagnostic). Never raises
-    for subprocess failures — they are reported inline so the TUI keeps working.
+    Never raises on subprocess failure — the TUI keeps running and shows the
+    diagnostic inline ("Agent Said 生成失败：..."). The only way to get an
+    exception out of here is a programmer bug, not a user config/runtime error.
+
+    Validates config first (cheap, catches template typos before any fork).
+    Then dispatches to the stdout or tempfile path based on `config.output`.
     """
     errs = config.validate()
     if errs:
@@ -70,6 +86,12 @@ def run_explanation(prompt, *, model, config: ExplainConfig, cwd=None):
 
 
 def _run_stdout(prompt, *, model, config, cwd, timeout):
+    """Backend writes its result to stdout; we capture result.stdout.
+
+    This is the mode for most generic CLIs (zhipu GLM, openrouter wrappers,
+    ollama, custom scripts). No tempfile is created; {outfile}, if present in
+    the template, would have been caught by validate() as an error.
+    """
     rendered = render_command(config.command, prompt=prompt, model=model)
     try:
         argv = shlex.split(rendered)
@@ -85,6 +107,8 @@ def _run_stdout(prompt, *, model, config, cwd, timeout):
             timeout=timeout,
         )
     except FileNotFoundError as exc:
+        # Backend binary not installed / not on PATH. Surface the name so the
+        # user knows which command to install, rather than a generic traceback.
         return f"Agent Said 生成失败：找不到命令 ({exc.filename or rendered.split()[0]})"
     except subprocess.TimeoutExpired:
         return f"Agent Said 生成失败：超时 ({timeout}s)"
@@ -99,6 +123,15 @@ def _run_stdout(prompt, *, model, config, cwd, timeout):
 
 
 def _run_tempfile(prompt, *, model, config, cwd, timeout):
+    """Backend writes its result to a file via {outfile}; we read it back.
+
+    This is the mode for codex (which uses `-o <file>`). We own the tempfile's
+    lifecycle: create it empty before the fork, read it after success, delete
+    it in `finally` regardless of outcome.
+
+    The template MUST contain {outfile} (enforced by validate() in the
+    tempfile branch) so the backend actually writes somewhere we can read.
+    """
     # Create the outfile up front so render_command has something to substitute.
     fd, outfile = tempfile.mkstemp(suffix=".txt", text=True)
     os.close(fd)

@@ -24,6 +24,22 @@ from .deck import Deck
 # ---- pure helpers (also unit-tested) ----
 
 def question_key(chapter, q):
+    """Stable identity string for a question, used as the join key across
+    tiku.json, marked.json, and wrong/*.json.
+
+    Serializes a *content* projection of the question (chapter + topic +
+    answer + options) to sorted JSON. Two important properties:
+
+    1. Order-independent: dict keys are sorted, so re-ordering fields when
+       editing tiku.json by hand does NOT change the key (no orphaned marks).
+    2. Content-addressed: it ignores derived/runtime fields (marked, zh,
+       ai_explanation, user_note), so annotating a question never detaches
+       its marks/wrong-history. Editing `topic`/`options`/`answer`, however,
+       *does* change the key — treat those as identity-defining.
+
+    This is the single source of identity for the whole engine; every index
+    file references questions by this string.
+    """
     return json.dumps(
         {
             "chapter": str(chapter),
@@ -37,11 +53,21 @@ def question_key(chapter, q):
 
 
 def parse_answer(s, alphabet="ABCD"):
-    """Parse a learner input into a sorted, deduped letter string.
+    """Normalize a learner's answer input into a sorted, deduped letter string.
 
-    Digits 1..N map to A..N per `alphabet`; existing letters are kept if they
-    are in the alphabet. e.g. parse_answer("bd", "ABCD") == "BD",
-    parse_answer("12", "ABCD") == "AB".
+    Accepts a free-form mix of two conventions and unifies them:
+
+    - Digits `1..N`: positional shortcuts (1 -> first option). Mapped through
+      `alphabet`, so `parse_answer("1", "ABCDE") == "A"` and `parse_answer("5",
+      "ABCDE") == "E"`. A digit beyond the alphabet length is silently
+      ignored (no crash on stray input).
+    - Letters already in `alphabet`: kept as-is.
+
+    The result is always sorted and deduped, so `"21"` and `"12"` and `"AA2"`
+    all collapse to `"AB"`. Multi-select answers (e.g. `"AC"`) survive intact.
+
+    `alphabet` comes from the deck manifest (`answer_alphabet`); this is what
+    makes a 5-option deck work without special-casing E.
     """
     s = str(s).upper()
     letters = []
@@ -56,6 +82,19 @@ def parse_answer(s, alphabet="ABCD"):
 
 
 def chapter_selector(selector, max_chapters):
+    """Resolve a chapter selector expression into a set of 1-based chapter nums.
+
+    Accepted forms (all stringly-typed from CLI/menu):
+      - `None`  -> all chapters `{1..max_chapters}`
+      - `"5"`   -> `{5}`
+      - `"5-10"`-> `{5,6,7,8,9,10}` (inclusive both ends)
+      - `"-3"`  -> first 3 chapters `{1,2,3}` (negative means "first N")
+      - `"-0"`  -> `{1..max_chapters}` (0 means "all")
+
+    Raises ValueError if a range's start exceeds its end. Non-numeric chapter
+    labels (e.g. "appA") are handled elsewhere — this function only deals with
+    the numeric selection layer.
+    """
     if selector is None:
         return set(range(1, max_chapters + 1))
     selector = str(selector).strip()
@@ -76,7 +115,13 @@ def chapter_selector(selector, max_chapters):
 
 
 def iter_question_records(data):
-    """Yield (chapter_str, question) from either dict or list shape."""
+    """Yield (chapter_str, question) pairs, accepting either tiku shape.
+
+    tiku.json is canonically a dict `{chapter: [questions]}`, but the legacy
+    se_regressor also produced/accepted list-shaped data (each item a
+    `[chapter, question]` pair). This iterator papers over both so callers
+    don't need to branch on `isinstance` everywhere.
+    """
     if isinstance(data, dict):
         for chapter, question_list in data.items():
             for q in question_list:
@@ -110,7 +155,21 @@ def _selected_chapters_for_records(selector, records):
 
 
 def _records_from_index_data(data, deck, selector=None, source_file=None):
-    """Resolve index records (marked/wrong JSON) back to live questions in tiku."""
+    """Resolve index-file records (marked.json / wrong/*.json) back to live
+    questions in tiku.json.
+
+    Index files do NOT store full questions — only `question_key` references
+    (plus metadata like marked_at, wrong_answer). To get the actual question
+    text/options we must look each key up in tiku via `build_tiku_index`.
+
+    Returns (records, sources) where:
+      - records: [(chapter, q)] pairs that exist in tiku (stale index entries
+        pointing at edited/deleted questions are silently dropped).
+      - sources: {question_key: {source_file, ...}} so a later `r` (remove)
+        can delete the entry from every file it came from.
+
+    `selector`, if given, further narrows to the selected numeric chapters.
+    """
     records = []
     sources = {}
     if not isinstance(data, list):
@@ -195,6 +254,16 @@ def _sync_marked_from_tiku(deck):
 
 
 def toggle_marked(deck, chapter, q):
+    """Flip a question's marked flag, persisting to BOTH tiku.json and marked.json.
+
+    Why two stores: tiku.json carries the authoritative `marked`/`marked_at`
+    fields on each question (so a re-export preserves them), while marked.json
+    is a slim index that `--filter mark` can scan without loading the whole
+    tiku. They must stay in sync, hence _sync_marked_from_tiku rebuilds the
+    index from tiku's `marked` flags after every toggle.
+
+    Mutates `q` in place and returns the new boolean state.
+    """
     if q.get("marked"):
         q["marked"] = False
         q.pop("marked_at", None)
@@ -296,13 +365,24 @@ class SelectedSet:
 
 def pick_questions(deck, config, selector=None, shuffle=True, filters=None,
                    source=None):
-    """Pick questions for a run.
+    """Pick the question set for one training/review run.
 
-    source: 'tiku' to train on the full bank (default), 'wrong' to review the
-    wrong-index directory. Filters apply in both modes.
+    The `source` argument forks into two very different code paths:
+
+    - `source="tiku"` (default, training mode): read the deck's full tiku.json,
+      filter by chapter selector and tags, shuffle. The returned SelectedSet
+      is *not* an index — `input_is_index=False` — so a wrong-index file IS
+      written at epoch end.
+
+    - `source="wrong"` (review mode): aggregate every wrong/*.json index file,
+      resolve each entry back to its live question via build_tiku_index, dedupe
+      across files. `input_is_index=True`, so the TUI offers the `r` (remove)
+      key and no new wrong file is written on exit.
+
+    Filters (mark/note/ai) apply in both modes and are OR-combined: a question
+    passes if it matches ANY active filter.
     """
     filters = filters or []
-    build_tiku_index  # ensure symbol referenced
     index_sources = {}
 
     if source == "wrong":

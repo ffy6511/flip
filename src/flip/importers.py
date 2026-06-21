@@ -39,7 +39,14 @@ def _resolve_delimiter(name, sample_line):
 
 
 def _sniff_delimiter(sample_line):
-    """Pick the most frequent of the candidate delimiters on one line."""
+    """Pick the delimiter that appears most often on the first data line.
+
+    CSV/TSV exporters are inconsistent (Anki defaults to tab, Quizlet lets the
+    user pick). Rather than require the user to know, we count occurrences of
+    each candidate on one sample line and take the max. Falls back to comma
+    when none are present (e.g. a single-column file, which will fail later
+    validation anyway).
+    """
     if sample_line is None:
         return ","
     counts = {d: sample_line.count(d) for d in [",", "\t", ";", "|"]}
@@ -154,6 +161,18 @@ def _require_columns(col_index, header):
 
 
 def _parse_csv_row(row, col_index, option_cols, zh_option_cols, *, translation_enabled):
+    """Parse one CSV data row into a (question, chapter) tuple.
+
+    Raises _RowError on per-row problems (empty topic, answer references a
+    non-existent option, …). The caller catches these and collects them into
+    result.errors rather than aborting the whole import — a typo on row 17
+    shouldn't sink rows 1-16 and 18-100.
+
+    Option handling has one subtlety: a trailing empty option column is
+    *allowed* (some exporters pad every row to the widest question's width with
+    empty strings), but a gap in the middle is not (that would misalign
+    answers). E.g. `[A, B, "", D]` is rejected; `[A, B, C, ""]` keeps A/B/C.
+    """
     def cell(name):
         i = col_index.get(name)
         if i is None or i >= len(row):
@@ -194,6 +213,9 @@ def _parse_csv_row(row, col_index, option_cols, zh_option_cols, *, translation_e
         "user_note": cell("user_note"),
     }
 
+    # Translation columns are only honored when global translation is on AND
+    # every option has a translation (partial translations are silently
+    # dropped rather than written half-populated).
     if translation_enabled:
         zh_topic = cell("zh_topic")
         zh_options = []
@@ -214,6 +236,17 @@ def validate_tiku(data):
 
     Empty list = valid. Checks the structural rules from docs/schema.md that,
     if violated, would crash the engine at training time.
+
+    Validation is layered and *collects* all errors rather than failing fast:
+    a deck with 5 problems reports all 5 at once, so the user can fix them in
+    one pass instead of fixing one, re-importing, finding the next, etc.
+
+    Checks per question, in order:
+      1. Required fields present (topic, options, answer).
+      2. options is a non-empty list of non-empty strings.
+      3. answer is a non-empty string whose every letter is the initial of
+         some option (catches "answer E" when only A-D exist).
+    Each error is prefixed with chapter + question index for easy locating.
     """
     errs = []
     if not isinstance(data, dict):

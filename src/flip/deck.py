@@ -26,13 +26,31 @@ class DeckError(Exception):
 
 @dataclass
 class ExplainConfig:
+    """Deck-level explain overrides.
+
+    Note this is NOT the same as the global `config.ExplainConfig` — that one
+    holds the backend command template. This one holds only the persona-flavored
+    fields that vary per subject (role text, char budget, an optional
+    deck-specific default model). The global command is applied regardless.
+    """
     role: str = ""
     max_chars: int = 200
     default_model: str = ""
     model_env: str = "FLIP_EXPLAIN_MODEL"
 
     def resolve_model(self) -> str:
-        """Env var (if set) overrides default_model."""
+        """Resolve the effective model id for this deck, honoring env override.
+
+        Precedence (highest wins):
+          1. The env var named by `model_env` (e.g. $FLIP_EXPLAIN_MODEL) —
+             lets a user override per-shell without editing any file.
+          2. `default_model` from the manifest.
+          3. Empty string — caller falls back to the global config.explain.model.
+
+        Note: this returns "" when nothing deck-specific is set; the engine
+        then falls through to the global default. This keeps decks minimal
+        (most decks don't need to pin a model).
+        """
         import os
         env_val = os.environ.get(self.model_env)
         return env_val if env_val else self.default_model
@@ -95,7 +113,18 @@ def _validate_alphabet(value: str) -> str:
 
 
 def load_deck(deck_dir: Path) -> Deck:
-    """Load and validate a deck from its directory."""
+    """Load and validate a deck from its directory.
+
+    Reads `<deck_dir>/manifest.toml`, applies the validation rules in
+    docs/deck-manifest.md, and returns a Deck. Raises DeckError on the first
+    structural problem — unlike validate_tiku we fail fast here because a
+    broken manifest means the deck is unusable anyway, and listing the first
+    concrete problem is more actionable than a wall of errors.
+
+    Unknown manifest sections are tolerated (forward-compat: a future flip
+    version adding a `[metrics]` table shouldn't break older installs) but
+    logged to stderr so users notice typos.
+    """
     deck_dir = Path(deck_dir)
     if not deck_dir.is_dir():
         raise DeckError(f"deck directory not found: {deck_dir}")

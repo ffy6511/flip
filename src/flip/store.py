@@ -87,6 +87,22 @@ def _safe_chapter_name(chapter):
 
 
 def _result_prefix_for_questions(questions):
+    """Build the wrong-filename prefix from the set of chapters a run covered.
+
+    The prefix encodes *which* chapters were drilled so that re-running the
+    same range writes to the same file (incremental wrong-index per range).
+    Examples (see test_filename.py for the full contract):
+
+      {"5"}                 -> "ch5"            single chapter
+      {"5","6","7"}         -> "ch5_7"          contiguous range collapses
+      {"3","5","8"}         -> "ch3_5_8"        discrete set listed
+      {"appA"}              -> "chappA"         non-numeric label
+      {"appA","appB"}       -> "chappA_appB"    non-numeric set
+      {}                    -> "ch_unknown"     nothing to name
+
+    The numeric range-collapse branch only fires when the chapters are a
+    *contiguous* run of integers; otherwise we fall through to underscore-join.
+    """
     chapters = []
     seen = set()
     for question in questions:

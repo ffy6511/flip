@@ -130,9 +130,22 @@ def _edit_current_detail(deck, config, chapter, q, detail_view, render_current):
 # ---- shared per-question key handling ----
 
 def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current):
-    """Return (detail_view, warning, action) for the detail/mark/remove/translate keys.
+    """Dispatch the shared detail/mark/explain/note/edit/quit keys.
 
-    action is one of: None (continue loop), ('quit',), ('previous',), ('remove',).
+    Returns a 3-tuple consumed by every prompt loop (prompt_answer,
+    prompt_result, review_history, review_questions):
+      (detail_view, warning, action)
+
+    - detail_view: possibly-updated "ai"|"note"|None (which bottom block shows)
+    - warning:     a user-facing warning string, or "" (e.g. "已从索引中移除")
+    - action:      None to keep looping, or a sentinel tuple:
+                     ('quit',)     -> caller returns 'quit'
+                   Note: 'previous' and 'remove' are handled by each loop
+                   locally (they depend on loop-specific state like history
+                   pointers), so this helper only emits 'quit' as an action.
+
+    Centralizing x/n/e here avoids ~4 copies of the same key-handling code
+    across the four prompt loops.
     """
     if key in {'q', 'Q'}:
         return detail_view, "", ('quit',)
@@ -156,6 +169,26 @@ def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_curre
 def prompt_answer(deck, config, count, total, chapter, q, *,
                   show_translation=False, detail_view=None,
                   previous_available=False, removable=False, selected_set=None):
+    """Pre-submit answer input loop for one question in training mode.
+
+    Drives a small keyboard state machine over the option list:
+      ↑/↓        move cursor
+      Space      toggle the cursor option in/out of `selected`
+      1..N       quick-toggle option N by digit (N bounded by options length)
+      Enter      submit (requires ≥1 selected); returns the letter string
+      ←          go back into history (only if previous_available)
+      t          toggle translation block (only if translation_enabled)
+      m/x/n/e    mark / explain / note / edit-detail (via _handle_detail_keys)
+      r          remove from index (only if removable; double-tap to confirm)
+      q          quit the epoch
+
+    Returns one of:
+      ("<letters>", show_translation, detail_view)  — a submitted answer
+      ('previous' | 'quit' | 'remove', show_translation, detail_view)
+
+    The termios tty is put in cbreak for raw key reading and restored in
+    `finally` so a Ctrl-C / crash doesn't leave the terminal broken.
+    """
     options = _options(q)
     alphabet = deck.answer_alphabet
     translation_enabled = config.translation_enabled
@@ -352,6 +385,20 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
 
 def review_history(deck, config, history, start_index, total, *,
                    show_translation=False, detail_view=None, removable=False, selected_set=None):
+    """Browse the answered-so-far history within an epoch (←/→ to navigate).
+
+    `start_index` is the entry to land on when entering history; callers pick
+    it based on context:
+      - from prompt_answer (before submitting): len(history)-1, the newest
+        answered question.
+      - from prompt_result (after submitting):  len(history)-2, because the
+        result screen's question was just pushed, so "previous" is the one
+        before it.
+
+    Returns a sentinel the epoch loop acts on: 'continue' (resume the current
+    question) or 'quit' (abort the whole epoch). ←/→ at the ends either clamp
+    with a warning or, at the right edge, also return 'continue' to resume.
+    """
     if not history:
         return 'continue', show_translation, detail_view
     index = max(0, min(start_index, len(history) - 1))
@@ -470,9 +517,24 @@ def _detail_hint(q):
 # ---- top-level epoch (training) ----
 
 def epoch(deck, config, selected_set):
-    """Run one training pass. Returns (count, incorrect_records).
+    """Run one training pass over selected_set.questions.
 
-    Writes the wrong-index file only when training on tiku (not on wrong/).
+    For each question the flow is:
+      1. prompt_answer — collect the learner's selection (or 'previous' to
+         jump back into history, or 'remove' to drop an index entry).
+      2. Grade it; wrong answers are appended to `incorrect` and to `history`.
+      3. prompt_result — show correctness, let the learner browse back via
+         'previous' or move on with Enter.
+
+    History navigation uses a subtle double-pointer convention (see
+    review_history's start_index arg): from the *answer* screen, ← opens
+    history at len-1 (the just-answered question is newest); from the
+    *result* screen, ← opens at len-2 (because the result-screen question
+    has already been pushed to history, so the "previous" one is len-2).
+
+    Writes a wrong-index file at the end ONLY when training on tiku
+    (input_is_index=False). Reviewing the wrong-index itself never spawns
+    a new wrong file.
     """
     questions = selected_set.questions
     alphabet = deck.answer_alphabet
