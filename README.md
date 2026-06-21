@@ -1,14 +1,12 @@
 # flip
 
+[English](README.md) · [中文](README.zh.md)
+
 A deck-agnostic terminal quiz trainer. Pick a **deck** (a subject like Software Engineering, Compiler Principles), drill questions, mark the tricky ones, and let an agent explain mistakes — all from a single `flip` command.
-
-## Why
-
-Born from a single-file SE quiz script (`se_regressor.py`), generalized into a template so any subject can plug in by providing a `tiku.json` + `manifest.toml`. The TUI engine is deck-agnostic; subjects are just data.
 
 ## Install
 
-**Homebrew (recommended, once published):**
+**Homebrew (recommended):**
 
 ```bash
 brew tap ffy6511/tap
@@ -22,6 +20,12 @@ brew install pipx          # if you don't have pipx yet
 pipx install git+https://github.com/ffy6511/flip.git
 ```
 
+**(Optional) Companion skills for the CLI**
+
+```bash
+npx skills add ffy6511/flip/skills   # install the companion skills; see below for what each does
+```
+
 **For development:**
 
 ```bash
@@ -31,7 +35,18 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/flip --help
 ```
 
-Then `flip` is on your PATH.
+
+
+## Optional: companion agent skills
+
+The `skills/` folder in this repo holds skills that teach an AI agent (Claude
+Code, Cursor, ZCode, …) how to work with flip. They are **not** shipped with
+the pip/brew package — install them with the one-liner in the Install section
+above, then just ask your agent to act. The current set:
+
+| Skill | What it does |
+|-------|--------------|
+| [`flip-deck-init`](skills/flip-deck-init/) | Turn any quiz material (PDF / HTML / Word / notes) — or an existing question-bank JSON — into a schema-compliant deck and register it via `flip import`. Covers both bootstrapping a new deck from raw material and importing an already-structured JSON. |
 
 ## Concepts
 
@@ -64,9 +79,3 @@ decks/example/ minimal demo deck (also a test fixture)
 skills/        flip-deck-init — agent skill to bootstrap a deck from source material
 tests/         pure-function pytest suite (no TUI interaction tests)
 ```
-
-## What this template deliberately does NOT do
-
-- No hidden "E. Both" option suppression — every option is visible.
-- No Windows terminal support (relies on `termios`).
-- No PDF/HTML extraction in-process — that's the `flip-deck-init` skill's job.
