@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 
-from .deck import Deck
+from .deck import Deck, TIKU_NAME, MARKED_NAME, WRONG_DIR_NAME
 
 
 def write_json(path, data):
@@ -90,6 +90,56 @@ def import_dir(src_dir, deck: Deck):
             copied["wrong_files"] += 1
 
     return copied
+
+
+def export_deck(deck: Deck, dest_dir):
+    """Copy a deck's files into `dest_dir` (the inverse of import_dir).
+
+    Bundles tiku.json, manifest.toml, marked.json (if present), and the
+    whole wrong/ directory — everything needed to re-import the deck on
+    another machine via `flip import <slug> <dir>`. Returns the destination
+    Path. Creates dest_dir (and wrong/ as needed); refuses to overwrite an
+    existing non-empty dest_dir.
+    """
+    import shutil
+
+    dest_dir = Path(dest_dir)
+    if dest_dir.exists() and any(dest_dir.iterdir()):
+        raise FileExistsError(f"destination not empty: {dest_dir}")
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    shutil.copyfile(deck.tiku_path, dest_dir / TIKU_NAME)
+    shutil.copyfile(deck.manifest_path, dest_dir / "manifest.toml")
+    if deck.marked_path.is_file():
+        shutil.copyfile(deck.marked_path, dest_dir / MARKED_NAME)
+    if deck.wrong_dir.is_dir():
+        target_wrong = dest_dir / WRONG_DIR_NAME
+        target_wrong.mkdir(parents=True, exist_ok=True)
+        for path in json_files_in_directory(deck.wrong_dir):
+            shutil.copyfile(path, target_wrong / path.name)
+    return dest_dir
+
+
+def index_summary(record):
+    """Reduce an index record (from marked.json / wrong/*.json) to a readable line.
+
+    The record's `key` is a serialized JSON of the question's content
+    projection (chapter + topic + answer + options). This parses it back and
+    returns (chapter, topic_text, extra) where extra is whatever non-key
+    metadata the record carries (e.g. wrong_input, marked_at). Used by the
+    `flip deck mark/wrong` read-only listings — and safe for agents to parse.
+    """
+    import json as _json
+    chapter = record.get("chapter", "?")
+    topic = ""
+    key = record.get("key", "")
+    try:
+        parsed = _json.loads(key) if isinstance(key, str) else (key or {})
+        topic = parsed.get("topic", "")
+    except (ValueError, TypeError):
+        topic = ""
+    extra = {k: v for k, v in record.items() if k not in ("key", "chapter")}
+    return chapter, topic, extra
 
 
 # ---- wrong/ directory ----

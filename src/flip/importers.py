@@ -256,6 +256,9 @@ def validate_tiku(data):
         return ["tiku is empty (no chapters)"]
 
     for chapter, questions in data.items():
+        # Skip metadata keys like `_chapter_titles` (not real chapters).
+        if str(chapter).startswith("_"):
+            continue
         if not isinstance(questions, list):
             errs.append(f"chapter {chapter!r}: value must be a list, got {type(questions).__name__}")
             continue

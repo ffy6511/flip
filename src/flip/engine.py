@@ -90,6 +90,7 @@ def chapter_selector(selector, max_chapters):
       - `"5-10"`-> `{5,6,7,8,9,10}` (inclusive both ends)
       - `"-3"`  -> first 3 chapters `{1,2,3}` (negative means "first N")
       - `"-0"`  -> `{1..max_chapters}` (0 means "all")
+      - `"5,3-4"`-> `{3,4,5}` (comma-separated segments are unioned; dups drop)
 
     Raises ValueError if a range's start exceeds its end. Non-numeric chapter
     labels (e.g. "appA") are handled elsewhere — this function only deals with
@@ -98,6 +99,15 @@ def chapter_selector(selector, max_chapters):
     if selector is None:
         return set(range(1, max_chapters + 1))
     selector = str(selector).strip()
+    # Comma-separated segments: union each segment's resolved set. This lets
+    # users combine ranges and singles, e.g. "5,3-4" -> {3,4,5}.
+    if "," in selector:
+        out = set()
+        for seg in selector.split(","):
+            seg = seg.strip()
+            if seg:
+                out |= chapter_selector(seg, max_chapters)
+        return out
     if '-' in selector and not selector.startswith('-'):
         start, end = selector.split('-', 1)
         start = int(start)
@@ -114,16 +124,30 @@ def chapter_selector(selector, max_chapters):
     return {num_list}
 
 
+def _is_chapter_key(key):
+    """True if a top-level tiku key is a real chapter (not metadata).
+
+    Keys starting with `_` are reserved for non-chapter metadata (e.g.
+    `_chapter_titles`); they are skipped by record iteration and validation.
+    """
+    return not str(key).startswith("_")
+
+
 def iter_question_records(data):
     """Yield (chapter_str, question) pairs, accepting either tiku shape.
 
     tiku.json is canonically a dict `{chapter: [questions]}`, but the legacy
     se_regressor also produced/accepted list-shaped data (each item a
-    `[chapter, question]` pair). This iterator papers over both so callers
+    `[chapter, question] pair). This iterator papers over both so callers
     don't need to branch on `isinstance` everywhere.
+
+    Metadata keys (those starting with `_`, like `_chapter_titles`) are
+    skipped — they are not chapters.
     """
     if isinstance(data, dict):
         for chapter, question_list in data.items():
+            if not _is_chapter_key(chapter):
+                continue
             for q in question_list:
                 yield str(chapter), q
     elif isinstance(data, list):
@@ -267,20 +291,14 @@ def toggle_marked(deck, chapter, q):
     if q.get("marked"):
         q["marked"] = False
         q.pop("marked_at", None)
-        store.save_tiku(deck, _deck_data_with(deck, chapter, q))
+        save_question_field(deck, chapter, q)
         _sync_marked_from_tiku(deck)
         return False
     q["marked"] = True
     q["marked_at"] = datetime.datetime.now().isoformat(timespec="seconds")
-    store.save_tiku(deck, _deck_data_with(deck, chapter, q))
+    save_question_field(deck, chapter, q)
     _sync_marked_from_tiku(deck)
     return True
-
-
-def _deck_data_with(deck, chapter, q):
-    """Re-read tiku so the saved object reflects all in-memory mutations."""
-    # Simplest correct behavior: engine always re-reads before save callers do.
-    return store.load_tiku(deck)
 
 
 # ---- note / explanation persistence ----

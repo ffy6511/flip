@@ -205,3 +205,13 @@ class TestValidateTiku:
         data = {"1": "not a list"}
         errs = validate_tiku(data)
         assert any("must be a list" in e for e in errs)
+
+    def test_underscore_metadata_key_is_skipped(self):
+        # `_chapter_titles` is a dict (display-only metadata), not a chapter;
+        # the validator must not flag it as "value must be a list".
+        data = {
+            "_chapter_titles": {"1": "Intro"},
+            "1": [{"topic": "t", "options": ["A. x"], "answer": "A"}],
+        }
+        errs = validate_tiku(data)
+        assert errs == [], f"_chapter_titles should be skipped, got: {errs}"

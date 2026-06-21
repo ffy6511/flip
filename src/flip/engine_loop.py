@@ -202,12 +202,12 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
         show_translation = False
         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
 
-    marked = engine.is_marked(deck, chapter, q)
     old_settings = save_tty()
     model_name = deck.explain.resolve_model()
     try:
         enter_cbreak()
         while True:
+            marked = engine.is_marked(deck, chapter, q)
             render_question(
                 count, total, chapter, q, options, cursor, selected,
                 warning=warning, show_translation=show_translation, translation=translation,
@@ -280,10 +280,11 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                 continue
 
             def render_current(ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
+                marked_now = engine.is_marked(deck, chapter, q)
                 render_question(
                     count, total, chapter, q, options, cursor, selected,
                     warning=warning, show_translation=show_translation, translation=translation,
-                    detail_view=detail_view, marked=marked, model_name=model_name,
+                    detail_view=detail_view, marked=marked_now, model_name=model_name,
                     translation_enabled=translation_enabled,
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
@@ -313,13 +314,13 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
     else:
         warning = ""
-    marked = engine.is_marked(deck, chapter, q)
     confirm_remove = False
     model_name = deck.explain.resolve_model()
     old_settings = save_tty()
     try:
         enter_cbreak()
         while True:
+            marked = engine.is_marked(deck, chapter, q)
             render_result(
                 count, total, chapter, q, options, selected_answer, is_correct,
                 warning=warning, show_translation=show_translation, translation=translation,
@@ -363,10 +364,11 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                 continue
 
             def render_current(ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
+                marked_now = engine.is_marked(deck, chapter, q)
                 render_result(
                     count, total, chapter, q, options, selected_answer, is_correct,
                     warning=warning, show_translation=show_translation, translation=translation,
-                    detail_view=detail_view, marked=marked, model_name=model_name,
+                    detail_view=detail_view, marked=marked_now, model_name=model_name,
                     translation_enabled=translation_enabled,
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
@@ -968,7 +970,9 @@ def entry_menu(config, deck):
                     _run_stats_loop(deck, config)
                     continue
                 confirmed, next_selector = _edit_selector(
-                    selector, name + " (" + ("浏览" if ans_mode else "计分") + ")"
+                    selector,
+                    name + " (" + ("浏览" if ans_mode else "计分") + ")",
+                    deck=deck, config=config,
                 )
                 if not confirmed:
                     continue
@@ -1017,17 +1021,63 @@ def _toggle_filter(filters, name):
     return filters + [name]
 
 
-def _edit_selector(selector, mode_name):
-    from .tui.render import DIM_COLOR
-    buffer = selector or ""
+def _edit_selector(selector, mode_name, deck=None, config=None):
+    """Chapter picker with a live preview and dual input modes.
+
+    Renders one row per chapter showing its title (if `_chapter_titles`
+    declares one), question/wrong counts, and a white+yellow bar. The chapter
+    set can be built two ways that stay in sync:
+
+      - typing: digits / `-` / `,` edit a text buffer; on Enter it's parsed by
+        `chapter_selector` (so `5,3-4` -> {3,4,5}). Backspace edits the buffer.
+      - arrows + space: ↑/↓ moves the cursor; space toggles a chapter in/out
+        of the selection. The text buffer is regenerated from the set so the
+        two modes never disagree.
+
+    Returns (confirmed, selector) where selector is the canonical text form
+    (e.g. "3-5") or None for "all chapters".
+    """
+    from .tui.render import (
+        DIM_COLOR, RESET_COLOR, SELECTED_COLOR, STAT_TOTAL_COLOR, AI_COLOR,
+    )
+
+    # Gather chapter metadata once: ordered list of chapter strings, per-chapter
+    # question/wrong counts, max for bar scaling, and optional titles.
+    chapters = []
+    titles = {}
+    per_chapter = {}
+    wrong_per_chapter = {}
+    max_total = 0
+    if deck is not None:
+        data = store.load_tiku(deck) or {}
+        if isinstance(data, dict):
+            raw_titles = data.get("_chapter_titles", {})
+            if isinstance(raw_titles, dict):
+                titles = {str(k): str(v) for k, v in raw_titles.items()}
+        stats = engine.stats_snapshot(deck) if config is not None else None
+        if stats:
+            per_chapter = stats["per_chapter"]
+            wrong_per_chapter = stats["wrong_per_chapter"]
+            max_total = max(per_chapter.values(), default=0)
+        chapters = sorted(per_chapter.keys(), key=store._chapter_sort_key) if per_chapter else []
+
+    cursor = 0
+    # `selected` is the source of truth; `buffer` is its text projection.
+    # Seeding both from the incoming selector keeps a re-entered picker stable.
+    numeric_chapters = [int(c) for c in chapters if str(c).isdigit()]
+    max_n = max(numeric_chapters) if numeric_chapters else 0
+    selected = set()
+    if selector:
+        try:
+            resolved = engine.chapter_selector(selector, max_n)
+            selected = {c for c in chapters if str(c).isdigit() and int(c) in resolved}
+        except ValueError:
+            pass
+    buffer = _selector_text_from_set(selected)
+
     while True:
-        clear_screen()
-        print("@", mode_name, "— 章节选择")
-        print()
-        print("  输入章节或范围，例如 5、5-10、-10。清空表示全部。")
-        print("  Enter 开始，Esc 返回。")
-        print()
-        print("  > " + buffer)
+        _render_chapter_picker(mode_name, chapters, titles, per_chapter,
+                               wrong_per_chapter, max_total, cursor, selected, buffer)
         key = read_key()
         if key == '\x03':
             raise KeyboardInterrupt
@@ -1037,9 +1087,95 @@ def _edit_selector(selector, mode_name):
             return True, (buffer.strip() or None)
         if key in {'\x7f', '\b'}:
             buffer = buffer[:-1]
+            # Re-parse the truncated buffer back into the set.
+            selected = _selector_set_from_text(buffer, chapters, max_n)
+            continue
+        if key == ' ' and chapters:
+            # Toggle the chapter under the cursor; regenerate the buffer.
+            ch = chapters[cursor]
+            if ch in selected:
+                selected.discard(ch)
+            else:
+                selected.add(ch)
+            buffer = _selector_text_from_set(selected)
+            continue
+        if key == '\x1b[A' and chapters:
+            cursor = (cursor - 1) % len(chapters)
+            continue
+        if key == '\x1b[B' and chapters:
+            cursor = (cursor + 1) % len(chapters)
             continue
         if len(key) == 1 and (key.isdigit() or key in {'-', ','}):
             buffer += key
+            selected = _selector_set_from_text(buffer, chapters, max_n)
+            continue
+
+
+def _selector_text_from_set(selected):
+    """Canonical text form of a chapter set: sorted, ranges collapsed.
+
+    e.g. {3,4,5,9} -> "3-5,9". Empty set -> "" (means all chapters on Enter).
+    Accepts int or str chapter ids (treats them as integers for ordering).
+    """
+    nums = sorted(int(n) for n in selected if str(n).isdigit())
+    if not nums:
+        return ""
+    parts = []
+    start = prev = nums[0]
+    for n in nums[1:]:
+        if n == prev + 1:
+            prev = n
+            continue
+        parts.append(str(start) if start == prev else f"{start}-{prev}")
+        start = prev = n
+    parts.append(str(start) if start == prev else f"{start}-{prev}")
+    return ",".join(parts)
+
+
+def _selector_set_from_text(buffer, chapters, max_n):
+    """Parse a buffer like '5,3-4' into a set of chapter strings present in `chapters`."""
+    text = buffer.strip()
+    if not text:
+        return set()
+    try:
+        nums = engine.chapter_selector(text, max_n) if max_n else set()
+    except ValueError:
+        return set()
+    return {c for c in chapters if str(c).isdigit() and int(c) in nums}
+
+
+def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
+                           wrong_per_chapter, max_total, cursor, selected, buffer):
+    from .tui.render import (
+        DIM_COLOR, RESET_COLOR, SELECTED_COLOR, STAT_TOTAL_COLOR, AI_COLOR,
+    )
+    clear_screen()
+    print("@", mode_name, "— 章节选择")
+    print()
+    print("  " + DIM_COLOR + "输入章节或范围(如 5、3-5、5,3-4);清空=全部" + RESET_COLOR)
+    # Search/input line: show the live buffer; dim hint when empty.
+    if buffer:
+        print("  > " + buffer)
+    else:
+        print("  > " + DIM_COLOR + "(空=全部章节)" + RESET_COLOR)
+    print()
+    if not chapters:
+        print("  " + DIM_COLOR + "(无章节数据)" + RESET_COLOR)
+    else:
+        for i, ch in enumerate(chapters):
+            total = per_chapter.get(ch, 0)
+            wrong = wrong_per_chapter.get(ch, 0)
+            bar = _stats_bar(total, wrong, max_total, width=20)
+            mark = "[x]" if ch in selected else "[ ]"
+            title = titles.get(ch, "")
+            title_field = ("  " + title) if title else ""
+            line = f"  {mark} ch{str(ch):<3} {bar}  {total:>3}题/{wrong:>2}错{title_field}"
+            print(SELECTED_COLOR + line + RESET_COLOR if i == cursor
+                  else DIM_COLOR + line + RESET_COLOR)
+    print()
+    print("  " + DIM_COLOR +
+          "↑/↓ 移动,空格 切换选中,数字/范围 直接输入,Enter 开始,Esc 返回" +
+          RESET_COLOR)
 
 
 def _run_stats_loop(deck, config):

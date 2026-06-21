@@ -26,3 +26,19 @@ class TestChapterSelector:
     def test_negative_as_int(self):
         # int("-3") is negative, exercises the num_list <= 0 branch
         assert chapter_selector("-2", 10) == {1, 2}
+
+    def test_comma_union_of_singles(self):
+        assert chapter_selector("5,3", 10) == {3, 5}
+
+    def test_comma_union_with_range(self):
+        assert chapter_selector("5,3-4", 10) == {3, 4, 5}
+
+    def test_comma_dedupes(self):
+        # overlapping segments collapse to a set
+        assert chapter_selector("3-5,4", 10) == {3, 4, 5}
+
+    def test_comma_with_negative_segment(self):
+        assert chapter_selector("9,-2", 10) == {1, 2, 9}
+
+    def test_comma_whitespace_tolerant(self):
+        assert chapter_selector("5, 3-4 ", 10) == {3, 4, 5}
