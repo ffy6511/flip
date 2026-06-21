@@ -145,6 +145,46 @@ def deck_translate(
     raise typer.Exit(run_translate(deck, config, selector=chapter, force=force))
 
 
+@deck_app.command("remove")
+def deck_remove(
+    slug: str = typer.Argument(..., help="Deck slug to delete."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
+):
+    """Delete a deck and all its data (tiku, marked, wrong indices).
+
+    This is irreversible: the deck directory
+    `~/.local/share/flip/decks/<slug>/` is removed entirely. The source file
+    you imported from is never touched.
+    """
+    import shutil
+
+    config = load_config()
+    deck_dir = config.decks_dir / slug
+    if not deck_dir.is_dir():
+        typer.echo(f"no such deck: {slug} (looked in {deck_dir})", err=True)
+        raise typer.Exit(1)
+
+    # Show what's about to go so the user can sanity-check before confirming.
+    try:
+        from .deck import load_deck
+        deck = load_deck(deck_dir)
+        label = f"{deck.name} ({deck.slug})"
+    except Exception:
+        label = slug
+    typer.echo(f"About to permanently delete deck {label!r}:")
+    typer.echo(f"  {deck_dir}")
+
+    if not yes:
+        confirm = typer.confirm("Delete this deck? This cannot be undone.",
+                                default=False)
+        if not confirm:
+            typer.echo("aborted.")
+            raise typer.Exit(0)
+
+    shutil.rmtree(deck_dir)
+    typer.echo(f"deleted deck {slug}.")
+
+
 def _collect_filters(marked, note, ai, filter_csv):
     filters = []
     if marked:
