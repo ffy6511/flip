@@ -853,6 +853,10 @@ def _edit_selector(selector, mode_name):
 
 
 def _run_stats_loop(deck, config):
+    # Non-tty: render once and return (don't spin on a dead stdin).
+    if not sys.stdin.isatty():
+        render_stats(deck, config)
+        return None
     while True:
         render_stats(deck, config)
         key = read_key()

@@ -28,10 +28,14 @@ See `docs/schema.md` and `docs/deck-manifest.md` for the data contracts.
 ```bash
 flip                              # interactive entry menu
 flip list                         # list registered decks
-flip deck se train -c 5-10        # train SE, chapters 5–10
-flip deck se review               # review wrong-question index
-flip deck se stats                # per-chapter distribution
+flip deck train se -c 5-10        # train SE, chapters 5–10
+flip deck review se               # browse SE questions without scoring
+flip deck stats se                # per-chapter distribution
+flip deck translate se            # fill missing zh fields
+flip import se ./tiku.json        # register a compliant JSON as a new deck
 ```
+
+> Subcommand order is `flip deck <verb> <slug>` (verb before slug).
 
 ## Layout
 

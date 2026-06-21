@@ -387,8 +387,9 @@ def stats_snapshot(deck):
     wrong_questions = []
     for path in store.wrong_files(deck):
         file_data = store.read_json(path, default=[])
-        for ch, q in records_from_data(file_data):
-            wrong_questions.append((ch, q))
+        # wrong files are index records (list shape) — resolve via the tiku index.
+        resolved, _ = _records_from_index_data(file_data, deck)
+        wrong_questions.extend(resolved)
 
     wrong_keys = set()
     wrong_per_chapter = {}
