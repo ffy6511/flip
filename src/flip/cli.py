@@ -133,6 +133,61 @@ def deck_stats(slug: str = typer.Argument(...)):
     raise typer.Exit(0)
 
 
+@deck_app.command("mark")
+def deck_mark(
+    slug: str = typer.Argument(..., help="Deck slug."),
+    chapter: str = typer.Option(None, "--chapter", "-c", help="Filter to one chapter."),
+):
+    """List a deck's marked questions (read-only).
+
+    Intended for agents and quick inspection: prints one line per marked
+    question (chapter, topic, marked_at). Mutating marks happens in the TUI.
+    """
+    config, deck = _resolve_deck(slug)
+    from . import store as _store
+    marked = _store.load_marked(deck)
+    rows = []
+    for rec in marked:
+        ch, topic, extra = _store.index_summary(rec)
+        if chapter is not None and str(ch) != str(chapter):
+            continue
+        rows.append((ch, topic, extra.get("marked_at", "")))
+    if not rows:
+        typer.echo("(no marked questions)")
+        raise typer.Exit(0)
+    typer.echo(f"{len(rows)} marked:")
+    for ch, topic, when in rows:
+        typer.echo(f"  ch{ch}  [{when}]  {topic[:60]}")
+
+
+@deck_app.command("wrong")
+def deck_wrong(
+    slug: str = typer.Argument(..., help="Deck slug."),
+    chapter: str = typer.Option(None, "--chapter", "-c", help="Filter to one chapter."),
+):
+    """List a deck's wrong-index questions (read-only).
+
+    Intended for agents and quick inspection: prints one line per previously
+    wrong answer (chapter, topic, what you answered). Clearing happens in the
+    TUI (`r` key) or by deleting wrong/*.json.
+    """
+    config, deck = _resolve_deck(slug)
+    from . import store as _store
+    rows = []
+    for path in _store.wrong_files(deck):
+        for rec in _store.read_json(path, default=[]):
+            ch, topic, extra = _store.index_summary(rec)
+            if chapter is not None and str(ch) != str(chapter):
+                continue
+            rows.append((ch, topic, extra.get("wrong_input", ""), extra.get("wrong_answer", "")))
+    if not rows:
+        typer.echo("(no wrong-index questions)")
+        raise typer.Exit(0)
+    typer.echo(f"{len(rows)} wrong:")
+    for ch, topic, inp, ans in rows:
+        typer.echo(f"  ch{ch}  你答={inp}  {topic[:55]}")
+
+
 @deck_app.command("translate")
 def deck_translate(
     slug: str = typer.Argument(...),
@@ -355,6 +410,39 @@ def import_cmd(
         (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
         typer.echo(f"imported deck {slug} -> {dest_tiku}")
         typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
+
+
+@app.command("export")
+def export_cmd(
+    slug: str = typer.Argument(..., help="Deck slug to export."),
+    out: Path = typer.Option(
+        None, "--out", "-o",
+        help="Destination directory (default: ./<slug>-deck/ in the cwd).",
+    ),
+):
+    """Bundle a deck into a directory (the inverse of `flip import <dir>`).
+
+    Copies tiku.json, manifest.toml, marked.json (if any), and the whole
+    wrong/ directory. The result can be re-imported on another machine with
+    `flip import <slug> <dir>`.
+    """
+    config, deck = _resolve_deck(slug)
+    from . import store
+
+    dest = Path(out) if out else Path.cwd() / f"{slug}-deck"
+    try:
+        result = store.export_deck(deck, dest)
+    except FileExistsError as exc:
+        typer.echo(f"export failed: {exc} (use a different --out)", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"exported deck {slug} -> {result}")
+    parts = []
+    if deck.marked_path.is_file():
+        parts.append("marked.json")
+    if deck.wrong_dir.is_dir():
+        parts.append(f"wrong/ ({len(store.wrong_files(deck))} file(s))")
+    if parts:
+        typer.echo("included: " + ", ".join(parts))
 
 
 def _resolve_import_format(source: Path, fmt):
