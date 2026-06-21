@@ -50,6 +50,48 @@ def save_marked(deck: Deck, marked):
     write_json(deck.marked_path, marked)
 
 
+# ---- directory import (migrate a whole deck folder) ----
+
+def import_dir(src_dir, deck: Deck):
+    """Copy a legacy/external deck folder into a freshly created deck dir.
+
+    `src_dir` must contain `tiku.json` (required). Optional siblings:
+      - `marked.json`  -> copied verbatim to the deck's marked path
+      - `wrong/`       -> copied verbatim into the deck's wrong dir
+
+    The old `marked_questions.json` name is NOT recognized — callers must
+    rename it to `marked.json` first. wrong-file records missing `wrong_at`
+    are kept as-is (the engine never reads that field, only writes it).
+
+    Returns a dict of what was copied, for the CLI to report.
+    """
+    src_dir = Path(src_dir)
+    src_tiku = src_dir / "tiku.json"
+    if not src_tiku.is_file():
+        raise FileNotFoundError(f"tiku.json not found in {src_dir}")
+
+    deck.path.mkdir(parents=True, exist_ok=True)
+
+    # tiku.json is validated upstream by the caller; here we only relocate it.
+    write_json(deck.tiku_path, read_json(src_tiku))
+
+    copied = {"tiku": True, "marked": False, "wrong_files": 0}
+
+    src_marked = src_dir / "marked.json"
+    if src_marked.is_file():
+        write_json(deck.marked_path, read_json(src_marked))
+        copied["marked"] = True
+
+    src_wrong = src_dir / "wrong"
+    if src_wrong.is_dir():
+        deck.wrong_dir.mkdir(parents=True, exist_ok=True)
+        for path in json_files_in_directory(src_wrong):
+            write_json(deck.wrong_dir / path.name, read_json(path))
+            copied["wrong_files"] += 1
+
+    return copied
+
+
 # ---- wrong/ directory ----
 
 def json_files_in_directory(directory):
