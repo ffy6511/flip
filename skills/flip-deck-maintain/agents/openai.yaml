@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flip Deck Maintain"
+  short_description: "Safely update existing flip decks"
+  default_prompt: "Use $flip-deck-maintain to update an existing flip deck while preserving ids and review history."

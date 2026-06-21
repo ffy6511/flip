@@ -58,6 +58,7 @@ Produce a compliant tiku.json → self-check with `flip import --dry-run` → la
 
 | Field        | Type     | Required | Notes |
 |--------------|----------|----------|-------|
+| `id`         | string   | no       | Stable question identity. You may write it yourself; otherwise `flip import` assigns ids. Preserve it on later edits. |
 | `topic`      | string   | yes      | The question stem. May carry its own ordinal prefix (e.g. `"3. What is..."`); flip does not parse it. |
 | `options`    | string[] | yes      | The choices. **Every entry must be `"X. text"`** (letter + period + space, a 3-char prefix), e.g. `"A. correct choice"`. Letters start at A and increment consecutively. |
 | `answer`     | string   | yes      | The correct option letter(s). Single-select `"A"`; multi-select is the **sorted concatenation**, e.g. `"AC"`, `"BDE"`. Every letter must be the first char of some option. |
@@ -72,12 +73,14 @@ Produce a compliant tiku.json → self-check with `flip import --dry-run` → la
 {
   "1": [
     {
+      "id": "demo-1-001",
       "topic": "What is 2 + 2?",
       "options": ["A. 3", "B. 4", "C. 5", "D. 6"],
       "answer": "B",
       "user_note": ""
     },
     {
+      "id": "demo-1-002",
       "topic": "Which are prime? (multi-select)",
       "options": ["A. 2", "B. 4", "C. 7", "D. 9"],
       "answer": "AC",
@@ -86,6 +89,7 @@ Produce a compliant tiku.json → self-check with `flip import --dry-run` → la
   ],
   "2": [
     {
+      "id": "demo-2-001",
       "topic": "Capital of France?",
       "options": ["A. Berlin", "B. Madrid", "C. Paris", "D. Rome"],
       "answer": "C",
@@ -191,7 +195,7 @@ flip deck stats <slug>     # check the question/chapter counts look right
 4. **Never leave `zh` half-populated**: either write it complete for every question (topic + all options) or don't write it at all. A half-populated `zh` misleads the translation toggle during training.
 5. **The top level must be an object, not an array**. `[{...}, {...}]` is invalid; it must be `{"1": [...]}`.
 6. **Chapter keys are strings**: `"1"` not `1` (both are valid JSON, but flip normalizes to strings internally).
-7. **When the deck already exists**: add `--force` to overwrite, otherwise it errors. Before overwriting, `flip deck stats <slug>` to confirm you're not clobbering work by mistake.
+7. **When the deck already exists**: use `flip deck merge <slug> <file> --dry-run` for incremental updates. Use `flip import --force` only when the user explicitly wants to replace the whole deck.
 
 ## After producing
 
@@ -202,6 +206,7 @@ On a successful landing, tell the user:
 - Review wrong answers (drill the wrong index): `flip deck review <slug>`
 - Browse answers without scoring: `flip deck train <slug> --ans`
 - See stats: `flip deck stats <slug>`
+- Incrementally update later: `flip deck merge <slug> <new-tiku.json> --dry-run`
 - If translations are incomplete and global translation is on: `flip deck translate <slug>`
 
 ## Boundaries: when not to use this skill

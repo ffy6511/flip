@@ -51,6 +51,7 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 | Skill | 作用 |
 |-------|------|
 | [`flip-deck-init`](skills/flip-deck-init/) | 把任意题库素材(PDF / HTML / Word / 笔记)——或已有的题库 JSON——转成符合 schema 的 deck,并用 `flip import` 注册。既能从原始材料新建 deck,也能导入已结构化的 JSON。 |
+| [`flip-deck-maintain`](skills/flip-deck-maintain/) | 维护已有 deck,在 `flip deck merge` 和直接编辑 `tiku.json` 之间选择合适路径,同时保留 id、标记、错题历史、笔记、翻译和 Agent Said 字段。 |
 
 
 

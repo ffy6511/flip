@@ -54,6 +54,7 @@ above, then just ask your agent to act. The current set:
 | Skill | What it does |
 |-------|--------------|
 | [`flip-deck-init`](skills/flip-deck-init/) | Turn any quiz material (PDF / HTML / Word / notes) — or an existing question-bank JSON — into a schema-compliant deck and register it via `flip import`. Covers both bootstrapping a new deck from raw material and importing an already-structured JSON. |
+| [`flip-deck-maintain`](skills/flip-deck-maintain/) | Safely update an existing deck by choosing between `flip deck merge` and direct `tiku.json` edits while preserving ids, marks, wrong-history, notes, translations, and Agent Said fields. |
 
 ## Concepts
 
