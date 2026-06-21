@@ -175,8 +175,15 @@ def deck_remove(
     typer.echo(f"  {deck_dir}")
 
     if not yes:
-        confirm = typer.confirm("Delete this deck? This cannot be undone.",
-                                default=False)
+        # Red confirmation prompt — but only emit ANSI when stderr is a tty,
+        # otherwise the raw escape codes would show up in logs/redirects.
+        import sys
+        RED = "\033[31m" if sys.stderr.isatty() else ""
+        RESET = "\033[0m" if sys.stderr.isatty() else ""
+        confirm = typer.confirm(
+            f"{RED}Delete this deck? This cannot be undone.{RESET}",
+            default=False,
+        )
         if not confirm:
             typer.echo("aborted.")
             raise typer.Exit(0)
