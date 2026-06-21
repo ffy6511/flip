@@ -75,8 +75,13 @@ def _resolve_deck(slug: str):
     try:
         return config, load_deck(config.decks_dir / slug)
     except DeckError as exc:
-        typer.echo(f"deck error: {exc}", err=True)
+        _status_echo(f"deck error: {exc}", ok=False, err=True)
         raise typer.Exit(1)
+
+
+def _status_echo(message: str, *, ok: bool = True, err: bool = False):
+    color = typer.colors.GREEN if ok else typer.colors.RED
+    typer.secho(message, fg=color, err=err)
 
 
 @deck_app.command("train")
@@ -208,13 +213,17 @@ def deck_merge(
     from .merge import POLICIES, merge_tiku
 
     if policy not in POLICIES:
-        typer.echo(f"unknown policy: {policy} (choose: {', '.join(sorted(POLICIES))})", err=True)
+        _status_echo(
+            f"unknown policy: {policy} (choose: {', '.join(sorted(POLICIES))})",
+            ok=False,
+            err=True,
+        )
         raise typer.Exit(1)
 
     try:
         incoming = _load_tiku_source(source, config, fmt=fmt, delimiter=delimiter, has_header=has_header)
     except (ValueError, FileNotFoundError) as exc:
-        typer.echo(f"merge source error: {exc}", err=True)
+        _status_echo(f"merge source error: {exc}", ok=False, err=True)
         raise typer.Exit(1)
 
     base = _store.load_tiku(deck) or {}
@@ -222,16 +231,17 @@ def deck_merge(
     merged_alphabet = _detect_alphabet_from_tiku(result.data)
     alphabet_changed = merged_alphabet != deck.answer_alphabet
 
-    typer.echo(
+    _status_echo(
         "merge preview: "
         f"added={result.added}, updated={result.updated}, skipped={result.skipped}, "
         f"assigned_ids={result.assigned_ids}, titles={result.title_updates}, "
-        f"conflicts={len(result.conflicts)}"
+        f"conflicts={len(result.conflicts)}",
+        ok=not result.conflicts,
     )
     if alphabet_changed:
         typer.echo(f"answer_alphabet: {deck.answer_alphabet} -> {merged_alphabet}")
     if result.conflicts:
-        typer.echo("conflicts:", err=True)
+        _status_echo("conflicts:", ok=False, err=True)
         for conflict in result.conflicts[:20]:
             typer.echo(f"  {conflict}", err=True)
         raise typer.Exit(1)
@@ -250,7 +260,7 @@ def deck_merge(
     _engine._sync_marked_from_tiku(deck)
     if alphabet_changed:
         _update_manifest_answer_alphabet(deck, merged_alphabet)
-    typer.echo(f"merged deck {slug}")
+    _status_echo(f"merged deck {slug}")
 
 
 @deck_app.command("repair")
@@ -265,32 +275,38 @@ def deck_repair(
     plan = build_repair_plan(deck)
     typer.echo(f"repair preview: {slug}")
     if not plan.ok:
-        typer.echo(f"tiku validation failed ({len(plan.tiku_errors)} errors):", err=True)
+        _status_echo(
+            f"tiku validation failed ({len(plan.tiku_errors)} errors):",
+            ok=False,
+            err=True,
+        )
         for error in plan.tiku_errors[:20]:
             typer.echo(f"  {error}", err=True)
         raise typer.Exit(1)
 
-    typer.echo(
+    _status_echo(
         f"tiku: ok, questions={plan.question_count}, chapters={plan.chapter_count}"
     )
-    typer.echo(
+    _status_echo(
         f"marked: rebuild {len(plan.marked_records)} records from tiku marked flags"
     )
-    typer.echo(
+    wrong_line = (
         "wrong: "
         f"files={plan.wrong.files}, records={plan.wrong.records}, "
         f"resolvable={plan.wrong.resolvable}, stale={plan.wrong.stale}"
     )
+    _status_echo(wrong_line, ok=plan.wrong.stale == 0)
 
     if dry_run:
         typer.echo("dry run: nothing written")
         raise typer.Exit(0)
 
     apply_repair_plan(deck, plan)
-    typer.echo(f"repaired deck {slug}")
-    typer.echo(f"marked.json rebuilt: {len(plan.marked_records)} records")
-    typer.echo(
-        f"wrong checked: {plan.wrong.resolvable} resolvable, {plan.wrong.stale} stale"
+    _status_echo(f"repaired deck {slug}")
+    _status_echo(f"marked.json rebuilt: {len(plan.marked_records)} records")
+    _status_echo(
+        f"wrong checked: {plan.wrong.resolvable} resolvable, {plan.wrong.stale} stale",
+        ok=plan.wrong.stale == 0,
     )
 
 
@@ -406,16 +422,16 @@ def import_cmd(
         src_dir = source
         tiku_file = src_dir / "tiku.json"
         if not tiku_file.is_file():
-            typer.echo(f"directory has no tiku.json: {src_dir}", err=True)
+            _status_echo(f"directory has no tiku.json: {src_dir}", ok=False, err=True)
             raise typer.Exit(1)
         try:
             tiku_data = json.loads(tiku_file.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
-            typer.echo(f"invalid tiku.json: {exc}", err=True)
+            _status_echo(f"invalid tiku.json: {exc}", ok=False, err=True)
             raise typer.Exit(1)
         errs = validate_tiku(tiku_data)
         if errs:
-            typer.echo(f"tiku validation failed ({len(errs)} errors):", err=True)
+            _status_echo(f"tiku validation failed ({len(errs)} errors):", ok=False, err=True)
             for e in errs[:20]:
                 typer.echo(f"  {e}", err=True)
             raise typer.Exit(1)
@@ -423,8 +439,8 @@ def import_cmd(
         assigned_ids = _engine.ensure_question_ids(tiku_data, prefix=slug)
         qcount = sum(1 for _ in _engine.iter_question_records(tiku_data))
         chcount = len({ch for ch, _ in _engine.iter_question_records(tiku_data)})
-        typer.echo(f"validated {qcount} questions across {chcount} chapter(s); "
-                   f"alphabet={detected_alphabet}; assigned_ids={assigned_ids}")
+        _status_echo(f"validated {qcount} questions across {chcount} chapter(s); "
+                     f"alphabet={detected_alphabet}; assigned_ids={assigned_ids}")
         # If the source dir has a manifest, prefer its name/source_lang as defaults.
         src_manifest = src_dir / "manifest.toml"
         if src_manifest.is_file():
@@ -441,7 +457,7 @@ def import_cmd(
                 translation_enabled=config.translation_enabled,
             )
             if result.errors:
-                typer.echo(f"CSV import failed ({len(result.errors)} errors):", err=True)
+                _status_echo(f"CSV import failed ({len(result.errors)} errors):", ok=False, err=True)
                 for line_no, msg in result.errors[:20]:
                     where = f"line {line_no}: " if line_no else ""
                     typer.echo(f"  {where}{msg}", err=True)
@@ -451,18 +467,18 @@ def import_cmd(
             assigned_ids = _engine.ensure_question_ids(tiku_data, prefix=slug)
             qcount = sum(1 for _ in _engine.iter_question_records(tiku_data))
             chcount = len({ch for ch, _ in _engine.iter_question_records(tiku_data)})
-            typer.echo(f"parsed {qcount} questions across "
-                       f"{chcount} chapter(s); alphabet={detected_alphabet}; "
-                       f"assigned_ids={assigned_ids}")
+            _status_echo(f"parsed {qcount} questions across "
+                         f"{chcount} chapter(s); alphabet={detected_alphabet}; "
+                         f"assigned_ids={assigned_ids}")
         else:
             try:
                 tiku_data = json.loads(source.read_text(encoding="utf-8"))
             except json.JSONDecodeError as exc:
-                typer.echo(f"invalid JSON: {exc}", err=True)
+                _status_echo(f"invalid JSON: {exc}", ok=False, err=True)
                 raise typer.Exit(1)
             errs = validate_tiku(tiku_data)
             if errs:
-                typer.echo(f"tiku validation failed ({len(errs)} errors):", err=True)
+                _status_echo(f"tiku validation failed ({len(errs)} errors):", ok=False, err=True)
                 for e in errs[:20]:
                     typer.echo(f"  {e}", err=True)
                 raise typer.Exit(1)
@@ -470,12 +486,12 @@ def import_cmd(
             assigned_ids = _engine.ensure_question_ids(tiku_data, prefix=slug)
             qcount = sum(1 for _ in _engine.iter_question_records(tiku_data))
             chcount = len({ch for ch, _ in _engine.iter_question_records(tiku_data)})
-            typer.echo(f"validated {qcount} questions across {chcount} chapter(s); "
-                       f"alphabet={detected_alphabet}; assigned_ids={assigned_ids}")
+            _status_echo(f"validated {qcount} questions across {chcount} chapter(s); "
+                         f"alphabet={detected_alphabet}; assigned_ids={assigned_ids}")
 
     dest_dir = config.decks_dir / slug
     if dest_dir.exists() and not force and not dry_run:
-        typer.echo(f"deck already exists: {dest_dir} (use --force)", err=True)
+        _status_echo(f"deck already exists: {dest_dir} (use --force)", ok=False, err=True)
         raise typer.Exit(1)
 
     display_name = name or slug
@@ -506,7 +522,7 @@ def import_cmd(
         if not report["marked"] and _has_inline_marks(tiku_data):
             _engine._sync_marked_from_tiku(deck)
         (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
-        typer.echo(f"imported deck {slug} -> {dest_tiku} (from directory {source})")
+        _status_echo(f"imported deck {slug} -> {dest_tiku} (from directory {source})")
         extra = []
         if report["marked"]:
             extra.append("marked.json")
@@ -520,7 +536,7 @@ def import_cmd(
         if _has_inline_marks(tiku_data):
             _engine._sync_marked_from_tiku(deck)
         (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
-        typer.echo(f"imported deck {slug} -> {dest_tiku}")
+        _status_echo(f"imported deck {slug} -> {dest_tiku}")
         typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
 
 
@@ -545,9 +561,9 @@ def export_cmd(
     try:
         result = store.export_deck(deck, dest)
     except FileExistsError as exc:
-        typer.echo(f"export failed: {exc} (use a different --out)", err=True)
+        _status_echo(f"export failed: {exc} (use a different --out)", ok=False, err=True)
         raise typer.Exit(1)
-    typer.echo(f"exported deck {slug} -> {result}")
+    _status_echo(f"exported deck {slug} -> {result}")
     parts = []
     if deck.marked_path.is_file():
         parts.append("marked.json")
@@ -682,7 +698,7 @@ def config_cmd():
     errs = config.validate()
     if errs:
         typer.echo("")
-        typer.echo("config errors:", err=True)
+        _status_echo("config errors:", ok=False, err=True)
         for e in errs:
             typer.echo(f"  {e}", err=True)
         raise typer.Exit(1)
@@ -692,11 +708,11 @@ def config_cmd():
     on_path = shutil.which(backend) if backend else None
     typer.echo("")
     if backend is None:
-        typer.echo("backend:    (could not parse command template)", err=True)
+        _status_echo("backend:    (could not parse command template)", ok=False, err=True)
     elif on_path:
-        typer.echo(f"backend:    {backend} ({on_path})")
+        _status_echo(f"backend:    {backend} ({on_path})")
     else:
-        typer.echo(f"backend:    {backend}  ⚠ not on PATH", err=True)
+        _status_echo(f"backend:    {backend}  ⚠ not on PATH", ok=False, err=True)
 
 
 if __name__ == "__main__":
