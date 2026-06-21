@@ -16,6 +16,26 @@
 - **Key:** chapter identifier, a string. Conventionally a stringified integer (`"1"`, `"2"`, …) but non-numeric chapter labels are also allowed.
 - **Value:** non-empty array of question objects.
 
+### Optional `_chapter_titles` key
+
+A special top-level key `_chapter_titles` (note the leading underscore, so it
+never collides with a real chapter named `_chapter_titles`) maps chapter ids
+to human-readable names, purely for display:
+
+```jsonc
+{
+  "_chapter_titles": { "1": "软件过程模型", "2": "敏捷开发" },
+  "1": [ ... ],
+  "2": [ ... ]
+}
+```
+
+- **Type:** object, mapping chapter-id string → display name string.
+- **Optional.** Absent or empty ⇒ the picker shows bare chapter numbers.
+- **Display-only.** The engine never selects by title; selection is always by
+  the numeric chapter id (so titles can be edited freely without breaking
+  training history / wrong indices).
+
 ## Question object
 
 ### Required fields (present on every question)
