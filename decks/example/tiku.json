@@ -1,0 +1,42 @@
+{
+  "1": [
+    {
+      "topic": "1. What is 2 + 2?",
+      "options": ["A. 3", "B. 4", "C. 5", "D. 6"],
+      "answer": "B",
+      "zh": {"topic": "1. 2 + 2 等于几？", "options": ["A. 3", "B. 4", "C. 5", "D. 6"]},
+      "user_note": ""
+    },
+    {
+      "topic": "2. Which are prime? (multiple)",
+      "options": ["A. 2", "B. 4", "C. 7", "D. 9"],
+      "answer": "AC",
+      "zh": {"topic": "2. 哪些是素数？(多选)", "options": ["A. 2", "B. 4", "C. 7", "D. 9"]},
+      "user_note": "",
+      "marked": true,
+      "marked_at": "2026-06-20T10:00:00"
+    }
+  ],
+  "2": [
+    {
+      "topic": "1. Capital of France?",
+      "options": ["A. Berlin", "B. Madrid", "C. Paris", "D. Rome"],
+      "answer": "C",
+      "zh": {"topic": "1. 法国首都？", "options": ["A. 柏林", "B. 马德里", "C. 巴黎", "D. 罗马"]},
+      "user_note": "易错：不要和意大利搞混。"
+    },
+    {
+      "topic": "2. RGB primary colors? (multiple)",
+      "options": ["A. Red", "B. Green", "C. Blue", "D. Yellow"],
+      "answer": "ABC",
+      "zh": {"topic": "2. RGB 三原色？(多选)", "options": ["A. 红", "B. 绿", "C. 蓝", "D. 黄"]},
+      "user_note": ""
+    },
+    {
+      "topic": "3. A pentagon option E sanity check.",
+      "options": ["A. one", "B. two", "C. three", "D. four", "E. five"],
+      "answer": "E",
+      "user_note": ""
+    }
+  ]
+}

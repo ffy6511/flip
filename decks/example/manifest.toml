@@ -1,0 +1,11 @@
+[deck]
+name = "示例题库"
+slug = "example"
+source_lang = "en"
+answer_alphabet = "ABCDE"
+
+[explain]
+role = "通用助教"
+max_chars = 200
+default_model = "gpt-5.3-codex-spark"
+model_env = "FLIP_EXPLAIN_MODEL"
