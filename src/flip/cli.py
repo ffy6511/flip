@@ -66,7 +66,7 @@ def list_cmd():
 
 # ---- `flip deck <slug> ...` (nested group) ----
 
-deck_app = typer.Typer(help="Per-deck commands: train, review, stats, translate.")
+deck_app = typer.Typer(help="Per-deck commands: train, review, stats, merge, translate.")
 app.add_typer(deck_app, name="deck")
 
 
@@ -186,6 +186,71 @@ def deck_wrong(
     typer.echo(f"{len(rows)} wrong:")
     for ch, topic, inp, ans in rows:
         typer.echo(f"  ch{ch}  你答={inp}  {topic[:55]}")
+
+
+@deck_app.command("merge")
+def deck_merge(
+    slug: str = typer.Argument(..., help="Deck slug."),
+    source: Path = typer.Argument(..., exists=True, help="tiku.json / CSV / deck directory to merge."),
+    policy: str = typer.Option("append", "--policy", help="append|upsert|overwrite."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without writing."),
+    backup: bool = typer.Option(True, "--backup/--no-backup", help="Export a backup before writing."),
+    fmt: str = typer.Option(None, "--format", help="Force json|csv; ignored for directory input."),
+    delimiter: str = typer.Option("auto", "--delimiter", help="csv delim: auto/comma/tab/semicolon/pipe."),
+    has_header: bool = typer.Option(True, "--header/--no-header", help="CSV has a header row."),
+):
+    """Incrementally merge questions into an existing deck."""
+    import datetime
+
+    config, deck = _resolve_deck(slug)
+    from . import engine as _engine
+    from . import store as _store
+    from .merge import POLICIES, merge_tiku
+
+    if policy not in POLICIES:
+        typer.echo(f"unknown policy: {policy} (choose: {', '.join(sorted(POLICIES))})", err=True)
+        raise typer.Exit(1)
+
+    try:
+        incoming = _load_tiku_source(source, config, fmt=fmt, delimiter=delimiter, has_header=has_header)
+    except (ValueError, FileNotFoundError) as exc:
+        typer.echo(f"merge source error: {exc}", err=True)
+        raise typer.Exit(1)
+
+    base = _store.load_tiku(deck) or {}
+    result = merge_tiku(base, incoming, policy=policy, prefix=slug)
+    merged_alphabet = _detect_alphabet_from_tiku(result.data)
+    alphabet_changed = merged_alphabet != deck.answer_alphabet
+
+    typer.echo(
+        "merge preview: "
+        f"added={result.added}, updated={result.updated}, skipped={result.skipped}, "
+        f"assigned_ids={result.assigned_ids}, titles={result.title_updates}, "
+        f"conflicts={len(result.conflicts)}"
+    )
+    if alphabet_changed:
+        typer.echo(f"answer_alphabet: {deck.answer_alphabet} -> {merged_alphabet}")
+    if result.conflicts:
+        typer.echo("conflicts:", err=True)
+        for conflict in result.conflicts[:20]:
+            typer.echo(f"  {conflict}", err=True)
+        raise typer.Exit(1)
+
+    if dry_run:
+        typer.echo("dry run: nothing written")
+        raise typer.Exit(0)
+
+    if backup:
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup_dir = config.home / "backups" / f"{slug}-deck-{stamp}"
+        _store.export_deck(deck, backup_dir)
+        typer.echo(f"backup: {backup_dir}")
+
+    _store.save_tiku(deck, result.data)
+    _engine._sync_marked_from_tiku(deck)
+    if alphabet_changed:
+        _update_manifest_answer_alphabet(deck, merged_alphabet)
+    typer.echo(f"merged deck {slug}")
 
 
 @deck_app.command("translate")
@@ -462,6 +527,43 @@ def _resolve_import_format(source: Path, fmt):
     )
 
 
+def _load_tiku_source(source: Path, config, *, fmt=None, delimiter="auto", has_header=True):
+    import json
+    from .importers import import_csv, validate_tiku
+
+    source = Path(source)
+    if source.is_dir():
+        source = source / "tiku.json"
+        if not source.is_file():
+            raise FileNotFoundError(f"directory has no tiku.json: {source.parent}")
+        fmt_resolved = "json"
+    else:
+        fmt_resolved = _resolve_import_format(source, fmt)
+
+    if fmt_resolved == "csv":
+        result = import_csv(
+            source, delimiter=delimiter, has_header=has_header,
+            translation_enabled=config.translation_enabled,
+        )
+        if result.errors:
+            message = "; ".join(
+                f"line {line}: {msg}" if line else msg
+                for line, msg in result.errors[:5]
+            )
+            raise ValueError(f"CSV import failed: {message}")
+        data = result.chapters
+    else:
+        try:
+            data = json.loads(source.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid JSON: {exc}")
+
+    errs = validate_tiku(data)
+    if errs:
+        raise ValueError("tiku validation failed: " + "; ".join(errs[:5]))
+    return data
+
+
 def _detect_alphabet_from_tiku(data):
     """Find the widest option set across all questions; default ABCD."""
     from . import engine as _engine
@@ -473,6 +575,23 @@ def _detect_alphabet_from_tiku(data):
     # Keep only A-J, sort.
     valid = sorted(l for l in letters if l in "ABCDEFGHIJ")
     return "".join(valid) if valid else "ABCD"
+
+
+def _update_manifest_answer_alphabet(deck, alphabet):
+    path = deck.manifest_path
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for i, line in enumerate(lines):
+        if line.strip().startswith("answer_alphabet") and "=" in line:
+            lines[i] = f'answer_alphabet = "{alphabet}"'
+            break
+    else:
+        insert_at = len(lines)
+        for i, line in enumerate(lines):
+            if line.strip().startswith("[explain]"):
+                insert_at = i
+                break
+        lines.insert(insert_at, f'answer_alphabet = "{alphabet}"')
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _build_manifest_text(*, slug, display_name, source_lang, answer_alphabet, role_text):

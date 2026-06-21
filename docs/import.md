@@ -71,6 +71,30 @@ The destination directory must not already exist. The exported directory uses
 the same shape accepted by directory import, so it can be backed up or moved to
 another machine and registered again with `flip import`.
 
+## Incremental updates
+
+`flip deck merge <slug> <source>` merges a JSON/CSV/deck-directory source into
+an existing deck. It keeps learner state in the target deck: marks, mark
+timestamps, notes, translations, and Agent Said fields are preserved when the
+incoming question does not provide replacement content.
+
+```bash
+flip deck merge se ./new-tiku.json --dry-run
+flip deck merge se ./new-tiku.json --policy upsert
+```
+
+Policies:
+
+| Policy | Behavior |
+|---|---|
+| `append` | Add only new questions. Existing id/topic changes are reported as conflicts. |
+| `upsert` | Update existing questions when `id` matches; add new questions. Same-topic updates without id remain conflicts. |
+| `overwrite` | Update id matches and same-topic matches; add new questions. |
+
+Merge writes a backup by default before changing the deck:
+`~/.local/share/flip/backups/<slug>-deck-YYYYMMDD-HHMMSS/`. Use
+`--no-backup` only for disposable test decks.
+
 ## CSV source (MCQ layout)
 
 `flip` defines **one** explicit multiple-choice CSV layout. Anki / Quizlet
