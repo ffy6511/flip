@@ -8,9 +8,27 @@ Born from a single-file SE quiz script (`se_regressor.py`), generalized into a t
 
 ## Install
 
+**Homebrew (recommended, once published):**
+
 ```bash
-brew install pipx
-pipx install .
+brew tap ffy6511/tap
+brew install flip
+```
+
+**From source (pipx):**
+
+```bash
+brew install pipx          # if you don't have pipx yet
+pipx install git+https://github.com/ffy6511/flip.git
+```
+
+**For development:**
+
+```bash
+git clone https://github.com/ffy6511/flip.git
+cd flip
+python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+.venv/bin/flip --help
 ```
 
 Then `flip` is on your PATH.
