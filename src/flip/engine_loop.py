@@ -878,6 +878,13 @@ def _render_deck_picker(rows, index, query, default_deck):
     from .tui.render import DIM_COLOR, RESET_COLOR, SELECTED_COLOR
     clear_screen()
     print("@ flip — 选择 deck")
+    # Search bar at the very top: shows the live query, or a dim placeholder
+    # hint when empty (so the affordance for typing is always visible).
+    if query:
+        search_line = "  " + DIM_COLOR + "search:" + RESET_COLOR + " " + query
+    else:
+        search_line = "  " + DIM_COLOR + "search: 输入字符过滤(按 slug 或 deck 名)" + RESET_COLOR
+    print(search_line)
     print()
     if rows:
         widths = store.table_widths(rows)
@@ -893,11 +900,7 @@ def _render_deck_picker(rows, index, query, default_deck):
     else:
         print("  " + DIM_COLOR + "(无匹配 deck)" + RESET_COLOR)
     print()
-    if query:
-        print("  " + DIM_COLOR + "搜索: " + RESET_COLOR + query + "  " +
-              DIM_COLOR + "↑/↓ 选择,Enter 进入,Esc 清空搜索,q 退出" + RESET_COLOR)
-    else:
-        print("  " + DIM_COLOR + "输入字符搜索,↑/↓ 选择,Enter 进入,Esc/q 退出  (* = 上次使用)" + RESET_COLOR)
+    print("  " + DIM_COLOR + "↑/↓ 选择,Enter 进入,Esc 清空搜索/q 退出  (* = 上次使用)" + RESET_COLOR)
 
 
 def _table_widths(rows):
@@ -906,30 +909,47 @@ def _table_widths(rows):
 
 
 def entry_menu(config, deck):
-    """Phase 2 of the interactive entry: pick mode + filters for a chosen deck.
+    """Phase 2 of the interactive entry: pick a mode + filters for a deck.
 
-    The deck is already chosen (by deck_picker); this screen configures the
-    1-4 question filters, the Review toggle, and the chapter selector, then
-    returns (deck, review_mode, selector, filters) or None on cancel.
+    Three modes selectable via ↑/↓ + Enter:
+      Train   — drill the full tiku bank (or browse it when Ans mode is on)
+      Review  — drill the wrong index (or browse it when Ans mode is on)
+      List    — global learning stats for this deck
+    Keys 1-4 toggle the question filters (mark/note/ai) and Ans mode.
+
+    Returns (mode, selector, ans_mode, filters) where mode is "train" or
+    "review", or None on cancel (Esc/q returns to the deck picker).
     """
     if not sys.stdin.isatty():
         print("flip: 交互菜单需要 tty。使用 `flip deck <slug> train` 等子命令。")
         return None
 
+    modes = [
+        ("Train", "章节题库训练"),
+        ("Review", "错题索引复习"),
+        ("List", "全局学习统计"),
+    ]
+    mode_index = 0
     selector = None
-    review_mode = False
+    ans_mode = False
     filters = []
     old_settings = save_tty()
     try:
         enter_alt_screen()
         enter_cbreak()
         while True:
-            _render_entry_menu(deck, selector, review_mode, filters)
+            _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters)
             key = read_key()
             if key in {'q', 'Q', '\x1b'}:
                 return None
             if key == '\x03':
                 raise KeyboardInterrupt
+            if key == '\x1b[A':
+                mode_index = (mode_index - 1) % len(modes)
+                continue
+            if key == '\x1b[B':
+                mode_index = (mode_index + 1) % len(modes)
+                continue
             if key == '1':
                 filters = _toggle_filter(filters, "mark")
                 continue
@@ -940,37 +960,48 @@ def entry_menu(config, deck):
                 filters = _toggle_filter(filters, "ai")
                 continue
             if key == '4':
-                review_mode = not review_mode
+                ans_mode = not ans_mode
                 continue
             if key in {'\r', '\n'}:
+                name = modes[mode_index][0]
+                if name == "List":
+                    _run_stats_loop(deck, config)
+                    continue
                 confirmed, next_selector = _edit_selector(
-                    selector, "训练" if not review_mode else "复习"
+                    selector, name + " (" + ("浏览" if ans_mode else "计分") + ")"
                 )
                 if not confirmed:
                     continue
                 selector = next_selector
-                return deck, review_mode, selector, filters
+                return ("train" if name == "Train" else "review"), selector, ans_mode, filters
     finally:
         restore_tty(old_settings)
         exit_alt_screen()
 
 
-def _render_entry_menu(deck, selector, review_mode, filters):
+def _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters):
     from .tui.render import (
         DIM_COLOR, RESET_COLOR, SELECTED_COLOR,
     )
+    from . import store
     filter_set = set(filters)
+    # Pad the mode name to the widest one so the descriptions line up.
+    name_w = max(store.display_width(n) for n, _ in modes)
     clear_screen()
     print("@ flip —", deck.name, f"({deck.slug})")
     print()
-    print("  " + SELECTED_COLOR + "> 训练" + RESET_COLOR +
-          ("  / 复习(Review 已开)" if review_mode else ""))
+    for i, (name, desc) in enumerate(modes):
+        prefix = ">" if i == mode_index else " "
+        name_field = store._pad(name, name_w)
+        line = prefix + " " + name_field + "   " + desc
+        print(SELECTED_COLOR + line + RESET_COLOR if i == mode_index
+              else DIM_COLOR + line + RESET_COLOR)
     print()
-    print("  " + DIM_COLOR + "Enter 开始,1-4 切换配置,Esc/q 返回选 deck" + RESET_COLOR)
-    print("  1", _opt_state("mark" in filter_set), "仅已标记")
-    print("  2", _opt_state("note" in filter_set), "仅有笔记")
-    print("  3", _opt_state("ai" in filter_set), "仅有 Agent Said")
-    print("  4", _opt_state(review_mode), "Review 模式(从错题索引练习)")
+    print("  " + DIM_COLOR + "↑/↓ 选择模式,Enter 进入,1-4 切换配置,Esc/q 返回选 deck" + RESET_COLOR)
+    print("  1", _opt_state("mark" in filter_set), "包含已标记")
+    print("  2", _opt_state("note" in filter_set), "包含笔记")
+    print("  3", _opt_state("ai" in filter_set), "包含 Agent Said")
+    print("  4", _opt_state(ans_mode), "Ans 模式(直接显示答案,不计分)")
 
 
 def _opt_state(on):
@@ -1026,12 +1057,20 @@ def _run_stats_loop(deck, config):
     return None
 
 
-def run_train(deck, config, selector, review_mode, filters):
-    """Top-level runner used by the CLI after a deck/mode is chosen."""
-    source = "wrong" if review_mode else "tiku"
+def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=None):
+    """Top-level runner used by the CLI after a deck/mode is chosen.
+
+    `source` selects the question pool — "tiku" (full bank) or "wrong"
+    (the error index). `ans_mode` selects the loop — True runs
+    `review_questions` (browse, answers shown, no scoring); False runs
+    `epoch` (answer, grade, append wrongs). The two are independent, so a
+    wrong-source training pass (ans_mode=False) drills exactly the questions
+    you previously got wrong.
+    """
+    filters = filters or []
     selected = engine.pick_questions(deck, config, selector=selector, shuffle=True,
                                      filters=filters, source=source)
-    if review_mode:
+    if ans_mode:
         review_questions(deck, config, selected)
         return 0
 
@@ -1040,7 +1079,7 @@ def run_train(deck, config, selector, review_mode, filters):
 
     print("============== Report ==============")
     label = selector if selector is not None else "全部"
-    print(f"- Deck: {deck.name}, 范围 {label}")
+    print(f"- Deck: {deck.name}, 范围 {label}, 源 {source}")
     print(f"- Epoch Finished, \033[1;31m{len(incorrects)} / {count - 1}\033[0m incorrects.")
     if selected.input_is_index:
         print("- Source index unchanged (review-on-wrong writes no new file).")

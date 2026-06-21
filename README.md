@@ -59,16 +59,21 @@ See `docs/schema.md` and `docs/deck-manifest.md` for the data contracts.
 ## Usage
 
 ```bash
-flip                              # interactive entry menu
+flip                              # interactive: pick a deck, then pick a mode
 flip list                         # list registered decks
-flip deck train se -c 5-10        # train SE, chapters 5–10
-flip deck review se               # browse SE questions without scoring
+flip deck train se -c 5-10        # train SE on chapters 5–10 (tiku, scored)
+flip deck review se               # drill SE's wrong index (scored)
+flip deck train se --ans          # browse SE showing answers, no scoring
 flip deck stats se                # per-chapter distribution
 flip deck translate se            # fill missing zh fields
 flip import se ./tiku.json        # register a compliant JSON as a new deck
 ```
 
 > Subcommand order is `flip deck <verb> <slug>` (verb before slug).
+> Running `flip` with no args is a two-stage picker: choose a deck (with live
+> search), then choose a mode — **Train** (tiku), **Review** (wrong index),
+> or **List** (stats) — plus the 1-4 filters and an **Ans mode** toggle that
+> shows answers without scoring.
 
 ## Layout
 

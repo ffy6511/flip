@@ -58,16 +58,20 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ## 用法
 
 ```bash
-flip                              # 交互式入口菜单
+flip                              # 交互:先选 deck,再选模式
 flip list                         # 列出已注册的 deck
-flip deck train se -c 5-10        # 训练软件工程,第 5–10 章
-flip deck review se               # 浏览题目但不计分
+flip deck train se -c 5-10        # 训练软件工程,第 5–10 章(tiku,计分)
+flip deck review se               # 练习软件工程的错题索引(计分)
+flip deck train se --ans          # 浏览软件工程题目并直接显答案,不计分
 flip deck stats se                # 按章节分布统计
 flip deck translate se            # 补全缺失的 zh 字段
 flip import se ./tiku.json        # 把一份合规 JSON 注册为新 deck
 ```
 
 > 子命令顺序是 `flip deck <动词> <slug>`(动词在前,slug 在后)。
+> 裸跑 `flip` 是两阶段选择:先选 deck(支持实时搜索),再选模式——
+> **Train**(tiku 题库)、**Review**(错题索引)或 **List**(统计)——
+> 外加 1-4 题目筛选开关和一个 **Ans 模式** 开关(直接显答案、不计分)。
 
 ## 目录结构
 

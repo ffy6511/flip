@@ -28,7 +28,7 @@ def main(ctx: typer.Context):
     if ctx.invoked_subcommand is None:
         config = load_config()
         from .engine_loop import deck_picker, entry_menu, run_train
-        # Two-stage flow: pick a deck, then configure mode/filters for it.
+        # Two-stage flow: pick a deck, then pick a mode/filters for it.
         # Esc at the mode stage returns here to re-pick a deck; only the deck
         # picker quitting exits flip.
         while True:
@@ -38,8 +38,10 @@ def main(ctx: typer.Context):
             choice = entry_menu(config, deck)
             if choice is None:
                 continue  # back to deck picker
-            _, review_mode, selector, filters = choice
-            raise typer.Exit(run_train(deck, config, selector, review_mode, filters))
+            mode, selector, ans_mode, filters = choice
+            source = "wrong" if mode == "review" else "tiku"
+            raise typer.Exit(run_train(deck, config, selector, source=source,
+                                       ans_mode=ans_mode, filters=filters))
 
 
 # ---- `flip list` ----
@@ -81,37 +83,45 @@ def _resolve_deck(slug: str):
 def deck_train(
     slug: str = typer.Argument(..., help="Deck slug, e.g. `se`."),
     chapter: str = typer.Option(None, "--chapter", "-c", help="e.g. 5, 5-10, -3"),
-    review: bool = typer.Option(False, "--review", help="Review wrong-index instead of tiku."),
+    ans: bool = typer.Option(False, "--ans", help="Browse mode: show answers, no scoring."),
     marked: bool = typer.Option(False, "--marked", help="Only marked questions."),
     note: bool = typer.Option(False, "--note", help="Only questions with a note."),
     ai: bool = typer.Option(False, "--ai", help="Only questions with an Agent Said."),
     filter_csv: str = typer.Option(None, "--filter", help="Comma list: mark,note,ai"),
 ):
-    """Train on a deck (or review its wrong-index with --review)."""
+    """Train on a deck's full question bank (source = tiku).
+
+    With --ans, runs in browse mode: answers are shown immediately and nothing
+    is scored. Corresponds to the entry-menu 'Train' entry.
+    """
     config, deck = _resolve_deck(slug)
     filters = _collect_filters(marked, note, ai, filter_csv)
     from .engine_loop import run_train
-    raise typer.Exit(run_train(deck, config, chapter, review, filters))
+    raise typer.Exit(run_train(deck, config, chapter, source="tiku",
+                                ans_mode=ans, filters=filters))
 
 
 @deck_app.command("review")
 def deck_review(
-    slug: str = typer.Argument(...),
-    chapter: str = typer.Option(None, "--chapter", "-c"),
-    marked: bool = typer.Option(False, "--marked"),
-    note: bool = typer.Option(False, "--note"),
-    ai: bool = typer.Option(False, "--ai"),
-    filter_csv: str = typer.Option(None, "--filter"),
+    slug: str = typer.Argument(..., help="Deck slug, e.g. `se`."),
+    chapter: str = typer.Option(None, "--chapter", "-c", help="e.g. 5, 5-10, -3"),
+    ans: bool = typer.Option(False, "--ans", help="Browse mode: show answers, no scoring."),
+    marked: bool = typer.Option(False, "--marked", help="Only marked questions."),
+    note: bool = typer.Option(False, "--note", help="Only questions with a note."),
+    ai: bool = typer.Option(False, "--ai", help="Only questions with an Agent Said."),
+    filter_csv: str = typer.Option(None, "--filter", help="Comma list: mark,note,ai"),
 ):
-    """Browse a deck's questions without scoring."""
+    """Drill a deck's wrong index (source = wrong).
+
+    Trains on exactly the questions previously answered wrong. With --ans,
+    browses them with answers shown instead of scoring. Corresponds to the
+    entry-menu 'Review' entry.
+    """
     config, deck = _resolve_deck(slug)
     filters = _collect_filters(marked, note, ai, filter_csv)
-    from .engine import pick_questions
-    from .engine_loop import review_questions
-    selected = pick_questions(deck, config, selector=chapter, shuffle=False,
-                              filters=filters, source="tiku")
-    review_questions(deck, config, selected)
-    raise typer.Exit(0)
+    from .engine_loop import run_train
+    raise typer.Exit(run_train(deck, config, chapter, source="wrong",
+                                ans_mode=ans, filters=filters))
 
 
 @deck_app.command("stats")
