@@ -56,6 +56,21 @@ Notes:
 - `--format` is ignored for directory input. `--dry-run` still works (validates
   `tiku.json` and previews the manifest without writing).
 
+## Exporting a deck
+
+`flip export <slug>` writes a portable deck directory. It copies `tiku.json`,
+`manifest.toml`, `marked.json` when present, and the full `wrong/` directory
+when present.
+
+```bash
+flip export se --out ./se-deck
+flip import se-copy ./se-deck --name "软件工程副本"
+```
+
+The destination directory must not already exist. The exported directory uses
+the same shape accepted by directory import, so it can be backed up or moved to
+another machine and registered again with `flip import`.
+
 ## CSV source (MCQ layout)
 
 `flip` defines **one** explicit multiple-choice CSV layout. Anki / Quizlet

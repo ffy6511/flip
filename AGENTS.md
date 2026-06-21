@@ -40,5 +40,5 @@
 
 ## 测试范围
 
-- 只测纯函数(parse_answer、chapter_selector、question_key、filename、filter、manifest 加载)。
-- **不测 TUI 交互循环**。`_prompt_answer`/`epoch` 这类靠 example deck 手测验证。
+- 纯函数(parse_answer、chapter_selector、question_key、filename、filter、manifest 加载)必须覆盖。
+- TUI 交互循环只写聚焦回归测试。测试应替换终端读写函数,使用 example deck 夹具,验证具体状态变化;不做完整终端自动化。

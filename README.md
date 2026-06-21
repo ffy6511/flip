@@ -20,6 +20,13 @@ brew install pipx          # if you don't have pipx yet
 pipx install git+https://github.com/ffy6511/flip.git
 ```
 
+**Upgrade an existing install:**
+
+```bash
+brew update && brew upgrade flip
+pipx upgrade flip
+```
+
 **(Optional) Companion skills for the CLI**
 
 ```bash
@@ -65,11 +72,17 @@ flip deck train se -c 5-10        # train SE on chapters 5–10 (tiku, scored)
 flip deck review se               # drill SE's wrong index (scored)
 flip deck train se --ans          # browse SE showing answers, no scoring
 flip deck stats se                # per-chapter distribution
+flip deck mark se                 # list marked questions
+flip deck wrong se                # list wrong-index questions
 flip deck translate se            # fill missing zh fields
 flip import se ./tiku.json        # register a compliant JSON as a new deck
+flip export se -o ./se-deck       # bundle a deck for backup or transfer
+flip config                       # show config and explain-backend status
 ```
 
 > Subcommand order is `flip deck <verb> <slug>` (verb before slug).
+> Chapter selectors accept single chapters, ranges, first-N shorthand, and
+> comma unions: `5`, `5-10`, `-3`, `5,3-4`.
 > Running `flip` with no args is a two-stage picker: choose a deck (with live
 > search), then choose a mode — **Train** (tiku), **Review** (wrong index),
 > or **List** (stats) — plus the 1-4 filters and an **Ans mode** toggle that
@@ -79,8 +92,8 @@ flip import se ./tiku.json        # register a compliant JSON as a new deck
 
 ```
 src/flip/      engine, TUI, store, config, deck manifest, explain
-docs/          schema.md (tiku.json), deck-manifest.md
+docs/          schema.md (tiku.json), deck-manifest.md, import.md
 decks/example/ minimal demo deck (also a test fixture)
 skills/        flip-deck-init — agent skill to bootstrap a deck from source material
-tests/         pure-function pytest suite (no TUI interaction tests)
+tests/         pytest suite, including focused TUI-loop regressions
 ```

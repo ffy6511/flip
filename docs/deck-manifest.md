@@ -11,7 +11,7 @@ Each deck lives at `~/.local/share/flip/decks/<slug>/` and carries a `manifest.t
 ```toml
 [deck]
 name = "软件工程"          # human-readable subject name
-slug = "se"               # == directory name; used in `flip deck se ...`
+slug = "se"               # == directory name; used in `flip deck <verb> se`
 source_lang = "en"        # source language of topic/options; compared against global target_lang
 answer_alphabet = "ABCDE" # max option letters across this deck
 
@@ -48,6 +48,17 @@ and timeout live in the *global* `config.toml` `[explain]` section (see
 > global so all decks share one provider. Edit
 > `~/.local/share/flip/config.toml` `[explain]` to switch providers (codex,
 > zhipu GLM, openrouter, a custom script, …).
+
+The global `explain.command` is parsed as an argv template. `{prompt}` is
+required and must be its own token; `{outfile}` is required when
+`output = "tempfile"` and must also be its own token. Fixed arguments may be
+quoted in the template, but prompt text is always passed as one argv element.
+
+```toml
+[explain]
+command = "codex exec -m {model} -o {outfile} {prompt}"
+output = "tempfile"
+```
 
 ## Validation rules (enforced by `deck.py`)
 
