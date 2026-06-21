@@ -1,0 +1,258 @@
+"""Source-format importers.
+
+Currently supports one explicit MCQ CSV layout (see docs/import.md). Anki /
+Quizlet front-back flashcards are deliberately NOT supported — forcing them
+into the options[]/answer schema loses information.
+
+All functions here are pure: they take a path or parsed data and return a
+{chapter_str: [question]} dict (for CSV) or a list of error strings (for
+validation). No filesystem writes, no side effects.
+"""
+
+import csv
+from pathlib import Path
+
+
+OPTION_LETTERS = "ABCDEFGHIJ"   # support up to 10 options per question
+
+
+# ---- delimiter detection ----
+
+_DELIMITER_NAMES = {
+    "comma": ",",
+    "tab": "\t",
+    "semicolon": ";",
+    "pipe": "|",
+}
+
+
+def _resolve_delimiter(name, sample_line):
+    """Map a delimiter name (or 'auto') to an actual char using a sample line."""
+    if name == "auto":
+        return _sniff_delimiter(sample_line)
+    if name in _DELIMITER_NAMES:
+        return _DELIMITER_NAMES[name]
+    # Allow passing a literal single-char delimiter too.
+    if len(name) == 1:
+        return name
+    raise ValueError(f"unknown delimiter: {name!r}")
+
+
+def _sniff_delimiter(sample_line):
+    """Pick the most frequent of the candidate delimiters on one line."""
+    if sample_line is None:
+        return ","
+    counts = {d: sample_line.count(d) for d in [",", "\t", ";", "|"]}
+    best = max(counts, key=counts.get)
+    return best if counts[best] > 0 else ","
+
+
+# ---- CSV import ----
+
+def import_csv(path, *, delimiter="auto", has_header=True, translation_enabled=False):
+    """Parse an MCQ CSV into a {chapter_str: [question]} dict.
+
+    Required columns: topic, answer, plus at least 2 option columns named by
+    single uppercase letters (A, B, C, …).
+
+    Optional columns: chapter (default "1"), user_note.
+    Translation columns (only read when translation_enabled): zh_topic, zh_A,
+    zh_B, … — they populate the `zh` object on each question.
+
+    Raises ValueError on structural problems (missing required columns, no
+    option columns). Per-row problems are collected into the `errors` field of
+    the returned result object.
+    """
+    path = Path(path)
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        raw_lines = f.read().splitlines()
+
+    if not raw_lines:
+        raise ValueError(f"CSV is empty: {path}")
+
+    delim = _resolve_delimiter(delimiter, raw_lines[0])
+    reader = csv.reader(raw_lines, delimiter=delim)
+    rows = [row for row in reader if any(cell.strip() for cell in row)]
+    if not rows:
+        raise ValueError(f"CSV has no non-empty rows: {path}")
+
+    if has_header:
+        header = [cell.strip() for cell in rows[0]]
+        data_rows = rows[1:]
+    else:
+        # No header: assume positional topic, A, B, C, D, answer, chapter?
+        header = ["topic", "A", "B", "C", "D", "answer", "chapter"]
+        data_rows = rows
+
+    col_index = {name: i for i, name in enumerate(header) if name}
+    _require_columns(col_index, header)
+
+    option_cols = sorted(
+        c for c in header if len(c) == 1 and c.isalpha() and c.upper() in OPTION_LETTERS
+    )
+    if len(option_cols) < 2:
+        raise ValueError(
+            f"need at least 2 option columns (A, B, …); found {option_cols or 'none'}"
+        )
+    max_letter = option_cols[-1]
+    answer_alphabet = OPTION_LETTERS[:OPTION_LETTERS.index(max_letter) + 1]
+
+    zh_option_cols = [c for c in header if c.lower().startswith("zh_")
+                      and len(c) == 4 and c[3].upper() in OPTION_LETTERS]
+
+    chapters = {}
+    errors = []
+    for line_no, row in enumerate(data_rows, start=2 if has_header else 1):
+        try:
+            q, chapter = _parse_csv_row(
+                row, col_index, option_cols, zh_option_cols,
+                translation_enabled=translation_enabled,
+            )
+        except _RowError as exc:
+            errors.append((line_no, str(exc)))
+            continue
+        chapters.setdefault(str(chapter), []).append(q)
+
+    if not chapters and not errors:
+        errors.append((0, "no data rows parsed"))
+
+    return CsvImportResult(
+        chapters=chapters,
+        answer_alphabet=answer_alphabet,
+        errors=errors,
+        row_count=len(data_rows),
+    )
+
+
+class CsvImportResult:
+    """Structured result of import_csv — chapters + metadata."""
+    def __init__(self, *, chapters, answer_alphabet, errors, row_count):
+        self.chapters = chapters
+        self.answer_alphabet = answer_alphabet
+        self.errors = errors
+        self.row_count = row_count
+
+    @property
+    def question_count(self):
+        return sum(len(qs) for qs in self.chapters.values())
+
+    @property
+    def ok(self):
+        return not self.errors
+
+
+class _RowError(Exception):
+    """Raised for one bad CSV row; collected into the result.errors list."""
+
+
+def _require_columns(col_index, header):
+    for required in ("topic", "answer"):
+        if required not in col_index:
+            raise ValueError(
+                f"CSV missing required column {required!r}; header was: {header}"
+            )
+
+
+def _parse_csv_row(row, col_index, option_cols, zh_option_cols, *, translation_enabled):
+    def cell(name):
+        i = col_index.get(name)
+        if i is None or i >= len(row):
+            return ""
+        return row[i].strip()
+
+    topic = cell("topic")
+    if not topic:
+        raise _RowError("empty topic")
+    answer = cell("answer").upper()
+    if not answer:
+        raise _RowError("empty answer")
+
+    options = []
+    for letter in option_cols:
+        text = cell(letter)
+        if not text:
+            # Skip trailing empty option columns; an empty middle column is an error.
+            if letter == option_cols[-1]:
+                continue
+            raise _RowError(f"option {letter} is empty")
+        prefix = letter + ". "
+        options.append(prefix + text)
+
+    # Validate answer letters are within the options present.
+    present = {opt[0] for opt in options}
+    for a in answer:
+        if a not in present:
+            raise _RowError(
+                f"answer {a!r} not in available options {sorted(present)}"
+            )
+
+    chapter = cell("chapter") or "1"
+    q = {
+        "topic": topic,
+        "options": options,
+        "answer": answer,
+        "user_note": cell("user_note"),
+    }
+
+    if translation_enabled:
+        zh_topic = cell("zh_topic")
+        zh_options = []
+        for letter in option_cols:
+            zh_text = cell("zh_" + letter)
+            if zh_text:
+                zh_options.append(letter + ". " + zh_text)
+        if zh_topic and len(zh_options) == len(options):
+            q["zh"] = {"topic": zh_topic, "options": zh_options}
+
+    return q, chapter
+
+
+# ---- JSON validation ----
+
+def validate_tiku(data):
+    """Validate an already-parsed tiku dict. Returns a list of error strings.
+
+    Empty list = valid. Checks the structural rules from docs/schema.md that,
+    if violated, would crash the engine at training time.
+    """
+    errs = []
+    if not isinstance(data, dict):
+        return [f"top-level must be an object {{chapter: [question]}}, got {type(data).__name__}"]
+
+    if not data:
+        return ["tiku is empty (no chapters)"]
+
+    for chapter, questions in data.items():
+        if not isinstance(questions, list):
+            errs.append(f"chapter {chapter!r}: value must be a list, got {type(questions).__name__}")
+            continue
+        if not questions:
+            errs.append(f"chapter {chapter!r}: question list is empty")
+            continue
+        for i, q in enumerate(questions):
+            prefix = f"chapter {chapter!r} question {i + 1}"
+            if not isinstance(q, dict):
+                errs.append(f"{prefix}: not an object")
+                continue
+            for field in ("topic", "options", "answer"):
+                if field not in q:
+                    errs.append(f"{prefix}: missing required field {field!r}")
+            if "options" in q and not isinstance(q["options"], list):
+                errs.append(f"{prefix}: options must be a list")
+            elif isinstance(q.get("options"), list):
+                if not q["options"]:
+                    errs.append(f"{prefix}: options list is empty")
+                else:
+                    for j, opt in enumerate(q["options"]):
+                        if not isinstance(opt, str) or not opt.strip():
+                            errs.append(f"{prefix}: option {j + 1} is empty or not a string")
+            if "answer" in q:
+                ans = q["answer"]
+                if not isinstance(ans, str) or not ans.strip():
+                    errs.append(f"{prefix}: answer must be a non-empty string")
+                elif isinstance(q.get("options"), list) and q["options"]:
+                    present = {o[0].upper() for o in q["options"] if isinstance(o, str) and o}
+                    for a in ans.upper():
+                        if a not in present:
+                            errs.append(f"{prefix}: answer {a!r} not in options {sorted(present)}")
+    return errs

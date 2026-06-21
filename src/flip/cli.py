@@ -145,44 +145,179 @@ def _collect_filters(marked, note, ai, filter_csv):
 @app.command("import")
 def import_cmd(
     slug: str = typer.Argument(..., help="New deck slug, e.g. `compiler`."),
-    source: Path = typer.Argument(..., exists=True, dir_okay=False, help="Compliant tiku.json."),
+    source: Path = typer.Argument(..., exists=True, dir_okay=False,
+                                  help="tiku.json or MCQ .csv/.tsv source file."),
     name: str = typer.Option(None, "--name", help="Display name; defaults to slug."),
     source_lang: str = typer.Option("en", "--source-lang"),
     role: str = typer.Option(None, "--role", help="AI persona; defaults to '<name> 助教'."),
+    fmt: str = typer.Option(None, "--format", help="Force json|csv; default: by extension."),
+    delimiter: str = typer.Option("auto", "--delimiter", help="csv delim: auto/comma/tab/semicolon/pipe."),
+    has_header: bool = typer.Option(True, "--header/--no-header", help="CSV has a header row."),
     force: bool = typer.Option(False, "--force", help="Overwrite an existing deck."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Validate and preview; write nothing."),
 ):
-    """Register a compliant tiku.json as a new deck under ~/.local/share/flip/decks/.
+    """Register a deck from a JSON or CSV source.
 
-    This command only does mechanical bookkeeping (copy file, write manifest).
-    Extracting tiku.json from PDF/HTML source is the flip-deck-init skill's job.
+    JSON sources are validated against the tiku schema and copied verbatim.
+    CSV sources (see docs/import.md for the MCQ layout) are converted; the
+    answer_alphabet is auto-detected from the widest option column.
+
+    Extracting a source from PDF/HTML is the flip-deck-init skill's job.
     """
+    import json
     import shutil
+
+    from .importers import import_csv, validate_tiku
+
     config = load_config()
+    fmt_resolved = _resolve_import_format(source, fmt)
+
+    if fmt_resolved == "csv":
+        result = import_csv(
+            source, delimiter=delimiter, has_header=has_header,
+            translation_enabled=config.translation_enabled,
+        )
+        if result.errors:
+            typer.echo(f"CSV import failed ({len(result.errors)} errors):", err=True)
+            for line_no, msg in result.errors[:20]:
+                where = f"line {line_no}: " if line_no else ""
+                typer.echo(f"  {where}{msg}", err=True)
+            raise typer.Exit(1)
+        tiku_data = result.chapters
+        detected_alphabet = result.answer_alphabet
+        typer.echo(f"parsed {result.question_count} questions across "
+                   f"{len(result.chapters)} chapter(s); alphabet={detected_alphabet}")
+    else:
+        try:
+            tiku_data = json.loads(source.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            typer.echo(f"invalid JSON: {exc}", err=True)
+            raise typer.Exit(1)
+        errs = validate_tiku(tiku_data)
+        if errs:
+            typer.echo(f"tiku validation failed ({len(errs)} errors):", err=True)
+            for e in errs[:20]:
+                typer.echo(f"  {e}", err=True)
+            raise typer.Exit(1)
+        detected_alphabet = _detect_alphabet_from_tiku(tiku_data)
+        qcount = sum(len(qs) for qs in tiku_data.values())
+        typer.echo(f"validated {qcount} questions across {len(tiku_data)} chapter(s); "
+                   f"alphabet={detected_alphabet}")
+
     dest_dir = config.decks_dir / slug
-    if dest_dir.exists() and not force:
+    if dest_dir.exists() and not force and not dry_run:
         typer.echo(f"deck already exists: {dest_dir} (use --force)", err=True)
         raise typer.Exit(1)
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_tiku = dest_dir / "tiku.json"
-    shutil.copyfile(source, dest_tiku)
 
     display_name = name or slug
     role_text = role or f"{display_name} 助教"
-    manifest = (
+    manifest = _build_manifest_text(
+        slug=slug, display_name=display_name, source_lang=source_lang,
+        answer_alphabet=detected_alphabet, role_text=role_text,
+    )
+
+    if dry_run:
+        typer.echo("--- dry run: manifest preview ---")
+        typer.echo(manifest)
+        typer.echo("--- dry run: nothing written ---")
+        raise typer.Exit(0)
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_tiku = dest_dir / "tiku.json"
+    if fmt_resolved == "csv":
+        dest_tiku.write_text(
+            json.dumps(tiku_data, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    else:
+        shutil.copyfile(source, dest_tiku)
+    (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
+    typer.echo(f"imported deck {slug} -> {dest_tiku}")
+    typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
+
+
+def _resolve_import_format(source: Path, fmt):
+    if fmt:
+        if fmt not in {"json", "csv"}:
+            raise typer.BadParameter(f"--format must be json|csv, got {fmt!r}")
+        return fmt
+    suffix = source.suffix.lower()
+    if suffix in {".csv", ".tsv"}:
+        return "csv"
+    if suffix == ".json":
+        return "json"
+    raise typer.BadParameter(
+        f"cannot infer format from extension {suffix!r}; pass --format json|csv"
+    )
+
+
+def _detect_alphabet_from_tiku(data):
+    """Find the widest option set across all questions; default ABCD."""
+    letters = set("ABCD")
+    for questions in data.values() if isinstance(data, dict) else []:
+        for q in questions:
+            if isinstance(q, dict):
+                for opt in q.get("options", []):
+                    if isinstance(opt, str) and opt:
+                        letters.add(opt[0].upper())
+    # Keep only A-J, sort.
+    valid = sorted(l for l in letters if l in "ABCDEFGHIJ")
+    return "".join(valid) if valid else "ABCD"
+
+
+def _build_manifest_text(*, slug, display_name, source_lang, answer_alphabet, role_text):
+    return (
         '[deck]\n'
         f'name = "{display_name}"\n'
         f'slug = "{slug}"\n'
         f'source_lang = "{source_lang}"\n'
-        'answer_alphabet = "ABCD"\n'
+        f'answer_alphabet = "{answer_alphabet}"\n'
         '\n'
         '[explain]\n'
         f'role = "{role_text}"\n'
         'max_chars = 200\n'
+        '# default_model and model_env override the global [explain].model.\n'
     )
-    (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
-    typer.echo(f"imported deck {slug} -> {dest_tiku}")
-    typer.echo(f"manifest written: {dest_dir / 'manifest.toml'}")
-    typer.echo("Edit the manifest to tune answer_alphabet / role / model.")
+
+
+# ---- `flip config` ----
+
+@app.command("config")
+def config_cmd():
+    """Show the resolved global config and backend status."""
+    import shutil
+    config = load_config()
+
+    typer.echo(f"home:       {config.home}")
+    typer.echo(f"config:     {config.config_path}")
+    typer.echo(f"decks dir:  {config.decks_dir}")
+    typer.echo(f"languages:  {config.source_lang} -> {config.target_lang} "
+               f"(translation {'on' if config.translation_enabled else 'off'})")
+    typer.echo("")
+    typer.echo("[explain]")
+    typer.echo(f"  command: {config.explain.command}")
+    typer.echo(f"  model:   {config.explain.model}")
+    typer.echo(f"  output:  {config.explain.output}")
+    typer.echo(f"  timeout: {config.explain.timeout}s")
+
+    errs = config.validate()
+    if errs:
+        typer.echo("")
+        typer.echo("config errors:", err=True)
+        for e in errs:
+            typer.echo(f"  {e}", err=True)
+        raise typer.Exit(1)
+
+    from .backends import which_backend
+    backend = which_backend(config.explain)
+    on_path = shutil.which(backend) if backend else None
+    typer.echo("")
+    if backend is None:
+        typer.echo("backend:    (could not parse command template)", err=True)
+    elif on_path:
+        typer.echo(f"backend:    {backend} ({on_path})")
+    else:
+        typer.echo(f"backend:    {backend}  ⚠ not on PATH", err=True)
 
 
 if __name__ == "__main__":
