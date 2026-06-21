@@ -291,20 +291,14 @@ def toggle_marked(deck, chapter, q):
     if q.get("marked"):
         q["marked"] = False
         q.pop("marked_at", None)
-        store.save_tiku(deck, _deck_data_with(deck, chapter, q))
+        save_question_field(deck, chapter, q)
         _sync_marked_from_tiku(deck)
         return False
     q["marked"] = True
     q["marked_at"] = datetime.datetime.now().isoformat(timespec="seconds")
-    store.save_tiku(deck, _deck_data_with(deck, chapter, q))
+    save_question_field(deck, chapter, q)
     _sync_marked_from_tiku(deck)
     return True
-
-
-def _deck_data_with(deck, chapter, q):
-    """Re-read tiku so the saved object reflects all in-memory mutations."""
-    # Simplest correct behavior: engine always re-reads before save callers do.
-    return store.load_tiku(deck)
 
 
 # ---- note / explanation persistence ----
