@@ -82,6 +82,8 @@ Rules:
 - Do not edit `marked.json` or `wrong/` directly unless the user explicitly asks to clear history.
 - Keep option prefixes as `"A. "`, `"B. "`, etc.
 - Keep multi-select answers sorted, for example `"AC"` not `"CA"`.
+- Use multi-select when the knowledge point naturally has multiple correct answers; keep `topic` clean because the TUI appends `[多选]` automatically for multi-select questions.
+- For generated additions, count answer letters before merging and reshuffle options so correct answers are roughly even across A/B/C/D (and E+ when present).
 - Keep `_chapter_titles` display-only; select chapters by numeric/string chapter id.
 
 Validate after editing:

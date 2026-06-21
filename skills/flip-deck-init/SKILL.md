@@ -81,7 +81,7 @@ Produce a compliant tiku.json → self-check with `flip import --dry-run` → la
     },
     {
       "id": "demo-1-002",
-      "topic": "Which are prime? (multi-select)",
+      "topic": "Which are prime?",
       "options": ["A. 2", "B. 4", "C. 7", "D. 9"],
       "answer": "AC",
       "user_note": ""
@@ -112,6 +112,9 @@ How you read the source is your choice (Read / Bash calling a converter / anothe
 - **When the answer is uncertain, leave it blank rather than guess**: set uncertain questions aside in a temp file instead of guessing — wrong answers make the user memorize the wrong thing.
 - **Option count is variable**: 2–10 are all fine. Letters increment consecutively from A to whatever is needed (e.g. 5 options use E). flip has **no** "hidden E option" logic; E is a normal option.
 - **Sort multi-select answers**: always concatenate in alphabetical order (`"AC"`, not `"CA"`), otherwise training works but stats get confused.
+- **Use multi-select when the knowledge point has multiple correct properties**: set membership, phase lists, safety conditions, "which statements are true", and similar concepts should use multi-select instead of forcing one artificial best answer.
+- **Do not write a multi-select marker into `topic`**: keep the stem clean. The TUI appends `[多选]` automatically when `answer` contains more than one letter.
+- **Balance answer positions across generated questions**: after drafting a batch, count answer letters and reshuffle options so correct answers are roughly even across A/B/C/D (and E+ when present). Avoid placing most correct answers in A or B.
 - **Translation (`zh`) trade-off**: only write `zh` when (a) the user explicitly asks for translation AND (b) you can provide a complete translation for every question (topic + all options). Otherwise omit `zh` entirely (empty beats half-populated; `flip deck translate <slug>` can fill it later).
 
 ---

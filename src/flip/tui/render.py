@@ -53,6 +53,15 @@ def option_label(choice):
     return label[:1].upper()
 
 
+def question_topic(q):
+    """Return the display topic, adding a badge for multi-select questions."""
+    topic = str(q.get("topic", ""))
+    answer = str(q.get("answer", "")).strip()
+    if len(answer) > 1:
+        return topic + " [多选]"
+    return topic
+
+
 # ---- translation / explanation / note presence (pure) ----
 
 def has_translation(q):
@@ -219,7 +228,7 @@ def render_question(count, total, chapter, q, options, cursor, selected, *,
     clear_screen()
     mark_text = " " + MARK_COLOR + "[MARKED]" + RESET_COLOR if marked else ""
     print("@ Chapter", chapter, f"({count} / {total})", mark_text)
-    print(">\033[1;33m", q.get("topic", ""), "\033[0m")
+    print(">\033[1;33m", question_topic(q), "\033[0m")
     print()
 
     for index, choice in enumerate(options):
@@ -244,7 +253,7 @@ def render_result(count, total, chapter, q, options, selected_answer, is_correct
     clear_screen()
     mark_text = " " + MARK_COLOR + "[MARKED]" + RESET_COLOR if marked else ""
     print("@ Chapter", chapter, f"({count} / {total})", mark_text)
-    print(">\033[1;33m", q.get("topic", ""), '\033[0m')
+    print(">\033[1;33m", question_topic(q), '\033[0m')
     print()
 
     correct_answers = set(q['answer'])
@@ -280,7 +289,7 @@ def render_review_question(index, total, chapter, q, *, show_translation=False,
     clear_screen()
     mark_text = " " + MARK_COLOR + "[MARKED]" + RESET_COLOR if marked else ""
     print("@ Chapter", chapter, f"({index + 1} / {total})", mark_text)
-    print(">\033[1;33m", q.get('topic', ""), "\033[0m")
+    print(">\033[1;33m", question_topic(q), "\033[0m")
     print()
 
     for choice in options:
@@ -312,7 +321,7 @@ def render_review_question(index, total, chapter, q, *, show_translation=False,
 def render_ai_waiting(chapter, q, options, model_name):
     clear_screen()
     print("@ Chapter", chapter)
-    print(">\033[1;33m", q.get("topic", ""), "\033[0m")
+    print(">\033[1;33m", question_topic(q), "\033[0m")
     print()
     for choice in options:
         print("  [ ]", choice)
@@ -324,7 +333,7 @@ def render_ai_waiting(chapter, q, options, model_name):
 def render_ai_prompt_input(chapter, q, options, buffer):
     clear_screen()
     print("@ Chapter", chapter)
-    print(">\033[1;33m", q.get("topic", ""), "\033[0m")
+    print(">\033[1;33m", question_topic(q), "\033[0m")
     print()
     for choice in options:
         print("  [ ]", choice)
@@ -338,7 +347,7 @@ def render_ai_prompt_input(chapter, q, options, buffer):
 def render_note_input(chapter, q, buffer):
     clear_screen()
     print("@ Chapter", chapter)
-    print(">\033[1;33m", q.get("topic", ""), "\033[0m")
+    print(">\033[1;33m", question_topic(q), "\033[0m")
     print()
     print(LOWER_BLOCK_INDENT + "n: User Note")
     print(LOWER_BLOCK_INDENT + "Enter 保存；清空后 Enter 会删除笔记；Esc 取消。")

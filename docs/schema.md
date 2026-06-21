@@ -66,6 +66,10 @@ All optional fields are **persisted to disk** (not runtime-only). A re-read of `
 
 `answer` letters come from the deck's `answer_alphabet` (see `deck-manifest.md`). Default `ABCD`. A 5-option question uses `ABCDE`; **`E` is a normal fifth option** — there is no hidden-option suppression in flip (the legacy `E. Both …` SE behavior is intentionally dropped).
 
+Multi-select status is derived from `answer`: more than one answer letter means
+multi-select. Keep `topic` as the clean stem text; the TUI appends the `[多选]`
+badge at render time.
+
 ## marked.json (index file)
 
 `~/.local/share/flip/decks/<slug>/marked.json` is a flat array of index records:
