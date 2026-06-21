@@ -1,22 +1,22 @@
 # Homebrew formula for flip.
 #
-# This file lives in the flip repo as the source of truth. To publish via a
-# tap, create a separate repo named `homebrew-tap` under the same GitHub
-# account and copy this file to `<homebrew-tap>/Formula/flip.rb`. Users then
-# install with:
+# The flip repo renders this formula with scripts/build_formula.sh. A tag push
+# runs .github/workflows/update-homebrew-tap.yml, computes the source tarball
+# sha256, and publishes the rendered file to ffy6511/homebrew-tap.
+#
+# Users install the published formula with:
 #
 #   brew tap ffy6511/tap
 #   brew install flip
 #
-# When releasing a new version: tag the flip repo (e.g. v0.2.0), push the
-# tag to trigger a GitHub Release with a source tarball, then update the
-# `version` and `sha256` below (recompute with `shasum -a 256` on the
-# tarball URL: `curl -sL <url> | shasum -a 256`).
+# Release entrypoint: bump pyproject.toml, merge the release commit, then push
+# a version tag such as v0.2.0. Manual tap edits are limited to one-off repairs
+# when the workflow cannot publish.
 
 class Flip < Formula
   desc "Terminal quiz trainer — a deck-agnostic template engine"
   homepage "https://github.com/ffy6511/flip"
-  url "https://github.com/ffy6511/flip/archive/refs/tags/v0.1.0.tar.gz"
+  url "https://github.com/ffy6511/flip/archive/refs/tags/v0.0.0.tar.gz"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000"
   license "MIT"
 

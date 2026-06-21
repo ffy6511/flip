@@ -1,0 +1,88 @@
+name: Release From Version
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - pyproject.toml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout flip
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: flip
+
+      - name: Resolve version
+        id: version
+        working-directory: flip
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          print(f"version={version}")
+          print(f"tag=v{version}")
+          PY
+
+      - name: Create release tag
+        working-directory: flip
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          git fetch --tags --force
+
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            tag_sha="$(git rev-list -n 1 "$tag")"
+            if [[ "$tag_sha" != "$GITHUB_SHA" ]]; then
+              echo "error: $tag already exists at $tag_sha, current commit is $GITHUB_SHA" >&2
+              exit 1
+            fi
+
+            echo "$tag already exists at the current commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+
+      - name: Render formula
+        working-directory: flip
+        run: |
+          scripts/build_formula.sh --tag "${{ steps.version.outputs.tag }}" --output "$RUNNER_TEMP/flip.rb"
+
+      - name: Checkout tap
+        uses: actions/checkout@v4
+        with:
+          repository: ffy6511/homebrew-tap
+          token: ${{ secrets.TAP_PUSH_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          cp "$RUNNER_TEMP/flip.rb" homebrew-tap/Formula/flip.rb
+
+      - name: Commit and push tap update
+        working-directory: homebrew-tap
+        run: |
+          if git diff --quiet -- Formula/flip.rb; then
+            echo "Formula/flip.rb is already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/flip.rb
+          git commit -m "flip ${{ steps.version.outputs.tag }}"
+          git push
