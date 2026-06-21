@@ -462,6 +462,8 @@ def import_cmd(
     if is_dir_mode:
         report = store.import_dir(source, deck)
         store.save_tiku(deck, tiku_data)
+        if not report["marked"] and _has_inline_marks(tiku_data):
+            _engine._sync_marked_from_tiku(deck)
         (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
         typer.echo(f"imported deck {slug} -> {dest_tiku} (from directory {source})")
         extra = []
@@ -474,6 +476,8 @@ def import_cmd(
         typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
     else:
         store.write_json(dest_tiku, tiku_data)
+        if _has_inline_marks(tiku_data):
+            _engine._sync_marked_from_tiku(deck)
         (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
         typer.echo(f"imported deck {slug} -> {dest_tiku}")
         typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
@@ -562,6 +566,11 @@ def _load_tiku_source(source: Path, config, *, fmt=None, delimiter="auto", has_h
     if errs:
         raise ValueError("tiku validation failed: " + "; ".join(errs[:5]))
     return data
+
+
+def _has_inline_marks(data):
+    from . import engine as _engine
+    return any(q.get("marked") for _, q in _engine.iter_question_records(data))
 
 
 def _detect_alphabet_from_tiku(data):
