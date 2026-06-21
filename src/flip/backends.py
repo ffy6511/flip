@@ -1,11 +1,18 @@
 """Explain-backend executor.
 
-Replaces the hardcoded `codex exec` invocation with a configurable shell
-template. The template comes from the global config (`[explain].command`),
-so users can point flip at any CLI-style model backend — zhipu GLM,
-openrouter-cpp, ollama, a custom wrapper script — without code changes.
+Replaces the hardcoded `codex exec` invocation with a configurable command
+spec. The spec comes from the global config (`[explain]`), so users can
+point flip at any CLI-style model backend — zhipu GLM, openrouter-cpp,
+ollama, a custom wrapper script — without code changes.
 
-Placeholders:
+Two ways to express the command line:
+  command  — a shell template string (shlex.split). Best for simple
+             one-liners; placeholder `{prompt}` must be its own token.
+  argv     — an explicit list of tokens. Best when flags are many, order-
+             sensitive, or carry embedded quotes (codex's nested `-c`
+             values). `argv` wins when non-empty.
+
+Placeholders (same for both forms):
   {prompt}   — the explanation prompt text (always substituted)
   {model}    — resolved model id
   {outfile}  — path to a tempfile (only when output == "tempfile")
@@ -14,9 +21,9 @@ Output modes:
   "stdout"    — capture the backend's stdout
   "tempfile"  — create {outfile}, run, read it back
 
-The shell splitting uses shlex so users may quote args naturally in the
-template; the prompt and outfile are passed as single argv tokens (never
-re-split), avoiding injection risks from prompt content.
+The command-template path uses shlex so users may quote args naturally in
+the template; in both paths the prompt and outfile are passed as single
+argv tokens (never re-split), avoiding injection risks from prompt content.
 """
 
 import os
@@ -91,10 +98,43 @@ def build_argv(template, *, prompt, model, outfile=None):
         raise BackendError(
             "explain.command uses {outfile} but output mode is not 'tempfile'"
         )
+    return _substitute_placeholders(argv, prompt=prompt, model=model, outfile=outfile)
+
+
+def build_argv_from_list(template_argv, *, prompt, model, outfile=None):
+    """Substitute placeholders into an explicit argv list (no shlex).
+
+    The `argv` form of `ExplainConfig` already supplies the tokens one per
+    element, so there's nothing to split — we just walk the list and replace
+    `{prompt}` / `{model}` / `{outfile}` in each element. This is what makes
+    codex's nested `-c 'model_providers...={...}'` tokens survivable: the
+    toml layer owns the quoting, no shell parser ever touches them.
+
+    Mirrors build_argv's invariants: {prompt} required as a standalone token,
+    {outfile} requires a non-None outfile.
+    """
+    if not template_argv:
+        raise BackendError("explain.argv is empty (set explain.command instead)")
+    if "{prompt}" not in template_argv:
+        raise BackendError("explain.argv must contain {prompt} as a separate token")
+    if "{outfile}" in template_argv and outfile is None:
+        raise BackendError(
+            "explain.argv uses {outfile} but output mode is not 'tempfile'"
+        )
+    return _substitute_placeholders(template_argv, prompt=prompt, model=model, outfile=outfile)
+
+
+def _substitute_placeholders(tokens, *, prompt, model, outfile):
+    """Replace {prompt}/{model}/{outfile} in each token of an argv list.
+
+    Shared by the command-template path (post-shlex) and the explicit-argv
+    path. Pure replacement; a placeholder must be its own token, so this
+    never changes token count.
+    """
     return [tok.replace("{prompt}", prompt)
               .replace("{model}", model or "")
               .replace("{outfile}", outfile or "")
-            for tok in argv]
+            for tok in tokens]
 
 
 def run_explanation(prompt, *, model, config: ExplainConfig, cwd=None):
@@ -118,15 +158,27 @@ def run_explanation(prompt, *, model, config: ExplainConfig, cwd=None):
     return _run_stdout(prompt, model=model, config=config, cwd=cwd, timeout=timeout)
 
 
+def _resolve_argv(config: ExplainConfig, *, prompt, model, outfile=None):
+    """Pick the right builder for this config and return the final argv.
+
+    `argv` wins when set (no shlex — exact tokens), otherwise the command
+    template is split. Both paths share `_substitute_placeholders`, so the
+    prompt is always a single atomic argv element regardless of source.
+    """
+    if config.uses_argv():
+        return build_argv_from_list(config.argv, prompt=prompt, model=model, outfile=outfile)
+    return build_argv(config.command, prompt=prompt, model=model, outfile=outfile)
+
+
 def _run_stdout(prompt, *, model, config, cwd, timeout):
     """Backend writes its result to stdout; we capture result.stdout.
 
     This is the mode for most generic CLIs (zhipu GLM, openrouter wrappers,
     ollama, custom scripts). No tempfile is created; {outfile}, if present in
-    the template, would have been caught by validate() as an error.
+    the command/argv, would have been caught by validate() as an error.
     """
     try:
-        argv = build_argv(config.command, prompt=prompt, model=model)
+        argv = _resolve_argv(config, prompt=prompt, model=model)
     except BackendError as exc:
         return "Agent Said 配置错误：" + str(exc)
     try:
@@ -162,15 +214,15 @@ def _run_tempfile(prompt, *, model, config, cwd, timeout):
     lifecycle: create it empty before the fork, read it after success, delete
     it in `finally` regardless of outcome.
 
-    The template MUST contain {outfile} (enforced by validate() in the
+    The command/argv MUST contain {outfile} (enforced by validate() in the
     tempfile branch) so the backend actually writes somewhere we can read.
     """
-    # Create the outfile up front so build_argv has something to substitute.
+    # Create the outfile up front so _resolve_argv has something to substitute.
     fd, outfile = tempfile.mkstemp(suffix=".txt", text=True)
     os.close(fd)
     try:
         try:
-            argv = build_argv(config.command, prompt=prompt, model=model, outfile=outfile)
+            argv = _resolve_argv(config, prompt=prompt, model=model, outfile=outfile)
         except BackendError as exc:
             return "Agent Said 配置错误：" + str(exc)
         try:
@@ -204,18 +256,28 @@ def _run_tempfile(prompt, *, model, config, cwd, timeout):
 
 
 def which_backend(config: ExplainConfig):
-    """Return the executable name the template invokes, or None if unresolvable.
+    """Return the executable name the config invokes, or None if unresolvable.
 
     Used by `flip config` to tell users whether their backend is on PATH.
+    Honors the `argv` list when set, otherwise the `command` template.
     """
     try:
-        rendered = render_command(
-            config.command,
-            prompt="__probe__",
-            model=config.model,
-            outfile="/tmp/__probe__",
-        )
-        argv = shlex.split(rendered)
+        if config.uses_argv():
+            # argv[0] is the executable; placeholders don't affect it in
+            # practice (users don't put {prompt} first), but substitute anyway
+            # so a leading {model} token still resolves cleanly.
+            argv = _substitute_placeholders(
+                config.argv, prompt="__probe__", model=config.model,
+                outfile="/tmp/__probe__",
+            )
+        else:
+            rendered = render_command(
+                config.command,
+                prompt="__probe__",
+                model=config.model,
+                outfile="/tmp/__probe__",
+            )
+            argv = shlex.split(rendered)
         return argv[0] if argv else None
     except BackendError:
         return None

@@ -1,7 +1,12 @@
 import pytest
 
-from flip.backends import render_command, BackendError
-from flip.config import ExplainConfig
+from flip.backends import (
+    render_command,
+    build_argv_from_list,
+    which_backend,
+    BackendError,
+)
+from flip.config import ExplainConfig, CODEX_FAST_ARGV
 
 
 class TestRenderCommand:
@@ -119,3 +124,105 @@ class TestRunExplanation:
         from flip.backends import run_explanation
         out = run_explanation("p", model="m", config=cfg)
         assert "配置错误" in out
+
+
+class TestBuildArgvFromList:
+    def test_substitutes_placeholders(self):
+        argv = ["tool", "-m", "{model}", "{prompt}"]
+        out = build_argv_from_list(argv, prompt="hi", model="glm-4")
+        assert out == ["tool", "-m", "glm-4", "hi"]
+
+    def test_outfile_substitution(self):
+        argv = ["tool", "-o", "{outfile}", "{prompt}"]
+        out = build_argv_from_list(argv, prompt="hi", model="m", outfile="/tmp/x")
+        assert out == ["tool", "-o", "/tmp/x", "hi"]
+
+    def test_token_with_embedded_quotes_survives(self):
+        # The codex `-c` token: nested single+double quotes must pass through
+        # unchanged — no shell parser touches argv-form tokens.
+        nasty = 'model_providers.x={name="OpenAI", wire_api="responses"}'
+        argv = ["codex", "-c", nasty, "{prompt}"]
+        out = build_argv_from_list(argv, prompt="hi", model="m")
+        assert out[2] == nasty
+
+    def test_missing_prompt_raises(self):
+        with pytest.raises(BackendError, match="prompt"):
+            build_argv_from_list(["tool", "run"], prompt="hi", model="m")
+
+    def test_outfile_without_outfile_arg_raises(self):
+        with pytest.raises(BackendError, match="outfile"):
+            build_argv_from_list(["tool", "{outfile}", "{prompt}"], prompt="hi", model="m")
+
+    def test_empty_raises(self):
+        with pytest.raises(BackendError, match="empty"):
+            build_argv_from_list([], prompt="hi", model="m")
+
+
+class TestArgvConfigPath:
+    """ExplainConfig with `argv` set should drive run_explanation end-to-end."""
+
+    def test_argv_wins_over_command(self, tmp_path):
+        script = tmp_path / "fake_backend.py"
+        script.write_text(
+            "import sys\n"
+            "sys.stderr.write('argv=' + repr(sys.argv))\n"
+            "print('from argv path')\n",
+            encoding="utf-8",
+        )
+        cfg = ExplainConfig(
+            command="python3 /this/is/ignored/when/argv/set {prompt}",  # ignored
+            argv=["python3", str(script), "{prompt}"],
+            output="stdout",
+            timeout=10,
+        )
+        from flip.backends import run_explanation
+        out = run_explanation("myprompt", model="m", config=cfg)
+        assert "from argv path" in out
+
+    def test_argv_tempfile_mode(self, tmp_path):
+        script = tmp_path / "fake_backend.py"
+        script.write_text(
+            "import sys\n"
+            "open(sys.argv[1], 'w').write('argv-outfile: ' + sys.argv[2])\n",
+            encoding="utf-8",
+        )
+        cfg = ExplainConfig(
+            argv=["python3", str(script), "{outfile}", "{prompt}"],
+            output="tempfile",
+            timeout=10,
+        )
+        from flip.backends import run_explanation
+        out = run_explanation("myprompt", model="m", config=cfg)
+        assert "argv-outfile: myprompt" in out
+
+    def test_argv_missing_prompt_reports_config_error(self):
+        cfg = ExplainConfig(
+            argv=["codex", "exec", "-m", "{model}", "-o", "{outfile}"],
+            output="tempfile",
+            timeout=5,
+        )
+        from flip.backends import run_explanation
+        out = run_explanation("p", model="m", config=cfg)
+        assert "配置错误" in out
+
+
+class TestWhichBackend:
+    def test_command_template_path(self):
+        cfg = ExplainConfig(command="codex exec {prompt}", output="stdout")
+        assert which_backend(cfg) == "codex"
+
+    def test_argv_path(self):
+        cfg = ExplainConfig(
+            argv=["codex", "exec", "--disable", "hooks", "{prompt}"],
+            output="stdout",
+        )
+        assert which_backend(cfg) == "codex"
+
+    def test_codex_fast_argv_resolves_to_codex(self):
+        # The accelerated preset's first token is the codex binary.
+        cfg = ExplainConfig(argv=list(CODEX_FAST_ARGV), output="tempfile")
+        assert which_backend(cfg) == "codex"
+
+    def test_unresolvable_returns_none(self):
+        cfg = ExplainConfig(command="no prompt here", output="stdout")
+        assert which_backend(cfg) is None

@@ -690,7 +690,13 @@ def config_cmd():
                f"(translation {'on' if config.translation_enabled else 'off'})")
     typer.echo("")
     typer.echo("[explain]")
-    typer.echo(f"  command: {config.explain.command}")
+    if config.explain.uses_argv():
+        typer.echo("  argv:    (active, overrides command)")
+        for tok in config.explain.argv:
+            typer.echo(f"            {tok}")
+        typer.echo(f"  command: {config.explain.command}  (inactive)")
+    else:
+        typer.echo(f"  command: {config.explain.command}")
     typer.echo(f"  model:   {config.explain.model}")
     typer.echo(f"  output:  {config.explain.output}")
     typer.echo(f"  timeout: {config.explain.timeout}s")

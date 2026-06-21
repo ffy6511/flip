@@ -49,8 +49,14 @@ and timeout live in the *global* `config.toml` `[explain]` section (see
 > `~/.local/share/flip/config.toml` `[explain]` to switch providers (codex,
 > zhipu GLM, openrouter, a custom script, …).
 
-The global `explain.command` is parsed as an argv template. `{prompt}` is
-required and must be its own token; `{outfile}` is required when
+The global `[explain]` table supports two ways to express the backend's
+command line. Either is optional on its own, but at least one must carry the
+`{prompt}` placeholder.
+
+### `command` — shell template (string)
+
+Parsed with `shlex.split`. Best for simple one-liners. `{prompt}` is required
+and must be its own token; `{outfile}` is required when
 `output = "tempfile"` and must also be its own token. Fixed arguments may be
 quoted in the template, but prompt text is always passed as one argv element.
 
@@ -59,6 +65,37 @@ quoted in the template, but prompt text is always passed as one argv element.
 command = "codex exec -m {model} -o {outfile} {prompt}"
 output = "tempfile"
 ```
+
+### `argv` — explicit token list (array of strings)
+
+Used as-is, no `shlex` parsing. Best when flags are many, order-sensitive,
+or carry embedded quotes that a string template makes unreadable (codex's
+nested `-c 'key="value"'` config pairs). **When `argv` is non-empty it wins;
+`command` is ignored.** The same placeholder contract applies: `{prompt}` is
+required as a standalone element, `{outfile}` is required in `tempfile` mode.
+
+```toml
+[explain]
+# Mirrors the se_regressor.py "fast codex" invocation: no hooks/plugins,
+# low reasoning effort, OpenAI responses wire-api, read-only sandbox.
+argv = [
+  "codex", "exec",
+  "--ignore-user-config", "--ignore-rules",
+  "--disable", "hooks", "--disable", "plugins",
+  "-m", "{model}",
+  "-c", 'model_provider="openai_https"',
+  "-c", 'model_providers.openai_https={name="OpenAI", requires_openai_auth=true, wire_api="responses", supports_websockets=false}',
+  "-c", 'model_reasoning_effort="low"',
+  "--ephemeral", "--skip-git-repo-check",
+  "--color", "never", "--sandbox", "read-only",
+  "-o", "{outfile}",
+  "{prompt}",
+]
+output = "tempfile"
+```
+
+The bootstrapped `config.toml` (written on first run) ships this exact block
+commented out — uncomment it to opt into the accelerated preset.
 
 ## Validation rules (enforced by `deck.py`)
 

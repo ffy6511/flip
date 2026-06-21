@@ -26,34 +26,80 @@ DEFAULT_EXPLAIN_MODEL = "gpt-5.3-codex-spark"
 DEFAULT_EXPLAIN_OUTPUT = "tempfile"   # "stdout" | "tempfile"
 DEFAULT_EXPLAIN_TIMEOUT = 90
 
+# A drop-in "fast codex" argv, mirroring the se_regressor.py invocation that
+# disabled hooks/plugins, pinned the OpenAI responses wire-api, and ran at low
+# reasoning effort. Empty by default — `explain.command` stays the simple
+# single-line template for backward compat; users who want the accelerated
+# path set `explain.argv = [...]` (or uncomment it in the bootstrapped config).
+DEFAULT_EXPLAIN_ARGV = []
+
+# The full accelerated preset. Not the default (kept opt-in), but referenced
+# by the bootstrapped config comment and the legacy run_codex_explanation shim
+# so there is one source of truth for "what se_regressor.py used to run".
+CODEX_FAST_ARGV = [
+    "codex", "exec",
+    "--ignore-user-config", "--ignore-rules",
+    "--disable", "hooks", "--disable", "plugins",
+    "-m", "{model}",
+    "-c", 'model_provider="openai_https"',
+    "-c", 'model_providers.openai_https={name="OpenAI", requires_openai_auth=true, wire_api="responses", supports_websockets=false}',
+    "-c", 'model_reasoning_effort="low"',
+    "--ephemeral", "--skip-git-repo-check",
+    "--color", "never", "--sandbox", "read-only",
+    "-o", "{outfile}",
+    "{prompt}",
+]
+
 
 @dataclass
 class ExplainConfig:
     """Global AI-explain backend.
 
-    `command` is a shell-template with placeholders:
-      {prompt}  — the explanation prompt (always required)
-      {model}   — resolved model id
-      {outfile} — path to a tempfile the backend should write to
-                  (only meaningful when output == "tempfile")
+    Two ways to express the backend's command line:
+
+    `command` — a shell-template string, split with shlex. Best for simple
+                backends (zhipu GLM, ollama, a one-liner wrapper script):
+                  command = "ollama run {model} {prompt}"
+
+    `argv`    — an explicit list of argv tokens. Best when flags are many,
+                order-sensitive, or carry embedded quotes that a string
+                template makes unreadable (codex with nested -c values).
+
+    If `argv` is non-empty it wins; otherwise `command` is used. At least one
+    of the two must carry the {prompt} placeholder. Placeholders are shared:
+      {prompt}   — the explanation prompt (always required)
+      {model}    — resolved model id
+      {outfile}  — path to a tempfile the backend should write to
+                   (only meaningful when output == "tempfile")
 
     When output == "stdout", flip captures the backend's stdout.
     When output == "tempfile", flip creates the outfile, runs, then reads it.
     """
     command: str = DEFAULT_EXPLAIN_COMMAND
+    argv: list = field(default_factory=lambda: list(DEFAULT_EXPLAIN_ARGV))
     model: str = DEFAULT_EXPLAIN_MODEL
     output: str = DEFAULT_EXPLAIN_OUTPUT
     timeout: int = DEFAULT_EXPLAIN_TIMEOUT
 
+    def uses_argv(self) -> bool:
+        """True when this config invokes the backend via the `argv` list."""
+        return bool(self.argv)
+
     def validate(self):
         """Return a list of human-readable error strings (empty = valid)."""
         errs = []
-        if "{prompt}" not in self.command:
-            errs.append("explain.command must contain {prompt}")
+        if self.uses_argv():
+            if "{prompt}" not in self.argv:
+                errs.append("explain.argv must contain {prompt} as one of its tokens")
+        else:
+            if "{prompt}" not in self.command:
+                errs.append("explain.command must contain {prompt}")
         if self.output not in {"stdout", "tempfile"}:
             errs.append(f"explain.output must be 'stdout' or 'tempfile', got {self.output!r}")
-        if self.output == "tempfile" and "{outfile}" not in self.command:
-            errs.append("explain.command must contain {outfile} when output = 'tempfile'")
+        tokens = self.argv if self.uses_argv() else self.command
+        if self.output == "tempfile" and "{outfile}" not in tokens:
+            where = "explain.argv" if self.uses_argv() else "explain.command"
+            errs.append(f"{where} must contain {{outfile}} when output = 'tempfile'")
         try:
             t = int(self.timeout)
             if t <= 0:
@@ -89,11 +135,38 @@ class Config:
         return self.explain.validate()
 
 
+def _toml_quote(tok):
+    """Quote a string as a TOML basic (double-quoted) string.
+
+    TOML basic strings use JSON-style escapes, so a token containing both
+    single and double quotes (codex's nested `-c` value) round-trips safely.
+    Used only for the commented argv block in the bootstrap config — the live
+    argv list is loaded directly from toml by tomllib, no quoting involved.
+    """
+    escaped = tok.replace("\\", "\\\\").replace('"', '\\"')
+    return '"' + escaped + '"'
+
+
+def _format_argv_block(argv, *, indent="  "):
+    """Render an argv list as commented, multi-line TOML for the bootstrap file.
+
+    Each token is emitted as a TOML basic string, so the whole block is valid
+    TOML once the leading `# ` is stripped from every line. That keeps the
+    commented preset and CODEX_FAST_ARGV in lockstep (verified by a test).
+    """
+    lines = ["# argv = ["]
+    for tok in argv:
+        lines.append("#" + indent + _toml_quote(tok) + ",")
+    lines.append("# ]")
+    return "\n".join(lines) + "\n"
+
+
 def _bootstrap_default_config(path: Path) -> None:
     """Write a default config when none exists. Idempotent and best-effort."""
     if path.exists():
         return
     path.parent.mkdir(parents=True, exist_ok=True)
+    argv_comment = _format_argv_block(CODEX_FAST_ARGV)
     path.write_text(
         '# flip global config\n'
         '# Edit this to switch model providers (e.g. zhipu GLM, openrouter).\n\n'
@@ -102,7 +175,14 @@ def _bootstrap_default_config(path: Path) -> None:
         'default_deck = ""\n\n'
         '[explain]\n'
         '# Shell-template with placeholders: {prompt} {model} {outfile}\n'
+        '# Used when `argv` below is empty. Best for simple one-line backends.\n'
         f'command = "{DEFAULT_EXPLAIN_COMMAND}"\n'
+        '\n'
+        '# Explicit argv list (overrides `command` when non-empty). Best when\n'
+        '# flags are many or carry embedded quotes. Uncomment for the codex\n'
+        '# accelerated preset (no hooks/plugins, low reasoning, responses api).\n'
+        + argv_comment +
+        '\n'
         f'model = "{DEFAULT_EXPLAIN_MODEL}"\n'
         f'output = "{DEFAULT_EXPLAIN_OUTPUT}"\n'
         f'timeout = {DEFAULT_EXPLAIN_TIMEOUT}\n',
@@ -131,8 +211,13 @@ def load_config(home: Path = None) -> Config:
         default_deck = data.get("default_deck", default_deck)
         ex = data.get("explain", {})
         if isinstance(ex, dict):
+            raw_argv = ex.get("argv", [])
+            if raw_argv is None:
+                raw_argv = []
+            argv = [str(tok) for tok in raw_argv] if isinstance(raw_argv, list) else []
             explain = ExplainConfig(
                 command=ex.get("command", DEFAULT_EXPLAIN_COMMAND),
+                argv=argv,
                 model=ex.get("model", DEFAULT_EXPLAIN_MODEL),
                 output=ex.get("output", DEFAULT_EXPLAIN_OUTPUT),
                 timeout=int(ex.get("timeout", DEFAULT_EXPLAIN_TIMEOUT)),

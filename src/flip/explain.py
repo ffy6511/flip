@@ -62,13 +62,17 @@ def run_explanation(prompt, *, config: Config, model=None, cwd=None):
 
 
 def run_codex_explanation(prompt, *, model=None, timeout=90, cwd=None):
-    """Backward-compatible shim: invoke via a stock codex ExplainConfig.
+    """Backward-compatible shim: invoke codex via the accelerated argv preset.
 
-    Kept so existing callers/tests that don't have a full Config still work.
-    New code should call run_explanation(prompt, config=...) instead.
+    Mirrors what the legacy se_regressor.py ran (no hooks/plugins, low
+    reasoning, OpenAI responses wire-api) so old callers/tests that don't have
+    a full Config still get the fast path. New code should call
+    run_explanation(prompt, config=...) and configure argv in config.toml.
     """
+    from .config import CODEX_FAST_ARGV
     cfg = ExplainConfig(
-        command="codex exec -m {model} -o {outfile} {prompt}",
+        command="codex exec -m {model} -o {outfile} {prompt}",  # ignored: argv wins
+        argv=list(CODEX_FAST_ARGV),
         model=model or "gpt-5.3-codex-spark",
         output="tempfile",
         timeout=timeout,
