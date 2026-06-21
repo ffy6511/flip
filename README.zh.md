@@ -75,6 +75,7 @@ flip deck stats se                # 按章节分布统计
 flip deck mark se                 # 列出已标记题目
 flip deck wrong se                # 列出错题索引题目
 flip deck merge se ./new.json --dry-run  # 预览增量更新
+flip deck repair se --dry-run     # 校验 tiku 并重建 marked 索引
 flip deck translate se            # 补全缺失的 zh 字段
 flip import se ./tiku.json        # 把一份合规 JSON 注册为新 deck
 flip export se -o ./se-deck       # 导出 deck,用于备份或迁移

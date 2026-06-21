@@ -90,8 +90,16 @@ Validate after editing:
 
 ```bash
 flip import check /path/to/edited-tiku.json --dry-run
+flip deck repair <slug> --dry-run
+flip deck repair <slug>
 flip deck stats <slug>
+flip deck mark <slug>
+flip deck wrong <slug>
 ```
+
+`flip deck repair` rebuilds `marked.json` from the inline `marked` fields in
+`tiku.json` and checks whether `wrong/` records still resolve. It does not
+rewrite wrong-history.
 
 ## Agent output rules
 
@@ -99,6 +107,7 @@ When handing work back to the user, report:
 
 - Which path was used: merge command or direct JSON edit.
 - The commands run and their results.
+- For direct JSON edits, include the `flip deck repair` result.
 - Added, updated, skipped, and conflict counts when using merge.
 - Whether a backup was written.
 - Any unresolved conflicts or questions skipped because the answer was uncertain.

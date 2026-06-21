@@ -66,7 +66,7 @@ def list_cmd():
 
 # ---- `flip deck <slug> ...` (nested group) ----
 
-deck_app = typer.Typer(help="Per-deck commands: train, review, stats, merge, translate.")
+deck_app = typer.Typer(help="Per-deck commands: train, review, stats, merge, repair, translate.")
 app.add_typer(deck_app, name="deck")
 
 
@@ -251,6 +251,47 @@ def deck_merge(
     if alphabet_changed:
         _update_manifest_answer_alphabet(deck, merged_alphabet)
     typer.echo(f"merged deck {slug}")
+
+
+@deck_app.command("repair")
+def deck_repair(
+    slug: str = typer.Argument(..., help="Deck slug."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview repairs without writing."),
+):
+    """Validate tiku.json and rebuild derived indexes after direct JSON edits."""
+    config, deck = _resolve_deck(slug)
+    from .repair import apply_repair_plan, build_repair_plan
+
+    plan = build_repair_plan(deck)
+    typer.echo(f"repair preview: {slug}")
+    if not plan.ok:
+        typer.echo(f"tiku validation failed ({len(plan.tiku_errors)} errors):", err=True)
+        for error in plan.tiku_errors[:20]:
+            typer.echo(f"  {error}", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(
+        f"tiku: ok, questions={plan.question_count}, chapters={plan.chapter_count}"
+    )
+    typer.echo(
+        f"marked: rebuild {len(plan.marked_records)} records from tiku marked flags"
+    )
+    typer.echo(
+        "wrong: "
+        f"files={plan.wrong.files}, records={plan.wrong.records}, "
+        f"resolvable={plan.wrong.resolvable}, stale={plan.wrong.stale}"
+    )
+
+    if dry_run:
+        typer.echo("dry run: nothing written")
+        raise typer.Exit(0)
+
+    apply_repair_plan(deck, plan)
+    typer.echo(f"repaired deck {slug}")
+    typer.echo(f"marked.json rebuilt: {len(plan.marked_records)} records")
+    typer.echo(
+        f"wrong checked: {plan.wrong.resolvable} resolvable, {plan.wrong.stale} stale"
+    )
 
 
 @deck_app.command("translate")

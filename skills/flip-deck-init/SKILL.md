@@ -210,6 +210,7 @@ On a successful landing, tell the user:
 - Browse answers without scoring: `flip deck train <slug> --ans`
 - See stats: `flip deck stats <slug>`
 - Incrementally update later: `flip deck merge <slug> <new-tiku.json> --dry-run`
+- After direct `tiku.json` edits: `flip deck repair <slug> --dry-run`, then `flip deck repair <slug>`
 - If translations are incomplete and global translation is on: `flip deck translate <slug>`
 
 ## Boundaries: when not to use this skill

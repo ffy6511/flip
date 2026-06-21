@@ -76,6 +76,7 @@ flip deck stats se                # per-chapter distribution
 flip deck mark se                 # list marked questions
 flip deck wrong se                # list wrong-index questions
 flip deck merge se ./new.json --dry-run  # preview an incremental deck update
+flip deck repair se --dry-run     # validate tiku and rebuild marked index
 flip deck translate se            # fill missing zh fields
 flip import se ./tiku.json        # register a compliant JSON as a new deck
 flip export se -o ./se-deck       # bundle a deck for backup or transfer

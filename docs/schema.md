@@ -85,6 +85,8 @@ badge at render time.
 - The engine can still resolve older content keys after `id` is added, because `build_tiku_index` registers both the id key and the legacy content key as aliases.
 - `chapter` is duplicated at the top level for convenience (also appears serialized inside `key`).
 - `topic` is copied for read-only listings. The live question text still comes from `tiku.json`.
+- `marked.json` is a derived index. After direct `tiku.json` edits, run
+  `flip deck repair <slug>` to rebuild it from inline `marked` fields.
 
 ## wrong/ (error index directory)
 
@@ -102,6 +104,9 @@ badge at render time.
   }
 ]
 ```
+
+`flip deck repair <slug>` checks whether these records still resolve to live
+questions, but does not rewrite `wrong_input`, `wrong_answer`, or `wrong_at`.
 
 Filename convention (produced by `result_prefix_for_questions`):
 
