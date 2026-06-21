@@ -14,7 +14,7 @@ from .deck import load_deck, list_decks, DeckError
 
 app = typer.Typer(
     invoke_without_command=True,
-    add_completion=False,
+    add_completion=True,
     no_args_is_help=False,
     help="flip — terminal quiz trainer. Pick a deck and drill.",
 )
