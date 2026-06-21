@@ -20,19 +20,26 @@ app = typer.Typer(
 )
 
 
-# ---- `flip` (no args) -> interactive entry menu ----
+# ---- `flip` (no args) -> interactive deck picker -> mode menu ----
 
 @app.callback()
 def main(ctx: typer.Context):
     """flip — terminal quiz trainer."""
     if ctx.invoked_subcommand is None:
         config = load_config()
-        from .engine_loop import entry_menu, run_train
-        choice = entry_menu(config)
-        if choice is None:
-            raise typer.Exit(0)
-        deck, review_mode, selector, filters = choice
-        raise typer.Exit(run_train(deck, config, selector, review_mode, filters))
+        from .engine_loop import deck_picker, entry_menu, run_train
+        # Two-stage flow: pick a deck, then configure mode/filters for it.
+        # Esc at the mode stage returns here to re-pick a deck; only the deck
+        # picker quitting exits flip.
+        while True:
+            deck = deck_picker(config)
+            if deck is None:
+                raise typer.Exit(0)
+            choice = entry_menu(config, deck)
+            if choice is None:
+                continue  # back to deck picker
+            _, review_mode, selector, filters = choice
+            raise typer.Exit(run_train(deck, config, selector, review_mode, filters))
 
 
 # ---- `flip list` ----
@@ -40,7 +47,6 @@ def main(ctx: typer.Context):
 @app.command("list")
 def list_cmd():
     """List registered decks."""
-    import json
     from . import store
 
     config = load_config()
@@ -50,38 +56,10 @@ def list_cmd():
         typer.echo("Register one with: flip import <slug> <tiku.json>")
         raise typer.Exit(0)
 
-    # Columns: slug, name, questions, chapters, lang, alphabet, marked, wrong.
-    rows = []
-    for slug in slugs:
-        try:
-            deck = load_deck(config.decks_dir / slug)
-        except DeckError as exc:
-            rows.append([slug, f"(invalid: {exc})", "", "", "", "", "", ""])
-            continue
-        data = store.load_tiku(deck)
-        questions = sum(len(qs) for qs in (data or {}).values()) if isinstance(data, dict) else 0
-        chapters = len(data) if isinstance(data, dict) else 0
-        marked = len(store.load_marked(deck))
-        wrong = sum(
-            len(store.read_json(p, default=[]))
-            for p in store.wrong_files(deck)
-        )
-        rows.append([
-            deck.slug, deck.name, str(questions), str(chapters),
-            deck.source_lang, deck.answer_alphabet,
-            str(marked), str(wrong),
-        ])
-
-    headers = ["SLUG", "NAME", "QUESTIONS", "CHAPTERS", "LANG", "ALPHABET", "MARKED", "WRONG"]
-    widths = [max(len(h), max((len(r[i]) for r in rows), default=0))
-              for i, h in enumerate(headers)]
-
-    def fmt(row):
-        return "  ".join(c.ljust(widths[i]) for i, c in enumerate(row))
-
-    typer.echo(fmt(headers))
-    for row in rows:
-        typer.echo(fmt(row))
+    header_line, body_lines = store.format_table(store.deck_rows(config))
+    typer.echo(header_line)
+    for line in body_lines:
+        typer.echo(line)
 
 
 # ---- `flip deck <slug> ...` (nested group) ----

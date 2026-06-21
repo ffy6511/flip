@@ -783,17 +783,139 @@ def _stats_bar(total, wrong, max_total, width=32):
 
 # ---- entry menu ----
 
-def entry_menu(config):
-    """Interactive top-level menu. Returns a (deck, mode, selector, filters) or None."""
+def deck_picker(config):
+    """Phase 1 of the interactive entry: pick a deck.
+
+    Full-screen table styled like `flip list`, with live search (typing
+    printable chars filters by slug+name substring) and ↑/↓ navigation.
+    The cursor starts on config.default_deck when it still exists. Enter
+    confirms and persists the choice as the new default; Esc/q quits.
+
+    Returns a Deck or None.
+    """
     if not sys.stdin.isatty():
         print("flip: 交互菜单需要 tty。使用 `flip deck <slug> train` 等子命令。")
         return None
-    from .deck import list_decks
-    slugs = list_decks(config.decks_dir)
-    if not slugs:
+    from .deck import list_decks, load_deck
+    all_slugs = list_decks(config.decks_dir)
+    if not all_slugs:
         print("还没有任何 deck。先用 `flip import <slug> <tiku.json>` 注册一个。")
         return None
-    deck_index = 0
+
+    # Precompute the full table once; search filters these rows in place.
+    all_rows = store.deck_rows(config)
+    # slug -> display name (lowercased) for search.
+    name_index = {row[0]: (row[1] or "").lower() for row in all_rows}
+
+    query = ""
+    index = 0
+    if config.default_deck:
+        slugs_only = [r[0] for r in all_rows]
+        if config.default_deck in slugs_only:
+            index = slugs_only.index(config.default_deck)
+
+    old_settings = save_tty()
+    try:
+        enter_alt_screen()
+        enter_cbreak()
+        while True:
+            rows = _filter_rows(all_rows, name_index, query)
+            _render_deck_picker(rows, index, query, config.default_deck)
+            key = read_key()
+            if key == '\x03':
+                raise KeyboardInterrupt
+            if key == '\x1b':
+                if query:
+                    query = ""
+                    index = min(index, max(len(all_rows) - 1, 0))
+                else:
+                    return None
+                continue
+            if key in {'q', 'Q'} and not query:
+                return None
+            if key == '\x1b[A':
+                if rows:
+                    index = (index - 1) % len(rows)
+                continue
+            if key == '\x1b[B':
+                if rows:
+                    index = (index + 1) % len(rows)
+                continue
+            if key in {'\x7f', '\b'}:
+                query = query[:-1]
+                index = 0
+                continue
+            if len(key) == 1 and 0x20 <= ord(key) < 0x7f:
+                query += key
+                index = 0
+                continue
+            if key in {'\r', '\n'} and rows:
+                slug = rows[index][0]
+                try:
+                    deck = load_deck(config.decks_dir / slug)
+                except Exception:
+                    continue
+                from .config import save_default_deck
+                try:
+                    save_default_deck(config, slug)
+                except Exception:
+                    pass
+                return deck
+    finally:
+        restore_tty(old_settings)
+        exit_alt_screen()
+
+
+def _filter_rows(all_rows, name_index, query):
+    """Filter table rows by slug/name substring (case-insensitive)."""
+    if not query:
+        return list(all_rows)
+    q = query.lower()
+    return [r for r in all_rows if q in r[0].lower() or q in name_index.get(r[0], "")]
+
+
+def _render_deck_picker(rows, index, query, default_deck):
+    from .tui.render import DIM_COLOR, RESET_COLOR, SELECTED_COLOR
+    clear_screen()
+    print("@ flip — 选择 deck")
+    print()
+    if rows:
+        widths = store.table_widths(rows)
+        # Header (same left-aligned, CJK-aware style as `flip list`).
+        header_cells = [store._pad(h, widths[i]) for i, h in enumerate(store.DECK_TABLE_HEADERS)]
+        print("  " + "  ".join(header_cells))
+        for i, row in enumerate(rows):
+            cells = [store._pad(c, widths[j]) for j, c in enumerate(row)]
+            mark = " *" if row[0] == default_deck else "  "
+            line = mark + "  ".join(cells)
+            print(SELECTED_COLOR + line + RESET_COLOR if i == index
+                  else DIM_COLOR + line + RESET_COLOR)
+    else:
+        print("  " + DIM_COLOR + "(无匹配 deck)" + RESET_COLOR)
+    print()
+    if query:
+        print("  " + DIM_COLOR + "搜索: " + RESET_COLOR + query + "  " +
+              DIM_COLOR + "↑/↓ 选择,Enter 进入,Esc 清空搜索,q 退出" + RESET_COLOR)
+    else:
+        print("  " + DIM_COLOR + "输入字符搜索,↑/↓ 选择,Enter 进入,Esc/q 退出  (* = 上次使用)" + RESET_COLOR)
+
+
+def _table_widths(rows):
+    # Kept as a thin shim for backwards compat; new code should use store.table_widths.
+    return store.table_widths(rows)
+
+
+def entry_menu(config, deck):
+    """Phase 2 of the interactive entry: pick mode + filters for a chosen deck.
+
+    The deck is already chosen (by deck_picker); this screen configures the
+    1-4 question filters, the Review toggle, and the chapter selector, then
+    returns (deck, review_mode, selector, filters) or None on cancel.
+    """
+    if not sys.stdin.isatty():
+        print("flip: 交互菜单需要 tty。使用 `flip deck <slug> train` 等子命令。")
+        return None
+
     selector = None
     review_mode = False
     filters = []
@@ -802,18 +924,12 @@ def entry_menu(config):
         enter_alt_screen()
         enter_cbreak()
         while True:
-            _render_entry_menu(config, slugs, deck_index, selector, review_mode, filters)
+            _render_entry_menu(deck, selector, review_mode, filters)
             key = read_key()
             if key in {'q', 'Q', '\x1b'}:
                 return None
             if key == '\x03':
                 raise KeyboardInterrupt
-            if key == '\x1b[A':
-                deck_index = (deck_index - 1) % (len(slugs) + 1)  # +1 for stats row
-                continue
-            if key == '\x1b[B':
-                deck_index = (deck_index + 1) % (len(slugs) + 1)
-                continue
             if key == '1':
                 filters = _toggle_filter(filters, "mark")
                 continue
@@ -827,14 +943,6 @@ def entry_menu(config):
                 review_mode = not review_mode
                 continue
             if key in {'\r', '\n'}:
-                if deck_index == len(slugs):
-                    # stats row
-                    from .deck import load_deck
-                    deck = load_deck(config.decks_dir / slugs[0])
-                    _run_stats_loop(deck, config)
-                    continue
-                from .deck import load_deck
-                deck = load_deck(config.decks_dir / slugs[deck_index])
                 confirmed, next_selector = _edit_selector(
                     selector, "训练" if not review_mode else "复习"
                 )
@@ -847,33 +955,22 @@ def entry_menu(config):
         exit_alt_screen()
 
 
-def _render_entry_menu(config, slugs, deck_index, selector, review_mode, filters):
+def _render_entry_menu(deck, selector, review_mode, filters):
     from .tui.render import (
-        ACTIVE_COLOR, DIM_COLOR, RESET_COLOR, SELECTED_COLOR,
+        DIM_COLOR, RESET_COLOR, SELECTED_COLOR,
     )
     filter_set = set(filters)
     clear_screen()
-    print("@ flip — 选择 deck")
+    print("@ flip —", deck.name, f"({deck.slug})")
     print()
-    for i, slug in enumerate(slugs):
-        prefix = ">" if i == deck_index else " "
-        line = prefix + " " + slug
-        if i == deck_index:
-            print(SELECTED_COLOR + line + RESET_COLOR)
-        else:
-            print(line)
-    prefix = ">" if deck_index == len(slugs) else " "
-    stats_line = prefix + " [全局统计]"
-    if deck_index == len(slugs):
-        print(SELECTED_COLOR + stats_line + RESET_COLOR)
-    else:
-        print(stats_line)
+    print("  " + SELECTED_COLOR + "> 训练" + RESET_COLOR +
+          ("  / 复习(Review 已开)" if review_mode else ""))
     print()
-    print("  " + DIM_COLOR + "↑/↓ 选择 deck，Enter 进入，1-4 切换配置，q/Esc 退出" + RESET_COLOR)
+    print("  " + DIM_COLOR + "Enter 开始,1-4 切换配置,Esc/q 返回选 deck" + RESET_COLOR)
     print("  1", _opt_state("mark" in filter_set), "仅已标记")
     print("  2", _opt_state("note" in filter_set), "仅有笔记")
     print("  3", _opt_state("ai" in filter_set), "仅有 Agent Said")
-    print("  4", _opt_state(review_mode), "Review 模式")
+    print("  4", _opt_state(review_mode), "Review 模式(从错题索引练习)")
 
 
 def _opt_state(on):

@@ -172,3 +172,70 @@ def relative_to_cwd(path):
         return str(Path(path).relative_to(os.getcwd()))
     except ValueError:
         return str(path)
+
+
+# ---- deck summary rows (shared by `flip list` and the deck picker) ----
+
+DECK_TABLE_HEADERS = ["SLUG", "NAME", "QUESTIONS", "CHAPTERS", "LANG", "ALPHABET", "MARKED", "WRONG"]
+
+
+def deck_rows(config):
+    """Compute one summary row per registered deck.
+
+    Each row is a list of 8 strings aligned with DECK_TABLE_HEADERS. Pure
+    function (no TUI) so `flip list` and the interactive deck picker render
+    identical tables from the same source. Decks whose manifest fails to
+    load still get a row with the error in the NAME column.
+    """
+    from .deck import list_decks, load_deck, DeckError
+    slugs = list_decks(config.decks_dir)
+    rows = []
+    for slug in slugs:
+        try:
+            deck = load_deck(config.decks_dir / slug)
+        except DeckError as exc:
+            rows.append([slug, f"(invalid: {exc})", "", "", "", "", "", ""])
+            continue
+        data = load_tiku(deck)
+        questions = sum(len(qs) for qs in (data or {}).values()) if isinstance(data, dict) else 0
+        chapters = len(data) if isinstance(data, dict) else 0
+        marked = len(load_marked(deck))
+        wrong = sum(len(read_json(p, default=[])) for p in wrong_files(deck))
+        rows.append([
+            deck.slug, deck.name, str(questions), str(chapters),
+            deck.source_lang, deck.answer_alphabet,
+            str(marked), str(wrong),
+        ])
+    return rows
+
+
+def display_width(s):
+    """Display width of a string, counting East Asian wide chars as 2.
+
+    `len()` counts code points, but CJK characters (e.g. 软件工程) occupy two
+    terminal columns. Without this, ljust() mis-pads and the table columns
+    after a CJK cell drift out of alignment.
+    """
+    import unicodedata
+    return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in str(s))
+
+
+def _pad(cell, width):
+    """Left-align `cell` to `width` display columns (CJK-aware)."""
+    return cell + " " * max(0, width - display_width(cell))
+
+
+def table_widths(rows, headers=DECK_TABLE_HEADERS):
+    """Per-column display width needed to fit headers and all rows."""
+    return [max(display_width(h), max((display_width(r[i]) for r in rows), default=0))
+            for i, h in enumerate(headers)]
+
+
+def format_table(rows, headers=DECK_TABLE_HEADERS):
+    """Left-align a table (CJK-aware); returns (header_line, body_lines)."""
+    widths = table_widths(rows, headers)
+
+    def fmt(row):
+        return "  ".join(_pad(c, widths[i]) for i, c in enumerate(row))
+
+    return fmt(headers), [fmt(r) for r in rows]

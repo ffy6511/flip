@@ -148,3 +148,31 @@ def load_config(home: Path = None) -> Config:
         default_deck=default_deck,
         explain=explain,
     )
+
+
+def save_default_deck(config: Config, slug: str) -> None:
+    """Persist `default_deck = "<slug>"` back into config.toml.
+
+    Used by the entry menu to remember the last-used deck so the picker
+    cursor starts there next time. Only this one field is rewritten; the
+    rest of the file is preserved byte-for-byte.
+    """
+    path = config.config_path
+    if path.exists():
+        lines = path.read_text(encoding="utf-8").splitlines()
+        wrote = False
+        for i, line in enumerate(lines):
+            stripped = line.lstrip()
+            if stripped.startswith("default_deck") and "=" in stripped:
+                lines[i] = f'default_deck = "{slug}"'
+                wrote = True
+                break
+        if not wrote:
+            # Field missing in file — insert near the top-level scalar block.
+            for i, line in enumerate(lines):
+                if line.strip() == "" and any("source_lang" in l for l in lines[:i]):
+                    lines.insert(i + 1, f'default_deck = "{slug}"')
+                    wrote = True
+                    break
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    config.default_deck = slug
