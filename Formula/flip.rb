@@ -14,6 +14,8 @@
 # when the workflow cannot publish.
 
 class Flip < Formula
+  include Language::Python::Virtualenv
+
   desc "Terminal quiz trainer — a deck-agnostic template engine"
   homepage "https://github.com/ffy6511/flip"
   url "https://github.com/ffy6511/flip/archive/refs/tags/v0.0.0.tar.gz"
