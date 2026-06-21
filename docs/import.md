@@ -1,8 +1,9 @@
 # Importing Decks
 
-`flip import <slug> <source>` registers a deck from a JSON or CSV file. The
-format is inferred from the extension (`.json` / `.csv` / `.tsv`), or forced
-with `--format json|csv`.
+`flip import <slug> <source>` registers a deck from a JSON file, a CSV/TSV
+file, or a whole deck directory. The format is inferred from the path: a
+directory is migrated as-is, a `.json`/`.csv`/`.tsv` file by its extension,
+or forced with `--format json|csv` (only for file sources).
 
 ## JSON source
 
@@ -24,6 +25,36 @@ Validation rules enforced (per `validate_tiku`):
 The widest option set across all questions determines `answer_alphabet` in the
 generated manifest (e.g. a deck whose widest question has 5 options gets
 `ABCDE`).
+
+## Directory source
+
+Pointing `flip import` at a **directory** migrates a whole deck folder in one
+step — useful for adopting a deck authored elsewhere, or for migrating off the
+legacy single-file `se_regressor.py` data layout.
+
+```bash
+flip import se /path/to/old_deck_dir --name "软件工程"
+```
+
+The directory **must contain `tiku.json`** (validated against the schema just
+like a standalone JSON file). Optional siblings are migrated verbatim so
+learner history survives the move:
+
+| File / dir | Required | Behavior |
+|---|---|---|
+| `tiku.json` | yes | Validated, then copied. Drives `answer_alphabet` detection. |
+| `marked.json` | no | Copied as the deck's marked index. |
+| `wrong/*.json` | no | Whole directory copied into the deck's `wrong/`. |
+| `manifest.toml` | no | Its `[deck].name` / `source_lang` are used as defaults (command-line flags still win); a fresh compliant manifest is always generated. |
+
+Notes:
+
+- The old `marked_questions.json` name is **not** recognized — rename it to
+  `marked.json` first.
+- `wrong/` records missing `wrong_at` are kept as-is. The engine never reads
+  that field (it only writes it), so legacy records load cleanly.
+- `--format` is ignored for directory input. `--dry-run` still works (validates
+  `tiku.json` and previews the manifest without writing).
 
 ## CSV source (MCQ layout)
 
