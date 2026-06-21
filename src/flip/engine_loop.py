@@ -27,6 +27,14 @@ from .tui import (
 )
 
 
+# Sentinel a prompt loop returns to signal "Esc pressed — go back to the
+# chapter picker (phase 3), keep the mode/ans/filters but clear the chapters".
+# Distinct from 'quit' (aborts the whole epoch) so callers can tell the two
+# apart. It is a string (not a tuple) so it threads through the existing
+# ('previous'|'quit'|'remove') plumbing without breaking the unpack shape.
+BACK_TO_SELECTOR = 'back-to-selector'
+
+
 def _options(q):
     """All options visible — no hidden-E suppression in flip."""
     return list(q.get("options", []))
@@ -296,6 +304,8 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
             if action:
                 if action[0] == 'quit':
                     return ('quit', show_translation, detail_view)
+            if key == '\x1b':
+                return (BACK_TO_SELECTOR, show_translation, detail_view)
     finally:
         restore_tty(old_settings)
 
@@ -379,6 +389,8 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                 warning = w
             if action and action[0] == 'quit':
                 return ('quit', show_translation, detail_view)
+            if key == '\x1b':
+                return (BACK_TO_SELECTOR, show_translation, detail_view)
     finally:
         restore_tty(old_settings)
 
@@ -398,8 +410,10 @@ def review_history(deck, config, history, start_index, total, *,
         before it.
 
     Returns a sentinel the epoch loop acts on: 'continue' (resume the current
-    question) or 'quit' (abort the whole epoch). ←/→ at the ends either clamp
-    with a warning or, at the right edge, also return 'continue' to resume.
+    question), 'quit' (abort the whole epoch), or BACK_TO_SELECTOR (Esc —
+    leave the epoch and go back to the chapter picker, clearing chapters).
+    ←/→ at the ends either clamp with a warning or, at the right edge, also
+    return 'continue' to resume.
     """
     if not history:
         return 'continue', show_translation, detail_view
@@ -437,6 +451,8 @@ def review_history(deck, config, history, start_index, total, *,
                 return 'quit', show_translation, detail_view
             if key == '\x03':
                 raise KeyboardInterrupt
+            if key == '\x1b':
+                return BACK_TO_SELECTOR, show_translation, detail_view
             if key in {'\r', '\n'}:
                 return 'continue', show_translation, detail_view
             if key == '\x1b[D':
@@ -537,6 +553,12 @@ def epoch(deck, config, selected_set):
     Writes a wrong-index file at the end ONLY when training on tiku
     (input_is_index=False). Reviewing the wrong-index itself never spawns
     a new wrong file.
+
+    Returns (count, incorrect, status) where status is one of:
+      'done'              — every question was attempted normally
+      'quit'              — q / Esc-abort: leave flip entirely
+      BACK_TO_SELECTOR    — Esc pressed mid-question: go back to the chapter
+                            picker, keep mode/ans/filters but clear chapters
     """
     questions = selected_set.questions
     alphabet = deck.answer_alphabet
@@ -559,7 +581,9 @@ def epoch(deck, config, selected_set):
                     selected_set=selected_set,
                 )
                 if inpu == 'quit':
-                    return count, incorrect
+                    return count, incorrect, 'quit'
+                if inpu == BACK_TO_SELECTOR:
+                    return count, incorrect, BACK_TO_SELECTOR
                 if inpu == 'remove':
                     engine.remove_from_active_index(selected_set, chapter, q)
                     break
@@ -570,7 +594,9 @@ def epoch(deck, config, selected_set):
                         removable=selected_set.input_is_index, selected_set=selected_set,
                     )
                     if haction == 'quit':
-                        return count, incorrect
+                        return count, incorrect, 'quit'
+                    if haction == BACK_TO_SELECTOR:
+                        return count, incorrect, BACK_TO_SELECTOR
                     continue
                 break
             if inpu == 'remove':
@@ -598,7 +624,9 @@ def epoch(deck, config, selected_set):
                     removable=selected_set.input_is_index,
                 )
                 if raction == 'quit':
-                    return count, incorrect
+                    return count, incorrect, 'quit'
+                if raction == BACK_TO_SELECTOR:
+                    return count, incorrect, BACK_TO_SELECTOR
                 if raction == 'remove':
                     engine.remove_from_active_index(selected_set, chapter, q)
                     break
@@ -609,13 +637,15 @@ def epoch(deck, config, selected_set):
                         removable=selected_set.input_is_index, selected_set=selected_set,
                     )
                     if haction == 'quit':
-                        return count, incorrect
+                        return count, incorrect, 'quit'
+                    if haction == BACK_TO_SELECTOR:
+                        return count, incorrect, BACK_TO_SELECTOR
                     continue
                 break
 
             clear_screen()
             count += 1
-        return count, incorrect
+        return count, incorrect, 'done'
     finally:
         exit_alt_screen()
 
@@ -657,6 +687,8 @@ def review_questions(deck, config, selected_set):
                 return
             if key == '\x03':
                 raise KeyboardInterrupt
+            if key == '\x1b':
+                return BACK_TO_SELECTOR
             if key == '\x1b[C':
                 warning = ""
                 if index < len(questions) - 1:
@@ -910,7 +942,7 @@ def _table_widths(rows):
     return store.table_widths(rows)
 
 
-def entry_menu(config, deck):
+def entry_menu(config, deck, *, resume=None):
     """Phase 2 of the interactive entry: pick a mode + filters for a deck.
 
     Three modes selectable via ↑/↓ + Enter:
@@ -921,6 +953,11 @@ def entry_menu(config, deck):
 
     Returns (mode, selector, ans_mode, filters) where mode is "train" or
     "review", or None on cancel (Esc/q returns to the deck picker).
+
+    `resume`, when given, is a (mode_index, ans_mode, filters) tuple that
+    seeds the mode screen and immediately drops into the chapter picker with
+    chapters cleared — used when an Esc mid-question bounces back here. The
+    mode/ans/filters are preserved; only the chapter selection is reset.
     """
     if not sys.stdin.isatty():
         print("flip: 交互菜单需要 tty。使用 `flip deck <slug> train` 等子命令。")
@@ -931,14 +968,31 @@ def entry_menu(config, deck):
         ("Review", "错题索引复习"),
         ("List", "全局学习统计"),
     ]
-    mode_index = 0
+    if resume is not None:
+        mode_index, ans_mode, filters = resume
+    else:
+        mode_index = 0
+        ans_mode = False
+        filters = []
     selector = None
-    ans_mode = False
-    filters = []
     old_settings = save_tty()
     try:
         enter_alt_screen()
         enter_cbreak()
+        # On resume, skip the mode screen and jump straight into the chapter
+        # picker (chapters cleared). The mode/ans/filters above are preserved.
+        confirmed = None
+        next_selector = None
+        if resume is not None:
+            name = modes[mode_index][0]
+            if name != "List":
+                confirmed, next_selector = _edit_selector(
+                    None,
+                    name + " (" + ("浏览" if ans_mode else "计分") + ")",
+                    deck=deck, config=config,
+                )
+                if confirmed:
+                    selector = next_selector
         while True:
             _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters)
             key = read_key()
@@ -1202,17 +1256,25 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     `epoch` (answer, grade, append wrongs). The two are independent, so a
     wrong-source training pass (ans_mode=False) drills exactly the questions
     you previously got wrong.
+
+    Returns BACK_TO_SELECTOR if the learner pressed Esc mid-question (the
+    caller should bounce them back to the chapter picker, clearing chapters
+    but keeping mode/ans/filters); otherwise 0 after printing the report.
     """
     filters = filters or []
     selected = engine.pick_questions(deck, config, selector=selector, shuffle=True,
                                      filters=filters, source=source)
     if ans_mode:
-        review_questions(deck, config, selected)
+        outcome = review_questions(deck, config, selected)
+        if outcome == BACK_TO_SELECTOR:
+            return BACK_TO_SELECTOR
         return 0
 
-    count, incorrects = epoch(deck, config, selected)
-    alphabet = deck.answer_alphabet
+    count, incorrects, status = epoch(deck, config, selected)
+    if status == BACK_TO_SELECTOR:
+        return BACK_TO_SELECTOR
 
+    alphabet = deck.answer_alphabet
     print("============== Report ==============")
     label = selector if selector is not None else "全部"
     print(f"- Deck: {deck.name}, 范围 {label}, 源 {source}")

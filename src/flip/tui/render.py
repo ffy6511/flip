@@ -203,7 +203,7 @@ def _answer_footer(q, translation_enabled):
     parts.append(detail_key_hints(q))
     parts.append("m 标记")
     parts.append("r 移除")
-    parts.append("q quit")
+    parts.append("Esc 返回选题, q quit")
     return ", ".join(parts)
 
 
@@ -216,7 +216,7 @@ def _result_footer(q, translation_enabled, override=None):
     parts.append(detail_key_hints(q))
     parts.append("m 标记")
     parts.append("r 移除")
-    parts.append("q quit")
+    parts.append("Esc 返回选题, q quit")
     return ", ".join(parts)
 
 
@@ -312,7 +312,7 @@ def render_review_question(index, total, chapter, q, *, show_translation=False,
     parts.append(detail_key_hints(q))
     parts.append("m 标记")
     parts.append("r 移除")
-    parts.append("q quit")
+    parts.append("Esc 返回选题, q quit")
     print_key_hint_footer(", ".join(parts))
     print_warning(warning)
     print_ai_interaction_footer(model_name, ai_prompt_buffer, ai_waiting, note_buffer)

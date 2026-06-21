@@ -27,7 +27,7 @@ def main(ctx: typer.Context):
     """flip — terminal quiz trainer."""
     if ctx.invoked_subcommand is None:
         config = load_config()
-        from .engine_loop import deck_picker, entry_menu, run_train
+        from .engine_loop import deck_picker, entry_menu, run_train, BACK_TO_SELECTOR
         # Two-stage flow: pick a deck, then pick a mode/filters for it.
         # Esc at the mode stage returns here to re-pick a deck; only the deck
         # picker quitting exits flip.
@@ -35,13 +35,26 @@ def main(ctx: typer.Context):
             deck = deck_picker(config)
             if deck is None:
                 raise typer.Exit(0)
-            choice = entry_menu(config, deck)
-            if choice is None:
-                continue  # back to deck picker
-            mode, selector, ans_mode, filters = choice
-            source = "wrong" if mode == "review" else "tiku"
-            raise typer.Exit(run_train(deck, config, selector, source=source,
-                                       ans_mode=ans_mode, filters=filters))
+            # `resume` carries (mode_index, ans_mode, filters) so that an Esc
+            # mid-question bounces back to the chapter picker with chapters
+            # cleared but the mode/ans/filters preserved. None on first entry.
+            resume = None
+            while True:
+                choice = entry_menu(config, deck, resume=resume)
+                if choice is None:
+                    break  # back to deck picker
+                mode, selector, ans_mode, filters = choice
+                source = "wrong" if mode == "review" else "tiku"
+                outcome = run_train(deck, config, selector, source=source,
+                                    ans_mode=ans_mode, filters=filters)
+                if outcome == BACK_TO_SELECTOR:
+                    # Esc pressed: re-enter entry_menu at the chapter picker,
+                    # keep mode/ans/filters, clear chapters.
+                    mode_index = 0 if mode == "train" else 1
+                    resume = (mode_index, ans_mode, filters)
+                    continue
+                raise typer.Exit(outcome)
+            resume = None
 
 
 # ---- `flip list` ----
@@ -84,6 +97,33 @@ def _status_echo(message: str, *, ok: bool = True, err: bool = False):
     typer.secho(message, fg=color, err=err)
 
 
+def _run_deck_train_after_esc(deck, config, mode, ans_mode, filters):
+    """Loop a fresh entry_menu after an Esc mid-question.
+
+    Called only after a `deck train`/`deck review` pass returns BACK_TO_SELECTOR.
+    Re-enters the chapter picker (chapters cleared) preserving the mode/ans/
+    filters that came from the command line; subsequent Esc-backs keep looping
+    here with whatever flags the learner last picked. Finishing a run or
+    quitting the menu exits flip normally.
+    """
+    from .engine_loop import run_train, entry_menu, BACK_TO_SELECTOR
+    mode_index = 0 if mode == "train" else 1
+    resume = (mode_index, ans_mode, filters)
+    while True:
+        choice = entry_menu(config, deck, resume=resume)
+        if choice is None:
+            raise typer.Exit(0)
+        ch_mode, selector, ch_ans, ch_filters = choice
+        source = "wrong" if ch_mode == "review" else "tiku"
+        outcome = run_train(deck, config, selector, source=source,
+                            ans_mode=ch_ans, filters=ch_filters)
+        if outcome == BACK_TO_SELECTOR:
+            mode_index = 0 if ch_mode == "train" else 1
+            resume = (mode_index, ch_ans, ch_filters)
+            continue
+        raise typer.Exit(outcome)
+
+
 @deck_app.command("train")
 def deck_train(
     slug: str = typer.Argument(..., help="Deck slug, e.g. `se`."),
@@ -97,13 +137,21 @@ def deck_train(
     """Train on a deck's full question bank (source = tiku).
 
     With --ans, runs in browse mode: answers are shown immediately and nothing
-    is scored. Corresponds to the entry-menu 'Train' entry.
+    is scored. Corresponds to the entry-menu 'Train' entry. Pressing Esc
+    mid-question drops back into the chapter picker (chapters cleared, flags
+    preserved); the explicit --chapter value is ignored once Esc is used.
     """
     config, deck = _resolve_deck(slug)
     filters = _collect_filters(marked, note, ai, filter_csv)
-    from .engine_loop import run_train
-    raise typer.Exit(run_train(deck, config, chapter, source="tiku",
-                                ans_mode=ans, filters=filters))
+    from .engine_loop import run_train, BACK_TO_SELECTOR
+    # chapter is honored only on the first pass; an Esc-back re-runs via the
+    # interactive chapter picker and ignores the original --chapter.
+    outcome = run_train(deck, config, chapter, source="tiku",
+                        ans_mode=ans, filters=filters)
+    if outcome == BACK_TO_SELECTOR:
+        _run_deck_train_after_esc(deck, config, "train", ans, filters)
+    else:
+        raise typer.Exit(outcome)
 
 
 @deck_app.command("review")
@@ -120,13 +168,19 @@ def deck_review(
 
     Trains on exactly the questions previously answered wrong. With --ans,
     browses them with answers shown instead of scoring. Corresponds to the
-    entry-menu 'Review' entry.
+    entry-menu 'Review' entry. Pressing Esc mid-question drops back into the
+    chapter picker (chapters cleared, flags preserved); the explicit --chapter
+    value is ignored once Esc is used.
     """
     config, deck = _resolve_deck(slug)
     filters = _collect_filters(marked, note, ai, filter_csv)
-    from .engine_loop import run_train
-    raise typer.Exit(run_train(deck, config, chapter, source="wrong",
-                                ans_mode=ans, filters=filters))
+    from .engine_loop import run_train, BACK_TO_SELECTOR
+    outcome = run_train(deck, config, chapter, source="wrong",
+                        ans_mode=ans, filters=filters)
+    if outcome == BACK_TO_SELECTOR:
+        _run_deck_train_after_esc(deck, config, "review", ans, filters)
+    else:
+        raise typer.Exit(outcome)
 
 
 @deck_app.command("stats")
