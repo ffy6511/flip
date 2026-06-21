@@ -87,21 +87,21 @@ def _edit_user_note(deck, chapter, q, render_current):
     return True
 
 
-def _request_ai(deck, chapter, q, render_current, force=False):
+def _request_ai(deck, config, chapter, q, render_current, force=False):
     if q.get("ai_explanation") and not force:
         return True
     extra = _prompt_ai_extra(deck, chapter, q, render_current)
     if extra is None:
         return False
     render_current(ai_waiting=True)
-    engine.ensure_ai_explanation(deck, chapter, q, extra, force=force)
+    engine.ensure_ai_explanation(deck, config, chapter, q, extra, force=force)
     return True
 
 
-def _open_agent_tab(deck, chapter, q, render_current):
+def _open_agent_tab(deck, config, chapter, q, render_current):
     if has_agent_said(q):
         return "ai"
-    if _request_ai(deck, chapter, q, render_current):
+    if _request_ai(deck, config, chapter, q, render_current):
         return "ai" if has_agent_said(q) else None
     return default_detail_view(q)
 
@@ -114,10 +114,10 @@ def _open_note_tab(deck, chapter, q, render_current):
     return default_detail_view(q)
 
 
-def _edit_current_detail(deck, chapter, q, detail_view, render_current):
+def _edit_current_detail(deck, config, chapter, q, detail_view, render_current):
     detail_view = normalize_detail_view(q, detail_view)
     if detail_view == "ai":
-        if _request_ai(deck, chapter, q, render_current, force=True):
+        if _request_ai(deck, config, chapter, q, render_current, force=True):
             return ("ai" if has_agent_said(q) else default_detail_view(q)), ""
         return detail_view, ""
     if detail_view == "note":
@@ -129,7 +129,7 @@ def _edit_current_detail(deck, chapter, q, detail_view, render_current):
 
 # ---- shared per-question key handling ----
 
-def _handle_detail_keys(deck, chapter, q, detail_view, key, render_current):
+def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current):
     """Return (detail_view, warning, action) for the detail/mark/remove/translate keys.
 
     action is one of: None (continue loop), ('quit',), ('previous',), ('remove',).
@@ -142,11 +142,11 @@ def _handle_detail_keys(deck, chapter, q, detail_view, key, render_current):
         engine.toggle_marked(deck, chapter, q)
         return detail_view, "", None
     if key in {'x', 'X'}:
-        return _open_agent_tab(deck, chapter, q, render_current), "", None
+        return _open_agent_tab(deck, config, chapter, q, render_current), "", None
     if key in {'n', 'N'}:
         return _open_note_tab(deck, chapter, q, render_current), "", None
     if key in {'e', 'E'}:
-        dv, warning = _edit_current_detail(deck, chapter, q, detail_view, render_current)
+        dv, warning = _edit_current_detail(deck, config, chapter, q, detail_view, render_current)
         return normalize_detail_view(q, dv), warning, None
     return detail_view, "", None
 
@@ -255,7 +255,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
             detail_view = dv
             if w:
                 warning = w
@@ -338,7 +338,7 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
             detail_view = dv
             if w:
                 warning = w
@@ -453,7 +453,7 @@ def review_history(deck, config, history, start_index, total, *,
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
             detail_view = dv
             if w:
                 warning = w
@@ -654,7 +654,7 @@ def review_questions(deck, config, selected_set):
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
             detail_view = normalize_detail_view(q, dv)
             if w:
                 warning = w

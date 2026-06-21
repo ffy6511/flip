@@ -235,23 +235,26 @@ def save_question_field(deck, chapter, q):
     store.save_tiku(deck, data)
 
 
-def ensure_ai_explanation(deck, chapter, q, extra_prompt="", force=False):
+def ensure_ai_explanation(deck, config, chapter, q, extra_prompt="", force=False):
     from .tui.render import has_translation as _has_zh
     extra_prompt = (extra_prompt or "").strip()
     if q.get("ai_explanation") and not extra_prompt and not force:
         return q["ai_explanation"]
-    model = deck.explain.resolve_model()
+    # Deck's default model overrides the global default when set.
+    deck_model = deck.explain.default_model or None
     prompt = explain_mod.build_prompt(
         deck, chapter, q, extra_prompt,
         with_translation=_has_zh(q),
     )
-    explanation = explain_mod.run_codex_explanation(prompt, model=model)
+    explanation = explain_mod.run_explanation(prompt, config=config, model=deck_model)
+    # Record which model actually ran (env-overridden, if any).
+    used_model = deck.explain.resolve_model() if deck.explain.default_model else config.explain.model
     q["ai_explanation"] = explanation
     if extra_prompt:
         q["ai_explanation_user_prompt"] = extra_prompt
     else:
         q.pop("ai_explanation_user_prompt", None)
-    q["ai_explanation_model"] = model
+    q["ai_explanation_model"] = used_model
     q["ai_explanation_updated_at"] = datetime.datetime.now().isoformat(timespec="seconds")
     save_question_field(deck, chapter, q)
     return explanation

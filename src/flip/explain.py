@@ -1,16 +1,15 @@
-"""AI explanation via the codex CLI.
+"""AI explanation: prompt assembly + backend dispatch.
 
-The explanation prompt is built from the deck manifest's `[explain]` table —
-the role persona is no longer hardcoded to "软件工程课程助教". The codex
-invocation itself is preserved verbatim from se_regressor.py.
+The prompt is built from the deck manifest's `[explain]` table (role, max_chars)
+plus the deck's default model. The actual subprocess invocation is delegated to
+`flip.backends`, which honors the global `[explain]` command template — so
+users can switch providers (codex, zhipu GLM, openrouter, ollama, …) by editing
+config.toml without touching code.
 """
 
-import os
-import subprocess
-import tempfile
-from pathlib import Path
-
 from .deck import Deck
+from .config import Config, ExplainConfig
+from . import backends
 
 
 def format_question_for_prompt(chapter, q, *, with_translation=True):
@@ -50,55 +49,28 @@ def build_prompt(deck: Deck, chapter, q, extra_prompt="", *, with_translation=Tr
     return prompt
 
 
-def run_codex_explanation(prompt, *, model=None, timeout=90, cwd=None):
-    """Invoke `codex exec` and return its plain-text output.
+def run_explanation(prompt, *, config: Config, model=None, cwd=None):
+    """Run the configured backend for one explanation.
 
-    Preserves the codex invocation shape from se_regressor.py. `model` is the
-    resolved model id (already env-overridden by the caller).
+    `model` overrides config.explain.model when set (e.g. a deck-specific
+    default). Returns plain text.
     """
-    if model is None:
-        model = "gpt-5.3-codex-spark"
+    resolved_model = model or config.explain.model
+    return backends.run_explanation(
+        prompt, model=resolved_model, config=config.explain, cwd=cwd,
+    )
 
-    with tempfile.NamedTemporaryFile("r", encoding="utf-8", delete=False) as output_file:
-        output_path = output_file.name
 
-    try:
-        command = [
-            "codex", "exec",
-            "--ignore-user-config",
-            "--ignore-rules",
-            "--disable", "hooks",
-            "--disable", "plugins",
-            "-m", model,
-            "-c", 'model_provider="openai_https"',
-            "-c", 'model_providers.openai_https={name="OpenAI", requires_openai_auth=true, wire_api="responses", supports_websockets=false}',
-            "-c", 'model_reasoning_effort="low"',
-            "--ephemeral",
-            "--skip-git-repo-check",
-            "--color", "never",
-            "--sandbox", "read-only",
-            "-o", output_path,
-            prompt,
-        ]
-        result = subprocess.run(
-            command,
-            cwd=cwd or str(Path(__file__).resolve().parent),
-            text=True,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=timeout,
-        )
-        if result.returncode != 0:
-            message = (result.stderr or result.stdout).strip()
-            return "Agent Said 生成失败：\n" + message[-1200:]
-        with open(output_path, encoding="utf-8") as f:
-            explanation = f.read().strip()
-        return (explanation or "Agent 没有返回内容。").replace("**", "")
-    except Exception as exc:
-        return "Agent Said 生成失败：" + str(exc)
-    finally:
-        try:
-            os.remove(output_path)
-        except OSError:
-            pass
+def run_codex_explanation(prompt, *, model=None, timeout=90, cwd=None):
+    """Backward-compatible shim: invoke via a stock codex ExplainConfig.
+
+    Kept so existing callers/tests that don't have a full Config still work.
+    New code should call run_explanation(prompt, config=...) instead.
+    """
+    cfg = ExplainConfig(
+        command="codex exec -m {model} -o {outfile} {prompt}",
+        model=model or "gpt-5.3-codex-spark",
+        output="tempfile",
+        timeout=timeout,
+    )
+    return backends.run_explanation(prompt, model=cfg.model, config=cfg, cwd=cwd)
