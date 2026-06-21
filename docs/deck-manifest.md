@@ -33,12 +33,21 @@ model_env = "CODEX_EXPLAIN_MODEL"  # env var name; if set, overrides default_mod
 
 ## `[explain]` fields
 
+These are **deck-specific** overrides. The actual backend command, output mode,
+and timeout live in the *global* `config.toml` `[explain]` section (see
+`docs/import.md` and `flip config`). Only persona-like fields belong here.
+
 | Field           | Type   | Required | Notes |
 |-----------------|--------|----------|-------|
 | `role`          | string | yes      | Persona prefix for the explanation prompt (replaces the legacy hardcoded "软件工程课程助教"). |
 | `max_chars`     | int    | no       | Default `200`. Hint passed to the model. |
-| `default_model` | string | no       | Model id used if the env var below is unset. |
-| `model_env`     | string | no       | Name of an env var that, when set, overrides `default_model`. Defaults to `FLIP_EXPLAIN_MODEL`. |
+| `default_model` | string | no       | If set, overrides the global `config.explain.model` for this deck only. |
+| `model_env`     | string | no       | Env var name; if set, overrides `default_model`. Defaults to `FLIP_EXPLAIN_MODEL`. |
+
+> The shell command that invokes the model is **not** configured here — it is
+> global so all decks share one provider. Edit
+> `~/.local/share/flip/config.toml` `[explain]` to switch providers (codex,
+> zhipu GLM, openrouter, a custom script, …).
 
 ## Validation rules (enforced by `deck.py`)
 
