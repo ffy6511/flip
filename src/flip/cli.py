@@ -20,19 +20,28 @@ app = typer.Typer(
 )
 
 
-# ---- `flip` (no args) -> interactive entry menu ----
+# ---- `flip` (no args) -> interactive deck picker -> mode menu ----
 
 @app.callback()
 def main(ctx: typer.Context):
     """flip — terminal quiz trainer."""
     if ctx.invoked_subcommand is None:
         config = load_config()
-        from .engine_loop import entry_menu, run_train
-        choice = entry_menu(config)
-        if choice is None:
-            raise typer.Exit(0)
-        deck, review_mode, selector, filters = choice
-        raise typer.Exit(run_train(deck, config, selector, review_mode, filters))
+        from .engine_loop import deck_picker, entry_menu, run_train
+        # Two-stage flow: pick a deck, then pick a mode/filters for it.
+        # Esc at the mode stage returns here to re-pick a deck; only the deck
+        # picker quitting exits flip.
+        while True:
+            deck = deck_picker(config)
+            if deck is None:
+                raise typer.Exit(0)
+            choice = entry_menu(config, deck)
+            if choice is None:
+                continue  # back to deck picker
+            mode, selector, ans_mode, filters = choice
+            source = "wrong" if mode == "review" else "tiku"
+            raise typer.Exit(run_train(deck, config, selector, source=source,
+                                       ans_mode=ans_mode, filters=filters))
 
 
 # ---- `flip list` ----
@@ -40,18 +49,19 @@ def main(ctx: typer.Context):
 @app.command("list")
 def list_cmd():
     """List registered decks."""
+    from . import store
+
     config = load_config()
     slugs = list_decks(config.decks_dir)
     if not slugs:
         typer.echo("No decks found under " + str(config.decks_dir))
         typer.echo("Register one with: flip import <slug> <tiku.json>")
         raise typer.Exit(0)
-    for slug in slugs:
-        try:
-            deck = load_deck(config.decks_dir / slug)
-            typer.echo(f"{deck.slug:20} {deck.name}")
-        except DeckError as exc:
-            typer.echo(f"{slug:20} (invalid: {exc})", err=True)
+
+    header_line, body_lines = store.format_table(store.deck_rows(config))
+    typer.echo(header_line)
+    for line in body_lines:
+        typer.echo(line)
 
 
 # ---- `flip deck <slug> ...` (nested group) ----
@@ -73,37 +83,45 @@ def _resolve_deck(slug: str):
 def deck_train(
     slug: str = typer.Argument(..., help="Deck slug, e.g. `se`."),
     chapter: str = typer.Option(None, "--chapter", "-c", help="e.g. 5, 5-10, -3"),
-    review: bool = typer.Option(False, "--review", help="Review wrong-index instead of tiku."),
+    ans: bool = typer.Option(False, "--ans", help="Browse mode: show answers, no scoring."),
     marked: bool = typer.Option(False, "--marked", help="Only marked questions."),
     note: bool = typer.Option(False, "--note", help="Only questions with a note."),
     ai: bool = typer.Option(False, "--ai", help="Only questions with an Agent Said."),
     filter_csv: str = typer.Option(None, "--filter", help="Comma list: mark,note,ai"),
 ):
-    """Train on a deck (or review its wrong-index with --review)."""
+    """Train on a deck's full question bank (source = tiku).
+
+    With --ans, runs in browse mode: answers are shown immediately and nothing
+    is scored. Corresponds to the entry-menu 'Train' entry.
+    """
     config, deck = _resolve_deck(slug)
     filters = _collect_filters(marked, note, ai, filter_csv)
     from .engine_loop import run_train
-    raise typer.Exit(run_train(deck, config, chapter, review, filters))
+    raise typer.Exit(run_train(deck, config, chapter, source="tiku",
+                                ans_mode=ans, filters=filters))
 
 
 @deck_app.command("review")
 def deck_review(
-    slug: str = typer.Argument(...),
-    chapter: str = typer.Option(None, "--chapter", "-c"),
-    marked: bool = typer.Option(False, "--marked"),
-    note: bool = typer.Option(False, "--note"),
-    ai: bool = typer.Option(False, "--ai"),
-    filter_csv: str = typer.Option(None, "--filter"),
+    slug: str = typer.Argument(..., help="Deck slug, e.g. `se`."),
+    chapter: str = typer.Option(None, "--chapter", "-c", help="e.g. 5, 5-10, -3"),
+    ans: bool = typer.Option(False, "--ans", help="Browse mode: show answers, no scoring."),
+    marked: bool = typer.Option(False, "--marked", help="Only marked questions."),
+    note: bool = typer.Option(False, "--note", help="Only questions with a note."),
+    ai: bool = typer.Option(False, "--ai", help="Only questions with an Agent Said."),
+    filter_csv: str = typer.Option(None, "--filter", help="Comma list: mark,note,ai"),
 ):
-    """Browse a deck's questions without scoring."""
+    """Drill a deck's wrong index (source = wrong).
+
+    Trains on exactly the questions previously answered wrong. With --ans,
+    browses them with answers shown instead of scoring. Corresponds to the
+    entry-menu 'Review' entry.
+    """
     config, deck = _resolve_deck(slug)
     filters = _collect_filters(marked, note, ai, filter_csv)
-    from .engine import pick_questions
-    from .engine_loop import review_questions
-    selected = pick_questions(deck, config, selector=chapter, shuffle=False,
-                              filters=filters, source="tiku")
-    review_questions(deck, config, selected)
-    raise typer.Exit(0)
+    from .engine_loop import run_train
+    raise typer.Exit(run_train(deck, config, chapter, source="wrong",
+                                ans_mode=ans, filters=filters))
 
 
 @deck_app.command("stats")
@@ -145,22 +163,26 @@ def _collect_filters(marked, note, ai, filter_csv):
 @app.command("import")
 def import_cmd(
     slug: str = typer.Argument(..., help="New deck slug, e.g. `compiler`."),
-    source: Path = typer.Argument(..., exists=True, dir_okay=False,
-                                  help="tiku.json or MCQ .csv/.tsv source file."),
+    source: Path = typer.Argument(..., exists=True,
+                                  help="A tiku.json / MCQ .csv/.tsv file, OR a deck "
+                                       "directory (must contain tiku.json; optional "
+                                       "marked.json and wrong/ are migrated too)."),
     name: str = typer.Option(None, "--name", help="Display name; defaults to slug."),
     source_lang: str = typer.Option("en", "--source-lang"),
     role: str = typer.Option(None, "--role", help="AI persona; defaults to '<name> 助教'."),
-    fmt: str = typer.Option(None, "--format", help="Force json|csv; default: by extension."),
+    fmt: str = typer.Option(None, "--format", help="Force json|csv; ignored for directory input."),
     delimiter: str = typer.Option("auto", "--delimiter", help="csv delim: auto/comma/tab/semicolon/pipe."),
     has_header: bool = typer.Option(True, "--header/--no-header", help="CSV has a header row."),
     force: bool = typer.Option(False, "--force", help="Overwrite an existing deck."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate and preview; write nothing."),
 ):
-    """Register a deck from a JSON or CSV source.
+    """Register a deck from a JSON / CSV file or a deck directory.
 
-    JSON sources are validated against the tiku schema and copied verbatim.
-    CSV sources (see docs/import.md for the MCQ layout) are converted; the
-    answer_alphabet is auto-detected from the widest option column.
+    File inputs (json/csv) are validated/converted as before. A *directory*
+    input migrates a whole deck folder: its `tiku.json` (required) is
+    validated and copied; `marked.json` and `wrong/`, if present, are copied
+    verbatim so learner history survives the move. The old
+    `marked_questions.json` name is not recognized — rename it first.
 
     Extracting a source from PDF/HTML is the flip-deck-init skill's job.
     """
@@ -170,28 +192,19 @@ def import_cmd(
     from .importers import import_csv, validate_tiku
 
     config = load_config()
-    fmt_resolved = _resolve_import_format(source, fmt)
 
-    if fmt_resolved == "csv":
-        result = import_csv(
-            source, delimiter=delimiter, has_header=has_header,
-            translation_enabled=config.translation_enabled,
-        )
-        if result.errors:
-            typer.echo(f"CSV import failed ({len(result.errors)} errors):", err=True)
-            for line_no, msg in result.errors[:20]:
-                where = f"line {line_no}: " if line_no else ""
-                typer.echo(f"  {where}{msg}", err=True)
+    # ---- directory mode: tiku.json from the dir, plus marked/wrong if present ----
+    is_dir_mode = source.is_dir()
+    if is_dir_mode:
+        src_dir = source
+        tiku_file = src_dir / "tiku.json"
+        if not tiku_file.is_file():
+            typer.echo(f"directory has no tiku.json: {src_dir}", err=True)
             raise typer.Exit(1)
-        tiku_data = result.chapters
-        detected_alphabet = result.answer_alphabet
-        typer.echo(f"parsed {result.question_count} questions across "
-                   f"{len(result.chapters)} chapter(s); alphabet={detected_alphabet}")
-    else:
         try:
-            tiku_data = json.loads(source.read_text(encoding="utf-8"))
+            tiku_data = json.loads(tiku_file.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
-            typer.echo(f"invalid JSON: {exc}", err=True)
+            typer.echo(f"invalid tiku.json: {exc}", err=True)
             raise typer.Exit(1)
         errs = validate_tiku(tiku_data)
         if errs:
@@ -203,6 +216,47 @@ def import_cmd(
         qcount = sum(len(qs) for qs in tiku_data.values())
         typer.echo(f"validated {qcount} questions across {len(tiku_data)} chapter(s); "
                    f"alphabet={detected_alphabet}")
+        # If the source dir has a manifest, prefer its name/source_lang as defaults.
+        src_manifest = src_dir / "manifest.toml"
+        if src_manifest.is_file():
+            from ._toml import load_toml
+            mdata = load_toml(src_manifest).get("deck", {})
+            name = name or mdata.get("name") or None
+            source_lang = mdata.get("source_lang", source_lang)
+            role = role or mdata.get("role") or None
+    else:
+        fmt_resolved = _resolve_import_format(source, fmt)
+        if fmt_resolved == "csv":
+            result = import_csv(
+                source, delimiter=delimiter, has_header=has_header,
+                translation_enabled=config.translation_enabled,
+            )
+            if result.errors:
+                typer.echo(f"CSV import failed ({len(result.errors)} errors):", err=True)
+                for line_no, msg in result.errors[:20]:
+                    where = f"line {line_no}: " if line_no else ""
+                    typer.echo(f"  {where}{msg}", err=True)
+                raise typer.Exit(1)
+            tiku_data = result.chapters
+            detected_alphabet = result.answer_alphabet
+            typer.echo(f"parsed {result.question_count} questions across "
+                       f"{len(result.chapters)} chapter(s); alphabet={detected_alphabet}")
+        else:
+            try:
+                tiku_data = json.loads(source.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                typer.echo(f"invalid JSON: {exc}", err=True)
+                raise typer.Exit(1)
+            errs = validate_tiku(tiku_data)
+            if errs:
+                typer.echo(f"tiku validation failed ({len(errs)} errors):", err=True)
+                for e in errs[:20]:
+                    typer.echo(f"  {e}", err=True)
+                raise typer.Exit(1)
+            detected_alphabet = _detect_alphabet_from_tiku(tiku_data)
+            qcount = sum(len(qs) for qs in tiku_data.values())
+            typer.echo(f"validated {qcount} questions across {len(tiku_data)} chapter(s); "
+                       f"alphabet={detected_alphabet}")
 
     dest_dir = config.decks_dir / slug
     if dest_dir.exists() and not force and not dry_run:
@@ -222,18 +276,38 @@ def import_cmd(
         typer.echo("--- dry run: nothing written ---")
         raise typer.Exit(0)
 
+    from . import store
+    from .deck import Deck
+    deck = Deck(
+        slug=slug, name=display_name, path=dest_dir,
+        source_lang=source_lang, answer_alphabet=detected_alphabet,
+    )
+
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_tiku = dest_dir / "tiku.json"
-    if fmt_resolved == "csv":
-        dest_tiku.write_text(
-            json.dumps(tiku_data, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+    if is_dir_mode:
+        report = store.import_dir(source, deck)
+        (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
+        typer.echo(f"imported deck {slug} -> {dest_tiku} (from directory {source})")
+        extra = []
+        if report["marked"]:
+            extra.append("marked.json")
+        if report["wrong_files"]:
+            extra.append(f"wrong/{report['wrong_files']} file(s)")
+        if extra:
+            typer.echo(f"migrated: {', '.join(extra)}")
+        typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
     else:
-        shutil.copyfile(source, dest_tiku)
-    (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
-    typer.echo(f"imported deck {slug} -> {dest_tiku}")
-    typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
+        if fmt_resolved == "csv":
+            dest_tiku.write_text(
+                json.dumps(tiku_data, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            shutil.copyfile(source, dest_tiku)
+        (dest_dir / "manifest.toml").write_text(manifest, encoding="utf-8")
+        typer.echo(f"imported deck {slug} -> {dest_tiku}")
+        typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
 
 
 def _resolve_import_format(source: Path, fmt):

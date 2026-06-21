@@ -108,7 +108,7 @@ How you read the source is your choice (Read / Bash calling a converter / anothe
 - **When the answer is uncertain, leave it blank rather than guess**: set uncertain questions aside in a temp file instead of guessing — wrong answers make the user memorize the wrong thing.
 - **Option count is variable**: 2–10 are all fine. Letters increment consecutively from A to whatever is needed (e.g. 5 options use E). flip has **no** "hidden E option" logic; E is a normal option.
 - **Sort multi-select answers**: always concatenate in alphabetical order (`"AC"`, not `"CA"`), otherwise training works but stats get confused.
-- **Translation (`zh`) trade-off**: only write `zh` when (a) the user explicitly asks for translation AND (b) you can provide a complete translation for every question (topic + all options). Otherwise omit `zh` entirely (empty beats half-populated; `flip deck <slug> translate` can fill it later).
+- **Translation (`zh`) trade-off**: only write `zh` when (a) the user explicitly asks for translation AND (b) you can provide a complete translation for every question (topic + all options). Otherwise omit `zh` entirely (empty beats half-populated; `flip deck translate <slug>` can fill it later).
 
 ---
 
@@ -179,6 +179,8 @@ flip list                  # should show the new deck
 flip deck stats <slug>     # check the question/chapter counts look right
 ```
 
+> Subcommand order is `flip deck <verb> <slug>` (verb before slug), e.g. `flip deck stats se`.
+
 ---
 
 ## Common pitfalls
@@ -196,10 +198,11 @@ flip deck stats <slug>     # check the question/chapter counts look right
 On a successful landing, tell the user:
 
 - The deck is registered at `~/.local/share/flip/decks/<slug>/`
-- Start training: `flip deck <slug> train`
-- Review wrong answers: `flip deck <slug> train --review`
-- See stats: `flip deck <slug> stats`
-- If translations are incomplete and global translation is on: `flip deck <slug> translate`
+- Start training: `flip deck train <slug>`
+- Review wrong answers (drill the wrong index): `flip deck review <slug>`
+- Browse answers without scoring: `flip deck train <slug> --ans`
+- See stats: `flip deck stats <slug>`
+- If translations are incomplete and global translation is on: `flip deck translate <slug>`
 
 ## Boundaries: when not to use this skill
 

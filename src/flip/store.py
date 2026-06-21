@@ -50,6 +50,48 @@ def save_marked(deck: Deck, marked):
     write_json(deck.marked_path, marked)
 
 
+# ---- directory import (migrate a whole deck folder) ----
+
+def import_dir(src_dir, deck: Deck):
+    """Copy a legacy/external deck folder into a freshly created deck dir.
+
+    `src_dir` must contain `tiku.json` (required). Optional siblings:
+      - `marked.json`  -> copied verbatim to the deck's marked path
+      - `wrong/`       -> copied verbatim into the deck's wrong dir
+
+    The old `marked_questions.json` name is NOT recognized — callers must
+    rename it to `marked.json` first. wrong-file records missing `wrong_at`
+    are kept as-is (the engine never reads that field, only writes it).
+
+    Returns a dict of what was copied, for the CLI to report.
+    """
+    src_dir = Path(src_dir)
+    src_tiku = src_dir / "tiku.json"
+    if not src_tiku.is_file():
+        raise FileNotFoundError(f"tiku.json not found in {src_dir}")
+
+    deck.path.mkdir(parents=True, exist_ok=True)
+
+    # tiku.json is validated upstream by the caller; here we only relocate it.
+    write_json(deck.tiku_path, read_json(src_tiku))
+
+    copied = {"tiku": True, "marked": False, "wrong_files": 0}
+
+    src_marked = src_dir / "marked.json"
+    if src_marked.is_file():
+        write_json(deck.marked_path, read_json(src_marked))
+        copied["marked"] = True
+
+    src_wrong = src_dir / "wrong"
+    if src_wrong.is_dir():
+        deck.wrong_dir.mkdir(parents=True, exist_ok=True)
+        for path in json_files_in_directory(src_wrong):
+            write_json(deck.wrong_dir / path.name, read_json(path))
+            copied["wrong_files"] += 1
+
+    return copied
+
+
 # ---- wrong/ directory ----
 
 def json_files_in_directory(directory):
@@ -130,3 +172,70 @@ def relative_to_cwd(path):
         return str(Path(path).relative_to(os.getcwd()))
     except ValueError:
         return str(path)
+
+
+# ---- deck summary rows (shared by `flip list` and the deck picker) ----
+
+DECK_TABLE_HEADERS = ["SLUG", "NAME", "QUESTIONS", "CHAPTERS", "LANG", "ALPHABET", "MARKED", "WRONG"]
+
+
+def deck_rows(config):
+    """Compute one summary row per registered deck.
+
+    Each row is a list of 8 strings aligned with DECK_TABLE_HEADERS. Pure
+    function (no TUI) so `flip list` and the interactive deck picker render
+    identical tables from the same source. Decks whose manifest fails to
+    load still get a row with the error in the NAME column.
+    """
+    from .deck import list_decks, load_deck, DeckError
+    slugs = list_decks(config.decks_dir)
+    rows = []
+    for slug in slugs:
+        try:
+            deck = load_deck(config.decks_dir / slug)
+        except DeckError as exc:
+            rows.append([slug, f"(invalid: {exc})", "", "", "", "", "", ""])
+            continue
+        data = load_tiku(deck)
+        questions = sum(len(qs) for qs in (data or {}).values()) if isinstance(data, dict) else 0
+        chapters = len(data) if isinstance(data, dict) else 0
+        marked = len(load_marked(deck))
+        wrong = sum(len(read_json(p, default=[])) for p in wrong_files(deck))
+        rows.append([
+            deck.slug, deck.name, str(questions), str(chapters),
+            deck.source_lang, deck.answer_alphabet,
+            str(marked), str(wrong),
+        ])
+    return rows
+
+
+def display_width(s):
+    """Display width of a string, counting East Asian wide chars as 2.
+
+    `len()` counts code points, but CJK characters (e.g. 软件工程) occupy two
+    terminal columns. Without this, ljust() mis-pads and the table columns
+    after a CJK cell drift out of alignment.
+    """
+    import unicodedata
+    return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in str(s))
+
+
+def _pad(cell, width):
+    """Left-align `cell` to `width` display columns (CJK-aware)."""
+    return cell + " " * max(0, width - display_width(cell))
+
+
+def table_widths(rows, headers=DECK_TABLE_HEADERS):
+    """Per-column display width needed to fit headers and all rows."""
+    return [max(display_width(h), max((display_width(r[i]) for r in rows), default=0))
+            for i, h in enumerate(headers)]
+
+
+def format_table(rows, headers=DECK_TABLE_HEADERS):
+    """Left-align a table (CJK-aware); returns (header_line, body_lines)."""
+    widths = table_widths(rows, headers)
+
+    def fmt(row):
+        return "  ".join(_pad(c, widths[i]) for i, c in enumerate(row))
+
+    return fmt(headers), [fmt(r) for r in rows]
