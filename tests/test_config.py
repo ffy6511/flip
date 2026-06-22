@@ -1,9 +1,10 @@
-"""Config-layer coverage for the `argv` explain-backend form.
+"""Config-layer coverage for the explain-backend precedence rules.
 
-`command` (string template) and `argv` (explicit token list) are two faces
-of the same config; these tests pin which one wins, how each validates, and
-that the bootstrapped default config carries the codex accelerated preset as
-a ready-to-uncomment block.
+The explain backend resolves in this order (see load_config):
+  1. A non-empty user `argv`     → use it.
+  2. A user-overridden `command` → drop argv, use command.
+  3. Neither                      → default to CODEX_FAST_ARGV.
+These tests pin each branch plus the bootstrapped config file's shape.
 """
 
 import pytest
@@ -103,6 +104,45 @@ class TestLoadConfigArgv:
         )
         cfg = load_config(tmp_path)
         assert not cfg.explain.uses_argv()
+
+    def test_default_argv_is_codex_fast_when_user_sets_nothing(self, tmp_path):
+        # The core new behavior: a user who sets neither argv nor command gets
+        # the codex accelerated preset (CODEX_FAST_ARGV) by default, including
+        # --skip-git-repo-check so it runs anywhere.
+        (tmp_path / "config.toml").write_text(
+            '[explain]\nmodel = "gpt-5.3-codex-spark"\n',
+            encoding="utf-8",
+        )
+        cfg = load_config(tmp_path)
+        assert cfg.explain.uses_argv()
+        assert cfg.explain.argv == list(CODEX_FAST_ARGV)
+        assert "--skip-git-repo-check" in cfg.explain.argv
+
+    def test_overridden_command_drops_default_argv(self, tmp_path):
+        # A user who sets `command` to a different backend (e.g. ollama) must
+        # NOT be forced onto the codex argv preset — argv is cleared so the
+        # command path takes over.
+        (tmp_path / "config.toml").write_text(
+            '[explain]\ncommand = "ollama run {model} {prompt}"\noutput = "stdout"\n',
+            encoding="utf-8",
+        )
+        cfg = load_config(tmp_path)
+        assert not cfg.explain.uses_argv()
+        assert cfg.explain.command == "ollama run {model} {prompt}"
+
+    def test_default_command_alone_does_not_drop_argv(self, tmp_path):
+        # Edge case: if the user happens to write the *default* command string
+        # verbatim, that should still count as "not overridden" → argv default
+        # (CODEX_FAST_ARGV) wins. Guards against the bootstrapped file's
+        # commented `command = "..."` line confusing the precedence.
+        from flip.config import DEFAULT_EXPLAIN_COMMAND
+        (tmp_path / "config.toml").write_text(
+            f'[explain]\ncommand = "{DEFAULT_EXPLAIN_COMMAND}"\n',
+            encoding="utf-8",
+        )
+        cfg = load_config(tmp_path)
+        assert cfg.explain.uses_argv()
+        assert cfg.explain.argv == list(CODEX_FAST_ARGV)
 
     def test_does_not_auto_install_bundled_decks(self, tmp_path):
         # Regression for goal ③: load_config must NOT silently install bundled

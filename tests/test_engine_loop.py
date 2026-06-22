@@ -63,6 +63,63 @@ def test_normalize_detail_view_drops_to_none_without_explicit_request():
     assert normalize_detail_view(q, "note") == "note"
 
 
+# ---- x/n toggle: pressing the key again hides the block ----
+#
+# _handle_detail_keys is the shared dispatcher for x/n/e/m/q across all four
+# prompt loops. These pin the new toggle semantics: when the matching block is
+# already shown, the key hides it (returns None); otherwise it opens as before.
+
+def _noop_render(*a, **k):
+    return None
+
+
+def test_x_toggles_off_when_ai_already_shown():
+    # detail_view == "ai" + press x  ->  hidden (None), no AI request fired.
+    q = {"topic": "t", "options": ["A. x"], "answer": "A",
+         "ai_explanation": "some explanation", "user_note": ""}
+    detail_view, _warning, action = engine_loop._handle_detail_keys(
+        None, None, "1", q, "ai", "x", _noop_render,
+    )
+    assert detail_view is None
+    assert action is None
+
+
+def test_n_toggles_off_when_note_already_shown():
+    # detail_view == "note" + press n  ->  hidden (None), no note editor fired.
+    q = {"topic": "t", "options": ["A. x"], "answer": "A",
+         "user_note": "a note", "ai_explanation": ""}
+    detail_view, _warning, action = engine_loop._handle_detail_keys(
+        None, None, "1", q, "note", "n", _noop_render,
+    )
+    assert detail_view is None
+    assert action is None
+
+
+def test_x_opens_when_something_else_shown(monkeypatch):
+    # detail_view == "note" (or None) + press x  ->  opens ai (does NOT toggle
+    # off), so users with both kinds of content can switch between them.
+    q = {"topic": "t", "options": ["A. x"], "answer": "A",
+         "ai_explanation": "ai content", "user_note": "note content"}
+    # Both tabs exist, so opening ai is pure display — no AI request needed.
+    detail_view, _warning, _action = engine_loop._handle_detail_keys(
+        None, None, "1", q, "note", "x", _noop_render,
+    )
+    assert detail_view == "ai"
+
+
+def test_x_then_x_round_trips_to_hidden_then_ai():
+    # Two presses: first opens ai, second hides it. Verifies the toggle is
+    # symmetric — the user can't get stuck "always showing".
+    q = {"topic": "t", "options": ["A. x"], "answer": "A",
+         "ai_explanation": "ai content", "user_note": ""}
+    opened, _, _ = engine_loop._handle_detail_keys(
+        None, None, "1", q, None, "x", _noop_render)
+    assert opened == "ai"
+    closed, _, _ = engine_loop._handle_detail_keys(
+        None, None, "1", q, opened, "x", _noop_render)
+    assert closed is None
+
+
 def test_selector_set_from_text_uses_engine_chapter_selector():
     assert engine_loop._selector_set_from_text(
         "5,3-4", ["1", "2", "3", "4", "5"], 5

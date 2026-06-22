@@ -215,8 +215,16 @@ def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_curre
         engine.toggle_marked(deck, chapter, q)
         return detail_view, "", None
     if key in {'x', 'X'}:
+        # Toggle: pressing x while the ai block is already shown hides it.
+        # Otherwise open the ai tab (request generation if there's no content).
+        if detail_view == "ai":
+            return None, "", None
         return _open_agent_tab(deck, config, chapter, q, render_current), "", None
     if key in {'n', 'N'}:
+        # Toggle: pressing n while the note block is already shown hides it.
+        # Otherwise open the note tab (create one if there's no content).
+        if detail_view == "note":
+            return None, "", None
         return _open_note_tab(deck, chapter, q, render_current), "", None
     if key in {'e', 'E'}:
         dv, warning = _edit_current_detail(deck, config, chapter, q, detail_view, render_current)

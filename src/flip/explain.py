@@ -71,7 +71,7 @@ def run_codex_explanation(prompt, *, model=None, timeout=90, cwd=None):
     """
     from .config import CODEX_FAST_ARGV
     cfg = ExplainConfig(
-        command="codex exec -m {model} -o {outfile} {prompt}",  # ignored: argv wins
+        command="codex exec --skip-git-repo-check -m {model} -o {outfile} {prompt}",  # ignored: argv wins
         argv=list(CODEX_FAST_ARGV),
         model=model or "gpt-5.3-codex-spark",
         output="tempfile",

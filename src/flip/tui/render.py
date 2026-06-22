@@ -130,10 +130,16 @@ def question_topic(q):
     return topic_with_answer_badge(topic, answer)
 
 
+# Topic-trailing badges that already mark a question as multi-select. When the
+# topic text already ends with one (English or Chinese), don't append another
+# [多选] — otherwise we render "...? [multi-select] [多选]" / "...？ [多选] [多选]".
+_MULTI_SELECT_BADGE_RE = re.compile(r"\[\s*(?:multi[-\s]?select|多选)\s*\]\s*$", re.IGNORECASE)
+
+
 def topic_with_answer_badge(topic, answer):
     topic = str(topic)
     answer = str(answer).strip()
-    if len(answer) > 1:
+    if len(answer) > 1 and not _MULTI_SELECT_BADGE_RE.search(topic):
         return topic + " [多选]"
     return topic
 
