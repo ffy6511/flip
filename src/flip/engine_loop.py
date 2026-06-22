@@ -10,6 +10,7 @@ the example deck.
 """
 
 import datetime
+import shutil
 import sys
 
 from . import store
@@ -34,6 +35,22 @@ from .tui import (
 # apart. It is a string (not a tuple) so it threads through the existing
 # ('previous'|'quit'|'remove') plumbing without breaking the unpack shape.
 BACK_TO_SELECTOR = 'back-to-selector'
+
+
+def _terminal_height():
+    return max(8, shutil.get_terminal_size((80, 24)).lines)
+
+
+def _window_bounds(total, cursor, visible_rows):
+    if total <= 0:
+        return 0, 0
+    visible_rows = max(1, int(visible_rows))
+    cursor = max(0, min(int(cursor), total - 1))
+    if total <= visible_rows:
+        return 0, total
+    start = cursor - (visible_rows // 2)
+    start = max(0, min(start, total - visible_rows))
+    return start, start + visible_rows
 
 
 def _remove_confirm_warning(selected_set):
@@ -342,7 +359,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                 if action[0] == 'quit':
                     return ('quit', show_translation, detail_view)
             if key == '\x1b':
-                return (BACK_TO_SELECTOR, show_translation, detail_view)
+                return ('quit', show_translation, detail_view)
     finally:
         restore_tty(old_settings)
 
@@ -442,7 +459,7 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
             if action and action[0] == 'quit':
                 return ('quit', show_translation, detail_view)
             if key == '\x1b':
-                return (BACK_TO_SELECTOR, show_translation, detail_view)
+                return ('quit', show_translation, detail_view)
     finally:
         restore_tty(old_settings)
 
@@ -462,8 +479,8 @@ def review_history(deck, config, history, start_index, total, *,
         before it.
 
     Returns a sentinel the epoch loop acts on: 'continue' (resume the current
-    question), 'quit' (abort the whole epoch), or BACK_TO_SELECTOR (Esc —
-    leave the epoch and go back to the chapter picker, clearing chapters).
+    question) or 'quit' (abort the whole epoch). In-question Esc now matches
+    q and exits while preserving the checkpoint.
     ←/→ at the ends either clamp with a warning or, at the right edge, also
     return 'continue' to resume.
     """
@@ -506,7 +523,7 @@ def review_history(deck, config, history, start_index, total, *,
             if key == '\x03':
                 raise KeyboardInterrupt
             if key == '\x1b':
-                return BACK_TO_SELECTOR, show_translation, detail_view
+                return 'quit', show_translation, detail_view
             if key in {'\r', '\n'}:
                 return 'continue', show_translation, detail_view
             if key == '\x1b[D':
@@ -616,8 +633,8 @@ def epoch(deck, config, selected_set, *, start_index=0, history=None,
     Returns (count, incorrect, status) where status is one of:
       'done'              — every question was attempted normally
       'quit'              — q / Esc-abort: leave flip entirely
-      BACK_TO_SELECTOR    — Esc pressed mid-question: go back to the chapter
-                            picker, keep mode/ans/filters but clear chapters
+      BACK_TO_SELECTOR    — reserved sentinel for explicit "back to picker"
+                            flows; normal in-question Esc now exits like q
     """
     questions = selected_set.questions
     alphabet = deck.answer_alphabet
@@ -719,12 +736,12 @@ def epoch(deck, config, selected_set, *, start_index=0, history=None,
 
 # ---- standalone review (browse a question set) ----
 
-def review_questions(deck, config, selected_set):
+def review_questions(deck, config, selected_set, *, start_index=0, on_progress=None):
     questions = selected_set.questions
     if not questions:
         print("No questions to review.")
         return 'done', []
-    index = 0
+    index = min(max(int(start_index), 0), len(questions) - 1)
     browse_items = [
         {"chapter": chapter, "question": q, "options": _options(q, deck)}
         for chapter, q in questions
@@ -761,12 +778,14 @@ def review_questions(deck, config, selected_set):
             if key == '\x03':
                 raise KeyboardInterrupt
             if key == '\x1b':
-                return BACK_TO_SELECTOR, browse_items
+                return 'quit', browse_items
             if key == '\x1b[C':
                 warning = ""
                 if index < len(questions) - 1:
                     index += 1
                     detail_view = default_detail_view(questions[index][1])
+                    if on_progress is not None:
+                        on_progress(index, selected_set)
                 else:
                     warning = "已经是最后一题。"
                 continue
@@ -775,6 +794,8 @@ def review_questions(deck, config, selected_set):
                 if index > 0:
                     index -= 1
                     detail_view = default_detail_view(questions[index][1])
+                    if on_progress is not None:
+                        on_progress(index, selected_set)
                 else:
                     warning = "已经是第一题。"
                 continue
@@ -805,6 +826,8 @@ def review_questions(deck, config, selected_set):
                         return 'done', browse_items
                     index = min(index, len(questions) - 1)
                     detail_view = default_detail_view(questions[index][1])
+                    if on_progress is not None:
+                        on_progress(index, selected_set)
                     warning = "已从索引中移除。" if selected_set.input_is_index else "已从 tiku 题库删除。"
                     confirm_remove = False
                     continue
@@ -838,28 +861,29 @@ def review_questions(deck, config, selected_set):
 
 # ---- stats ----
 
-def render_stats(deck, config):
+def render_stats(deck, config, *, cursor=0, search_buffer="", warning=""):
     stats = engine.stats_snapshot(deck)
     from .tui.render import (
-        AI_COLOR, DIM_COLOR, DRILL_COLOR, RESET_COLOR, STAT_TOTAL_COLOR,
+        AI_COLOR, DIM_COLOR, DRILL_COLOR, RESET_COLOR, SELECTED_COLOR, STAT_TOTAL_COLOR,
+        print_warning,
     )
     clear_screen()
     print("@ 全局统计 —", deck.name)
+    if search_buffer:
+        print("  " + DIM_COLOR + "search:" + RESET_COLOR + " ch" + str(search_buffer))
+    else:
+        print("  " + DIM_COLOR + "search: 输入章节号后回车跳转" + RESET_COLOR)
     print()
-    print("  题目总数:", stats["total"])
-    print("  章节数:", stats["chapters"])
-    print("  已标记:", stats["marked"])
-    print("  有笔记:", stats["note"])
-    print("  有 Agent Said:", stats["ai"])
-    print("  wrong 去重题数:", stats["wrong"])
-    print("  wrong 文件数:", stats["wrong_files"])
+    print(f"  章节数: {stats['chapters']}    题目总数: {stats['total']}")
     print()
-    print("  题量 / 错题分布:")
-    print("  整条柱=全部题量  " + AI_COLOR + "黄色" + RESET_COLOR + "=wrong 错题  "
+    print("  " + AI_COLOR + "黄色" + RESET_COLOR + "=错题  "
           + STAT_TOTAL_COLOR + "白色" + RESET_COLOR + "=其余题量  "
-          + DIM_COLOR + "灰色" + RESET_COLOR + "=相对最大章节余量")
+          + DIM_COLOR + "灰色" + RESET_COLOR + "=相对最大章节题量  [×N]：学习过N次")
+    chapters = sorted(stats["per_chapter"], key=store._chapter_sort_key)
     max_total = max(stats["per_chapter"].values(), default=0)
-    for chapter in sorted(stats["per_chapter"], key=store._chapter_sort_key):
+    cursor = max(0, min(int(cursor), max(len(chapters) - 1, 0)))
+    start, end = _window_bounds(len(chapters), cursor, _terminal_height() - 10)
+    for index, chapter in enumerate(chapters[start:end], start=start):
         total = stats["per_chapter"][chapter]
         wrong = stats["wrong_per_chapter"].get(chapter, 0)
         drills = stats.get("drills_per_chapter", {}).get(chapter, 0)
@@ -872,10 +896,21 @@ def render_stats(deck, config):
             drill_badge = f"{DRILL_COLOR}[×{drills}]{RESET_COLOR}"
         else:
             drill_badge = f"{DIM_COLOR}[×{drills}]{RESET_COLOR}"
-        print("  ch{:<3} {:>3}题 / {:>2}错 {:>5.1%}  {}  {}".format(
-            str(chapter), total, wrong, ratio, bar, drill_badge))
+        line_color = SELECTED_COLOR if index == cursor else ""
+        line = "  ch{:<3} {:>3}题 / {:>2}错 {:>5.1%}  {}  {}".format(
+            str(chapter), total, wrong, ratio, bar, drill_badge)
+        if line_color:
+            print(line_color + line + RESET_COLOR)
+        else:
+            print(line)
     print()
-    print("  Enter/Esc 返回菜单，q 退出")
+    if search_buffer:
+        print("  ↑/↓ 移动, Enter 跳转, Backspace 删除, Esc 返回菜单，q 退出")
+    else:
+        print("  ↑/↓ 移动, Enter/Esc 返回菜单，q 退出")
+    if warning:
+        print()
+        print_warning(warning)
 
 
 def _stats_bar(total, wrong, max_total, width=32):
@@ -901,86 +936,189 @@ def _stats_bar(total, wrong, max_total, width=32):
 
 # ---- entry menu ----
 
-def deck_picker(config):
-    """Phase 1 of the interactive entry: pick a deck.
+# The two top-level tabs in the deck picker. Library = pick an installed deck;
+# Bootstrap = install bundled decks on demand. Left/right arrows switch.
+TABS = ("library", "bootstrap")
+TAB_LABELS = {"library": "Library", "bootstrap": "Bootstrap"}
 
-    Full-screen table styled like `flip list`, with live search (typing
-    printable chars filters by slug+name substring) and ↑/↓ navigation.
-    The cursor starts on config.default_deck when it still exists. Enter
-    confirms and persists the choice as the new default; Esc/q quits.
+
+def deck_picker(config):
+    """Phase 1 of the interactive entry: pick a deck (or install one).
+
+    Two top-level tabs switched with ←/→:
+      Library   — installed decks, full-screen table with live search and
+                  ↑/↓ navigation. Enter confirms and persists the choice as
+                  the new default deck; Esc/q quits.
+      Bootstrap — bundled decks not yet installed, multi-select with ↑/↓ +
+                  space, Enter triggers a confirm-then-install flow.
+
+    An empty Library no longer aborts flip — it shows a hint pointing at the
+    Bootstrap tab (and `flip import`), so the user can install without leaving
+    the picker.
 
     Returns a Deck or None.
     """
     if not sys.stdin.isatty():
         print("flip: 交互菜单需要 tty。使用 `flip deck <slug> train` 等子命令。")
         return None
-    from .deck import list_decks, load_deck
-    all_slugs = list_decks(config.decks_dir)
-    if not all_slugs:
-        print("还没有任何 deck。先用 `flip import <slug> <tiku.json>` 注册一个。")
-        return None
-
-    # Precompute the full table once; search filters these rows in place.
-    all_rows = store.deck_rows(config)
-    # slug -> display name (lowercased) for search.
-    name_index = {row[0]: (row[1] or "").lower() for row in all_rows}
-
-    query = ""
-    index = 0
-    if config.default_deck:
-        slugs_only = [r[0] for r in all_rows]
-        if config.default_deck in slugs_only:
-            index = slugs_only.index(config.default_deck)
+    from .deck import load_deck
+    from . import bootstrap
 
     old_settings = save_tty()
     try:
         enter_alt_screen()
         enter_cbreak()
+
+        tab = "library"
+        # Library tab state.
+        query = ""
+        index = 0
+        # Bootstrap tab state. `boot_slugs` is recomputed every time we enter
+        # the tab (and after a successful install) so installs/removes are
+        # reflected immediately.
+        boot_index = 0
+        boot_selected: set[str] = set()
+        boot_warning = ""
+        boot_confirming = False  # True between "Enter on selection" and 2nd Enter
+        boot_slugs: list[str] = []
+        boot_summaries: dict[str, dict] = {}
+
         while True:
-            rows = _filter_rows(all_rows, name_index, query)
-            _render_deck_picker(rows, index, query, config.default_deck)
+            # Refresh per-frame data so installs/removes done out-of-band show up.
+            all_rows = store.deck_rows(config)
+            name_index = {row[0]: (row[1] or "").lower() for row in all_rows}
+
+            if tab == "library":
+                rows = _filter_rows(all_rows, name_index, query)
+                # Re-anchor the cursor onto default_deck on first frame only;
+                # afterwards let it stay where the user put it.
+                _render_deck_picker(rows, index, query, config.default_deck)
+            else:
+                boot_slugs = bootstrap.available_bundled_slugs(config.decks_dir)
+                boot_summaries = {s: bootstrap.bundled_deck_summary(s) for s in boot_slugs}
+                if boot_index >= len(boot_slugs):
+                    boot_index = max(0, len(boot_slugs) - 1)
+                _render_bootstrap_picker(
+                    config, boot_slugs, boot_summaries,
+                    boot_index, boot_selected, boot_warning, boot_confirming,
+                )
+
             key = read_key()
             if key == RESIZE_KEY:
                 continue
             if key == '\x03':
                 raise KeyboardInterrupt
-            if key == '\x1b':
-                if query:
-                    query = ""
-                    index = min(index, max(len(all_rows) - 1, 0))
-                else:
-                    return None
+
+            # ←/→ switch tabs from anywhere (consistent with the top tab bar).
+            if key == '\x1b[C':
+                tab = TABS[(TABS.index(tab) + 1) % len(TABS)]
+                boot_confirming = False
+                boot_warning = ""
                 continue
-            if key in {'q', 'Q'} and not query:
-                return None
-            if key == '\x1b[A':
-                if rows:
-                    index = (index - 1) % len(rows)
+            if key == '\x1b[D':
+                tab = TABS[(TABS.index(tab) - 1) % len(TABS)]
+                boot_confirming = False
+                boot_warning = ""
                 continue
-            if key == '\x1b[B':
-                if rows:
-                    index = (index + 1) % len(rows)
-                continue
-            if key in {'\x7f', '\b'}:
-                query = query[:-1]
-                index = 0
-                continue
-            if len(key) == 1 and 0x20 <= ord(key) < 0x7f:
-                query += key
-                index = 0
-                continue
-            if key in {'\r', '\n'} and rows:
-                slug = rows[index][0]
-                try:
-                    deck = load_deck(config.decks_dir / slug)
-                except Exception:
+
+            if tab == "library":
+                # q/Esc quit only from Library (Bootstrap's Esc drops selections
+                # or falls back here instead of exiting flip).
+                if key == '\x1b':
+                    if query:
+                        query = ""
+                        index = min(index, max(len(all_rows) - 1, 0))
+                    else:
+                        return None
                     continue
-                from .config import save_default_deck
-                try:
-                    save_default_deck(config, slug)
-                except Exception:
-                    pass
-                return deck
+                if key in {'q', 'Q'} and not query:
+                    return None
+                if key == '\x1b[A':
+                    if rows:
+                        index = (index - 1) % len(rows)
+                    continue
+                if key == '\x1b[B':
+                    if rows:
+                        index = (index + 1) % len(rows)
+                    continue
+                if key in {'\x7f', '\b'}:
+                    query = query[:-1]
+                    index = 0
+                    continue
+                if len(key) == 1 and 0x20 <= ord(key) < 0x7f:
+                    query += key
+                    index = 0
+                    continue
+                if key in {'\r', '\n'} and rows:
+                    slug = rows[index][0]
+                    try:
+                        deck = load_deck(config.decks_dir / slug)
+                    except Exception:
+                        continue
+                    from .config import save_default_deck
+                    try:
+                        save_default_deck(config, slug)
+                    except Exception:
+                        pass
+                    return deck
+            else:  # bootstrap tab
+                if key == '\x1b' or key in {'q', 'Q'}:
+                    # Esc/q drops a pending selection or confirm; only if there
+                    # is nothing to drop do we fall back to the Library tab
+                    # (never exit flip — that's Library's job).
+                    if boot_confirming:
+                        boot_confirming = False
+                        boot_warning = ""
+                    elif boot_selected:
+                        boot_selected = set()
+                        boot_warning = ""
+                    else:
+                        tab = "library"
+                    continue
+                if key == '\x1b[A':
+                    if boot_slugs:
+                        boot_index = (boot_index - 1) % len(boot_slugs)
+                    continue
+                if key == '\x1b[B':
+                    if boot_slugs:
+                        boot_index = (boot_index + 1) % len(boot_slugs)
+                    continue
+                if key == ' ' and boot_slugs:
+                    slug = boot_slugs[boot_index]
+                    if slug in boot_selected:
+                        boot_selected.discard(slug)
+                    else:
+                        boot_selected.add(slug)
+                    boot_confirming = False
+                    boot_warning = ""
+                    continue
+                if key in {'\r', '\n'}:
+                    if boot_confirming:
+                        # Second Enter: commit the install.
+                        to_install = sorted(boot_selected)
+                        installed = 0
+                        for slug in to_install:
+                            try:
+                                bootstrap.install_bundled(slug, config.decks_dir)
+                                installed += 1
+                            except Exception as exc:  # pragma: no cover - defensive
+                                boot_warning = f"安装 {slug} 失败: {exc}"
+                        boot_selected = set()
+                        boot_confirming = False
+                        if installed:
+                            boot_warning = f"已安装 {installed} 个 deck。按 ← 回到 Library。"
+                    elif boot_selected:
+                        boot_confirming = True
+                        boot_warning = (
+                            f"将安装 {len(boot_selected)} 个 deck,"
+                            "再次按 Enter 确认 / 其他键取消"
+                        )
+                    continue
+                # Any other key cancels a pending confirm.
+                if boot_confirming:
+                    boot_confirming = False
+                    boot_warning = ""
+                continue
     finally:
         restore_tty(old_settings)
         exit_alt_screen()
@@ -994,12 +1132,35 @@ def _filter_rows(all_rows, name_index, query):
     return [r for r in all_rows if q in r[0].lower() or q in name_index.get(r[0], "")]
 
 
+def _render_tabs(active_tab):
+    """Top tab bar shared by Library and Bootstrap screens.
+
+    Active tab is highlighted; the arrows are decorative — switching is via
+    the actual ←/→ keypresses handled in deck_picker.
+    """
+    from .tui.render import DIM_COLOR, RESET_COLOR, SELECTED_COLOR
+    parts = ["  ", DIM_COLOR, "◀  ", RESET_COLOR]
+    for i, tab in enumerate(TABS):
+        label = TAB_LABELS[tab]
+        if tab == active_tab:
+            parts.append(SELECTED_COLOR + f"[ {label} ]" + RESET_COLOR)
+        else:
+            parts.append(DIM_COLOR + label + RESET_COLOR)
+        if i < len(TABS) - 1:
+            parts.append(DIM_COLOR + "    " + RESET_COLOR)
+    parts.append(DIM_COLOR + "  ▶" + RESET_COLOR)
+    print("".join(parts))
+    print(DIM_COLOR + "  " + "─" * 40 + RESET_COLOR)
+
+
 def _render_deck_picker(rows, index, query, default_deck):
     from .tui.render import DIM_COLOR, RESET_COLOR, SELECTED_COLOR
     clear_screen()
     print("@ flip — 选择 deck")
-    # Search bar at the very top: shows the live query, or a dim placeholder
-    # hint when empty (so the affordance for typing is always visible).
+    _render_tabs("library")
+    print()
+    # Search bar: shows the live query, or a dim placeholder hint when empty
+    # (so the affordance for typing is always visible).
     if query:
         search_line = "  " + DIM_COLOR + "search:" + RESET_COLOR + " " + query
     else:
@@ -1011,16 +1172,62 @@ def _render_deck_picker(rows, index, query, default_deck):
         # Header (same left-aligned, CJK-aware style as `flip list`).
         header_cells = [store._pad(h, widths[i]) for i, h in enumerate(store.DECK_TABLE_HEADERS)]
         print("  " + "  ".join(header_cells))
-        for i, row in enumerate(rows):
+        start, end = _window_bounds(len(rows), index, _terminal_height() - 8)
+        for i, row in enumerate(rows[start:end], start=start):
             cells = [store._pad(c, widths[j]) for j, c in enumerate(row)]
             mark = " *" if row[0] == default_deck else "  "
             line = mark + "  ".join(cells)
             print(SELECTED_COLOR + line + RESET_COLOR if i == index
                   else DIM_COLOR + line + RESET_COLOR)
     else:
-        print("  " + DIM_COLOR + "(无匹配 deck)" + RESET_COLOR)
+        # Empty Library: guide the user rather than abort. Point at Bootstrap
+        # (→) and the import command so they can install without leaving flip.
+        print("  " + DIM_COLOR + "(还没有任何 deck)" + RESET_COLOR)
+        print()
+        print("  " + DIM_COLOR + "按 → 切到 Bootstrap 安装内置 deck" + RESET_COLOR)
+        print("  " + DIM_COLOR + "或用 `flip import <slug> <tiku.json>` 导入你自己的" + RESET_COLOR)
     print()
-    print("  " + DIM_COLOR + "↑/↓ 选择,Enter 进入,Esc 清空搜索/q 退出  (* = 上次使用)" + RESET_COLOR)
+    print("  " + DIM_COLOR + "↑/↓ 选,←/→ 切 tab,Enter 进入,Esc 清空搜索/q 退出  (* = 上次使用)" + RESET_COLOR)
+
+
+def _render_bootstrap_picker(config, slugs, summaries, cursor, selected, warning, confirming):
+    """Multi-select list of bundled decks available to install.
+
+    Mirrors _render_chapter_picker's structure (clear → header → list with
+    windowed scroll → hint) and its marker style: [x]/[ ] in the row's own
+    color (yellow for the cursor row, dim otherwise) — a checkmark is enough
+    signal, no extra tint.
+    """
+    from .tui.render import (
+        DIM_COLOR, RESET_COLOR, SELECTED_COLOR,
+    )
+    clear_screen()
+    print("@ flip — Bootstrap")
+    _render_tabs("bootstrap")
+    print()
+    print("  " + DIM_COLOR + "勾选要安装的内置 deck,Enter 确认安装" + RESET_COLOR)
+    if warning:
+        color = SELECTED_COLOR if confirming else DIM_COLOR
+        print("  " + color + warning + RESET_COLOR)
+    else:
+        print()
+    if not slugs:
+        print("  " + DIM_COLOR + "(所有内置 deck 已安装)" + RESET_COLOR)
+    else:
+        start, end = _window_bounds(len(slugs), cursor, _terminal_height() - 8)
+        for i, slug in enumerate(slugs[start:end], start=start):
+            info = summaries.get(slug, {})
+            name = info.get("name", slug)
+            n = info.get("questions", 0)
+            src = info.get("source_lang", "?")
+            tgt = config.target_lang or "?"
+            mark = "[x]" if slug in selected else "[ ]"
+            line_color = SELECTED_COLOR if i == cursor else DIM_COLOR
+            line = f"  {mark} {name}  ({n}题, {src}→{tgt})"
+            print(line_color + line + RESET_COLOR)
+    print()
+    hint = "↑/↓ 移动,空格 切换选中,Enter 安装,Esc 取消选中/返回,← 回 Library"
+    print("  " + DIM_COLOR + hint + RESET_COLOR)
 
 
 def _table_widths(rows):
@@ -1164,7 +1371,9 @@ def _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters, war
     clear_screen()
     print("@ flip —", deck.name, f"({deck.slug})")
     print()
-    for i, (name, desc) in enumerate(modes):
+    warning_rows = 2 if warning else 0
+    start, end = _window_bounds(len(modes), mode_index, _terminal_height() - (9 + warning_rows))
+    for i, (name, desc) in enumerate(modes[start:end], start=start):
         prefix = ">" if i == mode_index else " "
         name_field = store._pad(name, name_w)
         line = prefix + " " + name_field + "   " + desc
@@ -1353,11 +1562,12 @@ def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
     if not chapters:
         print("  " + DIM_COLOR + "(无章节数据)" + RESET_COLOR)
     else:
+        start, end = _window_bounds(len(chapters), cursor, _terminal_height() - 7)
         # The per-line wrapper color (dim vs highlighted) is applied to the
         # whole line. The drill badge embeds its own green-when-nonzero escape;
         # to keep the wrapper alive after RESET inside the badge, we re-apply
         # the wrapper color right after the badge.
-        for i, ch in enumerate(chapters):
+        for i, ch in enumerate(chapters[start:end], start=start):
             total = per_chapter.get(ch, 0)
             wrong = wrong_per_chapter.get(ch, 0)
             drills = drills_per_chapter.get(ch, 0)
@@ -1412,16 +1622,52 @@ def _run_stats_loop(deck, config):
     if not sys.stdin.isatty():
         render_stats(deck, config)
         return None
-    while True:
-        render_stats(deck, config)
-        key = read_key()
-        if key == RESIZE_KEY:
-            continue
-        if key in {'q', 'Q'}:
-            return None
-        if key in {'\r', '\n', '\x1b'}:
-            break
-    return None
+    stats = engine.stats_snapshot(deck)
+    chapters = sorted(stats["per_chapter"], key=store._chapter_sort_key)
+    cursor = 0
+    search_buffer = ""
+    warning = ""
+    old_settings = save_tty()
+    try:
+        enter_alt_screen()
+        enter_cbreak()
+        while True:
+            render_stats(deck, config, cursor=cursor, search_buffer=search_buffer, warning=warning)
+            key = read_key()
+            if key == RESIZE_KEY:
+                continue
+            if key in {'q', 'Q', '\x1b'}:
+                return None
+            if key in {'\x7f', '\b'}:
+                search_buffer = search_buffer[:-1]
+                warning = ""
+                continue
+            if key in {'\r', '\n'}:
+                if not search_buffer:
+                    return None
+                target = str(search_buffer)
+                if target in chapters:
+                    cursor = chapters.index(target)
+                    warning = ""
+                else:
+                    warning = f"未找到 ch{target}。"
+                search_buffer = ""
+                continue
+            if key == '\x1b[A' and chapters:
+                cursor = (cursor - 1) % len(chapters)
+                warning = ""
+                continue
+            if key == '\x1b[B' and chapters:
+                cursor = (cursor + 1) % len(chapters)
+                warning = ""
+                continue
+            if len(key) == 1 and key.isdigit():
+                search_buffer += key
+                warning = ""
+                continue
+    finally:
+        restore_tty(old_settings)
+        exit_alt_screen()
 
 
 def _summary_item(deck, item):
@@ -1477,7 +1723,7 @@ def _run_session_summary_loop(deck, config, summary):
             if key in {'v', 'V'}:
                 items = summary.get("wrong_items") if summary.get("kind") == "scored" else summary.get("browse_items")
                 if items:
-                    _run_session_item_list(summary, list(items))
+                    _run_session_item_list(summary, list(items), config)
                     summary.pop("warning", None)
                 else:
                     summary["warning"] = "本轮无错题。" if summary.get("kind") == "scored" else "本轮无浏览记录。"
@@ -1486,16 +1732,25 @@ def _run_session_summary_loop(deck, config, summary):
         exit_alt_screen()
 
 
-def _run_session_item_list(summary, items):
+def _run_session_item_list(summary, items, config):
     cursor = 0
+    show_translation = False
+    translation_enabled = config.translation_enabled
     title = "本轮错题" if summary.get("kind") == "scored" else "本轮浏览"
     while True:
-        render_session_item_list(title, items, cursor)
+        render_session_item_list(
+            title, items, cursor,
+            show_translation=show_translation,
+            translation_enabled=translation_enabled,
+        )
         key = read_key()
         if key == RESIZE_KEY:
             continue
         if key in {'\r', '\n', '\x1b', 'q', 'Q'}:
             return
+        if translation_enabled and key in {'t', 'T'}:
+            show_translation = not show_translation
+            continue
         if key == '\x1b[A':
             cursor = (cursor - 1) % len(items)
             continue
@@ -1505,7 +1760,7 @@ def _run_session_item_list(summary, items):
 
 
 def _save_session_checkpoint(deck, selected, *, source, ans_mode, selector,
-                             filters, mode, history):
+                             filters, mode, history, cursor=None):
     questions = [
         {"chapter": str(chapter), "key": engine.question_key(chapter, q)}
         for chapter, q in selected.questions
@@ -1531,7 +1786,7 @@ def _save_session_checkpoint(deck, selected, *, source, ans_mode, selector,
         "filters": list(filters or []),
         "mode": mode,
         "questions": questions,
-        "cursor": len(answered),
+        "cursor": len(answered) if cursor is None else int(cursor),
         "answered": answered,
         "updated_at": now,
     })
@@ -1575,7 +1830,10 @@ def _restore_session_run(deck):
 
     source = session.get("source", "tiku")
     selected = engine.SelectedSet(questions, input_is_index=(source == "wrong"))
-    start_index = min(len(history), len(questions))
+    if bool(session.get("ans_mode")):
+        start_index = min(max(int(session.get("cursor", 0) or 0), 0), len(questions) - 1)
+    else:
+        start_index = min(len(history), len(questions))
     return {
         "session": session,
         "selected": selected,
@@ -1635,6 +1893,47 @@ def _run_scored_session(deck, config, selected, *, source, mode_label, selector,
     return 0
 
 
+def _run_browse_session(deck, config, selected, *, source, mode_label, selector,
+                        filters, start_index=0):
+    _save_session_checkpoint(
+        deck, selected, source=source, ans_mode=True, selector=selector,
+        filters=filters, mode=mode_label, history=[], cursor=start_index,
+    )
+
+    def on_progress(cursor, progress_selected):
+        _save_session_checkpoint(
+            deck, progress_selected, source=source, ans_mode=True, selector=selector,
+            filters=filters, mode=mode_label, history=[], cursor=cursor,
+        )
+
+    status, browse_items = review_questions(
+        deck, config, selected,
+        start_index=start_index,
+        on_progress=on_progress,
+    )
+    if status == BACK_TO_SELECTOR:
+        return BACK_TO_SELECTOR
+    if status == 'quit':
+        return 0
+
+    if mode_label == "review":
+        store.clear_session(deck)
+        _run_session_summary_loop(
+            deck, config,
+            _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
+        )
+        return 0
+
+    _record_drill(deck, selected, total=len(selected.questions),
+                  incorrect=0, mode=mode_label)
+    store.clear_session(deck)
+    _run_session_summary_loop(
+        deck, config,
+        _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
+    )
+    return 0
+
+
 def run_continue(deck, config):
     restored = _restore_session_run(deck)
     if restored is None:
@@ -1642,8 +1941,14 @@ def run_continue(deck, config):
         print("没有可继续的练习。")
         return 0
     if restored["ans_mode"]:
-        print("当前仅支持继续计分练习。")
-        return 0
+        return _run_browse_session(
+            deck, config, restored["selected"],
+            source=restored["source"],
+            mode_label=restored["mode"],
+            selector=restored["selector"],
+            filters=restored["filters"],
+            start_index=restored["start_index"],
+        )
     return _run_scored_session(
         deck, config, restored["selected"],
         source=restored["source"],
@@ -1671,7 +1976,7 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     but keeping mode/ans/filters); otherwise 0 after printing the report.
     """
     filters = filters or []
-    selected = engine.pick_questions(deck, config, selector=selector, shuffle=True,
+    selected = engine.pick_questions(deck, config, selector=selector, shuffle=not ans_mode,
                                      filters=filters, source=source)
     # `mode` follows the ENTRY mode (i.e. the question source), NOT the ans
     # toggle. ans only changes whether we score (epoch) or browse
@@ -1679,26 +1984,13 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     # Train+ans and Review+ans record under their respective entry modes.
     mode_label = "train" if source == "tiku" else "review"
     if ans_mode:
-        status, browse_items = review_questions(deck, config, selected)
-        if status == BACK_TO_SELECTOR:
-            return BACK_TO_SELECTOR
-        if status == 'quit':
-            return 0
-        if mode_label == "review":
-            _run_session_summary_loop(
-                deck, config,
-                _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
-            )
-            return 0
-        # Browse mode doesn't score, so incorrect=0; still counts as a drill
-        # so the user sees the chapter was visited.
-        _record_drill(deck, selected, total=len(selected.questions),
-                      incorrect=0, mode=mode_label)
-        _run_session_summary_loop(
-            deck, config,
-            _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
+        return _run_browse_session(
+            deck, config, selected,
+            source=source,
+            mode_label=mode_label,
+            selector=selector,
+            filters=filters,
         )
-        return 0
 
     return _run_scored_session(
         deck, config, selected,

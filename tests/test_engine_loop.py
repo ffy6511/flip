@@ -104,6 +104,220 @@ def test_chapter_picker_renders_zero_drill_badge_dim_when_selected(capsys, monke
     assert f"{DIM_COLOR}[×0]{RESET_COLOR}{SELECTED_COLOR}" in out
 
 
+def test_chapter_picker_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch):
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 12, raising=False)
+
+    chapters = [str(i) for i in range(1, 11)]
+    titles = {str(i): f"Title {i:02d}" for i in range(1, 11)}
+    per_chapter = {str(i): i for i in range(1, 11)}
+    wrong_per_chapter = {str(i): 0 for i in range(1, 11)}
+    drills_per_chapter = {str(i): 0 for i in range(1, 11)}
+
+    engine_loop._render_chapter_picker(
+        "训练",
+        chapters,
+        titles,
+        per_chapter,
+        wrong_per_chapter,
+        drills_per_chapter,
+        10,
+        9,
+        set(),
+        "",
+    )
+
+    out = capsys.readouterr().out
+    assert "Title 01" not in out
+    assert "Title 10" in out
+
+
+def test_deck_picker_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch):
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 10, raising=False)
+
+    rows = [
+        [f"deck{i:02d}", f"Deck {i}", "10", "2", "en", "ABCD", "0", "0"]
+        for i in range(1, 11)
+    ]
+
+    engine_loop._render_deck_picker(rows, 9, "", "deck10")
+
+    out = capsys.readouterr().out
+    assert "deck01" not in out
+    assert "deck10" in out
+
+
+# ---- Bootstrap tab (deck picker's left/right tab for installing bundled decks) ----
+#
+# These pin the tab-switch + multi-select + confirm-and-install flow introduced
+# to replace the old silent first-run auto-install. Goal ③ (a removed deck must
+# not reappear on launch) is guarded here by checking that install only happens
+# via the explicit Bootstrap tab, never via load_config.
+
+def _empty_config(tmp_path, monkeypatch):
+    """A Config backed by an FLIP_HOME with NO decks (Library tab empty)."""
+    home = tmp_path / "flip_home"
+    home.mkdir()
+    monkeypatch.setenv("FLIP_HOME", str(home))
+    from flip.config import load_config
+    return load_config(home)
+
+
+def _patch_deck_picker_tty(monkeypatch, keys):
+    """Wire fake keypresses + suppress the alt-screen/tty calls deck_picker makes."""
+    _patch_tty(monkeypatch, keys)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None, raising=False)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None, raising=False)
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+
+
+def test_deck_picker_empty_library_shows_bootstrap_hint(capsys, monkeypatch, tmp_path):
+    # Empty home: Library must NOT abort flip; it shows a pointer to the
+    # Bootstrap tab so the user can install without leaving the picker.
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b"])  # Esc immediately
+
+    config = _empty_config(tmp_path, monkeypatch)
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    assert "Bootstrap" in out
+    assert "→" in out  # the hint arrow pointing at the Bootstrap tab
+
+
+def test_deck_picker_right_arrow_switches_to_bootstrap_tab(capsys, monkeypatch, tmp_path):
+    # Right arrow moves the active tab to Bootstrap; its screen renders the
+    # bundled se-template row as installable (under its display name).
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    # Bootstrap screen shows the display name of the bundled deck.
+    assert "软件工程模板" in out
+    assert "[ Bootstrap ]" in out
+
+
+def test_bootstrap_tab_esc_with_selection_does_not_exit(capsys, monkeypatch, tmp_path):
+    # Esc when there's a selection must clear it, not bounce out to Library or
+    # exit flip. After clearing, another Esc falls back to Library, then q
+    # quits. If the first Esc had exited instead, the trailing Esc/q would
+    # either error or leave the picker hanging on StopIteration.
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", " ", "\x1b", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    result = engine_loop.deck_picker(config)
+
+    assert result is None
+    out = capsys.readouterr().out
+    # The very last rendered frame is Library (the fallback target of the 2nd
+    # Esc), proving the 1st Esc cleared the selection rather than exiting.
+    # The Bootstrap frames before it must show [ ] (selection cleared), not [x].
+    bootstrap_frames = out.split("@ flip — Bootstrap")[1:]
+    assert bootstrap_frames, "expected at least one Bootstrap render frame"
+    last_boot = bootstrap_frames[-1]
+    assert "[x]" not in last_boot
+
+
+def test_bootstrap_tab_space_toggles_selection_marker(capsys, monkeypatch, tmp_path):
+    # Space toggles a row into the selection; [x] appears in the row's own
+    # color (yellow here since the cursor is on it), no separate tint.
+    from flip.tui.render import SELECTED_COLOR, RESET_COLOR
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    # → into Bootstrap, space selects, then Esc (drops selection), Esc (back to
+    # Library), q quits Library.
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", " ", "\x1b", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    # The selected row is wrapped in SELECTED_COLOR (yellow) and carries [x].
+    assert SELECTED_COLOR + "  [x] " in out
+    assert RESET_COLOR in out
+
+
+def test_bootstrap_tab_enter_confirms_then_installs(capsys, monkeypatch, tmp_path):
+    # Full flow: → Bootstrap, space select se-template, Enter (confirm prompt),
+    # Enter again (commit install). Assert the deck lands on disk and the
+    # Bootstrap list refreshes to empty.
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(
+        monkeypatch,
+        ["\x1b[C", " ", "\r", "\r", "\x1b", "\x1b", "q"],
+    )
+
+    config = _empty_config(tmp_path, monkeypatch)
+    engine_loop.deck_picker(config)
+
+    deck_dir = config.decks_dir / "se-template"
+    assert deck_dir.is_dir()
+    assert (deck_dir / "manifest.toml").is_file()
+    assert (deck_dir / "tiku.json").is_file()
+
+    out = capsys.readouterr().out
+    # After install the Bootstrap list shows "all installed".
+    assert "所有内置 deck 已安装" in out
+    assert "已安装 1 个 deck" in out
+
+
+def test_bootstrap_tab_second_enter_without_selection_is_noop(capsys, monkeypatch, tmp_path):
+    # Enter with an empty selection should not enter confirm mode nor install
+    # anything — guards against stray installs from a double-tap.
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", "\r", "\r", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    engine_loop.deck_picker(config)
+
+    # Nothing installed despite two Enters.
+    assert not (config.decks_dir / "se-template").exists()
+    out = capsys.readouterr().out
+    assert "将安装" not in out  # confirm prompt never shown
+
+
+def test_render_stats_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch, deck, config):
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 14, raising=False)
+    monkeypatch.setattr(
+        engine_loop.engine,
+        "stats_snapshot",
+        lambda _deck: {
+            "total": 100,
+            "chapters": 12,
+            "marked": 0,
+            "note": 0,
+            "ai": 0,
+            "wrong": 0,
+            "wrong_files": 0,
+            "per_chapter": {str(i): i for i in range(1, 13)},
+            "wrong_per_chapter": {str(i): 0 for i in range(1, 13)},
+            "drills_per_chapter": {str(i): 0 for i in range(1, 13)},
+        },
+    )
+
+    engine_loop.render_stats(deck, config, cursor=11)
+
+    out = capsys.readouterr().out
+    assert "已标记" not in out
+    assert "有笔记" not in out
+    assert "有 Agent Said" not in out
+    assert "wrong 去重题数" not in out
+    assert "wrong 文件数" not in out
+    assert "章节数: 12" in out
+    assert "题目总数: 100" in out
+    assert "题量 / 错题分布:" not in out
+    assert "黄色" in out and "错题" in out and "[×N]" in out
+    assert "search:" in out and "输入章节号后回车跳转" in out
+    assert "  ch1 " not in out
+    assert "  ch12" in out
+
+
 def test_prompt_answer_refreshes_marked_state_after_m(deck, config, monkeypatch):
     q = store.load_tiku(deck)["1"][0]
     rendered = []
@@ -162,6 +376,79 @@ def test_prompt_result_refreshes_marked_state_after_m(deck, config, monkeypatch)
     )
 
 
+def test_review_history_marks_previous_question_from_answer_screen(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    _patch_tty(monkeypatch, [
+        "1", "\r",      # q1 answer
+        "\r",           # q1 result -> next
+        "\x1b[D",       # q2 answer -> previous history
+        "m",            # mark q1 in history
+        "\r",           # return to q2
+        "q",            # quit run
+    ])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+
+    _count, _incorrect, status, _history = engine_loop.epoch(deck, config, selected)
+
+    assert status == "quit"
+    assert q1.get("marked") is True
+    assert any(
+        item.get("key") == engine.question_key("1", q1)
+        for item in store.load_marked(deck)
+    )
+
+
+def test_review_history_marks_previous_question_from_result_screen(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    _patch_tty(monkeypatch, [
+        "1", "\r",      # q1 answer
+        "\r",           # q1 result -> next
+        "1", "\r",      # q2 answer
+        "\x1b[D",       # q2 result -> previous history
+        "m",            # mark q1 in history
+        "\r",           # return to q2 result
+        "q",            # quit run
+    ])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+
+    _count, _incorrect, status, _history = engine_loop.epoch(deck, config, selected)
+
+    assert status == "quit"
+    assert q1.get("marked") is True
+    assert any(
+        item.get("key") == engine.question_key("1", q1)
+        for item in store.load_marked(deck)
+    )
+
+
+def test_review_history_rerenders_marked_state_after_m(deck, config, monkeypatch):
+    q1 = store.load_tiku(deck)["1"][0]
+    history = [{
+        "count": 1,
+        "chapter": "1",
+        "question": q1,
+        "raw_input": "A",
+        "selected_answer": "A",
+        "is_correct": True,
+    }]
+    rendered = []
+    _patch_tty(monkeypatch, ["m", "\r"])
+
+    def capture_render(*_args, **kwargs):
+        rendered.append(kwargs["marked"])
+
+    monkeypatch.setattr(engine_loop, "render_result", capture_render)
+
+    result = engine_loop.review_history(deck, config, history, 0, 1)
+
+    assert result[0] == "continue"
+    assert rendered[:2] == [False, True]
+
+
 # ---- detail_view visibility across the answer flow ----
 # Regression: prompt_answer (pre-submit) must NOT auto-show x/n content even
 # when the question has ai_explanation, while prompt_result (post-submit)
@@ -198,30 +485,30 @@ def test_epoch_pre_answer_hides_detail_post_answer_shows_it(deck, config, monkey
 
 
 
-def test_prompt_answer_esc_returns_back_to_selector(deck, config, monkeypatch):
-    """Esc on the answer screen signals "go back to chapter picker"."""
+def test_prompt_answer_esc_returns_quit(deck, config, monkeypatch):
+    """Esc on the answer screen quits the run and preserves progress like q."""
     q = store.load_tiku(deck)["1"][0]
     _patch_tty(monkeypatch, ["\x1b"])
     monkeypatch.setattr(engine_loop, "render_question", lambda *a, **k: None)
 
     result = engine_loop.prompt_answer(deck, config, 1, 1, "1", q)
 
-    assert result[0] == engine_loop.BACK_TO_SELECTOR
+    assert result[0] == "quit"
 
 
-def test_prompt_result_esc_returns_back_to_selector(deck, config, monkeypatch):
-    """Esc on the result screen signals "go back to chapter picker"."""
+def test_prompt_result_esc_returns_quit(deck, config, monkeypatch):
+    """Esc on the result screen quits the run and preserves progress like q."""
     q = store.load_tiku(deck)["1"][0]
     _patch_tty(monkeypatch, ["\x1b"])
     monkeypatch.setattr(engine_loop, "render_result", lambda *a, **k: None)
 
     result = engine_loop.prompt_result(deck, config, 1, 1, "1", q, "B", True)
 
-    assert result[0] == engine_loop.BACK_TO_SELECTOR
+    assert result[0] == "quit"
 
 
-def test_epoch_esc_returns_back_to_selector_without_writing_wrong(deck, config, monkeypatch, tmp_path):
-    """Esc mid-epoch bubbles up as status=BACK_TO_SELECTOR and writes no report.
+def test_epoch_esc_returns_quit_without_writing_wrong(deck, config, monkeypatch, tmp_path):
+    """Esc mid-epoch bubbles up as status=quit and writes no report.
 
     Guards the orchestration contract run_train relies on: an Esc abort must
     NOT touch the wrong-index file system (no partial epoch report).
@@ -236,11 +523,11 @@ def test_epoch_esc_returns_back_to_selector_without_writing_wrong(deck, config, 
 
     _count, _incorrect, status, _history = engine_loop.epoch(deck, config, selected)
 
-    assert status == engine_loop.BACK_TO_SELECTOR
+    assert status == "quit"
 
 
-def test_run_train_esc_returns_back_to_selector_and_no_report(deck, config, monkeypatch, capsys):
-    """run_train on Esc returns the sentinel verbatim and prints no report."""
+def test_run_train_esc_quits_and_keeps_session(deck, config, monkeypatch, capsys):
+    """run_train on Esc exits like q and keeps the checkpoint for continue."""
     selected = engine.pick_questions(deck, config, selector="1", shuffle=False)
     _patch_tty(monkeypatch, ["\x1b"])
     monkeypatch.setattr(engine_loop, "render_question", lambda *a, **k: None)
@@ -250,7 +537,8 @@ def test_run_train_esc_returns_back_to_selector_and_no_report(deck, config, monk
 
     outcome = engine_loop.run_train(deck, config, selector="1", source="tiku")
 
-    assert outcome == engine_loop.BACK_TO_SELECTOR
+    assert outcome == 0
+    assert store.load_session(deck) is not None
     assert "Report" not in capsys.readouterr().out
 
 
@@ -327,6 +615,58 @@ def test_run_train_browse_quit_does_not_record_history(deck, config, monkeypatch
 
     assert outcome == 0
     assert store.load_history(deck) == []
+
+
+def test_run_train_browse_uses_sequential_order(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q)], input_is_index=False)
+    seen = {}
+
+    def fake_pick_questions(*_args, **kwargs):
+        seen["shuffle"] = kwargs["shuffle"]
+        return selected
+
+    monkeypatch.setattr(engine, "pick_questions", fake_pick_questions)
+    monkeypatch.setattr(engine_loop, "review_questions", lambda *_a, **_k: ("done", []))
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *_a, **_k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku", ans_mode=True)
+
+    assert outcome == 0
+    assert seen["shuffle"] is False
+
+
+def test_run_train_browse_quit_overwrites_stale_session_and_saves_cursor(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    store.save_session(deck, {
+        "status": "paused",
+        "source": "tiku",
+        "ans_mode": False,
+        "selector": "1",
+        "filters": [],
+        "mode": "train",
+        "questions": [{"chapter": "1", "key": engine.question_key("1", q1)}],
+        "cursor": 0,
+        "answered": [],
+    })
+    _patch_tty(monkeypatch, ["\x1b[C", "q"])
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "render_review_question", lambda *a, **k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku", ans_mode=True)
+
+    session = store.load_session(deck)
+    assert outcome == 0
+    assert session["ans_mode"] is True
+    assert session["cursor"] == 1
+    assert session["mode"] == "train"
+    assert [item["key"] for item in session["questions"]] == [
+        engine.question_key("1", q1),
+        engine.question_key("1", q2),
+    ]
 
 
 def test_review_questions_q_returns_quit(deck, config, monkeypatch):
@@ -554,6 +894,119 @@ def test_session_summary_v_opens_wrong_list(deck, config, monkeypatch):
     assert list_renders[0][2] == 0
 
 
+def test_session_item_list_toggles_inline_translation(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    q["zh"] = {
+        "topic": "1. 一加一等于几？",
+        "options": ["A. 1", "B. 2", "C. 3", "D. 4"],
+    }
+    items = [{
+        "chapter": "1",
+        "question": q,
+        "options": list(q["options"]),
+        "selected_answer": "B",
+        "is_correct": True,
+    }]
+    renders = []
+    _patch_tty(monkeypatch, ["t", "\r"])
+    monkeypatch.setattr(
+        engine_loop,
+        "render_session_item_list",
+        lambda *args, **kwargs: renders.append(kwargs.get("show_translation", False)),
+    )
+
+    engine_loop._run_session_item_list({"kind": "scored"}, items, config)
+
+    assert renders[:2] == [False, True]
+
+
+def test_run_stats_loop_uses_alt_screen_and_cbreak_and_esc_returns(deck, config, monkeypatch):
+    calls = []
+    _patch_tty(monkeypatch, ["\x1b"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(engine_loop, "render_stats", lambda *_a, **_k: calls.append("render"))
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: calls.append("enter_alt"))
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: calls.append("exit_alt"))
+
+    result = engine_loop._run_stats_loop(deck, config)
+
+    assert result is None
+    assert calls == ["enter_alt", "render", "exit_alt"]
+
+
+def test_run_stats_loop_enter_jumps_to_matching_chapter_and_clears_search(deck, config, monkeypatch):
+    calls = []
+    _patch_tty(monkeypatch, ["2", "5", "\r", "\x1b"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(
+        engine_loop.engine,
+        "stats_snapshot",
+        lambda _deck: {
+            "total": 3,
+            "chapters": 3,
+            "marked": 0,
+            "note": 0,
+            "ai": 0,
+            "wrong": 0,
+            "wrong_files": 0,
+            "per_chapter": {"1": 1, "25": 1, "30": 1},
+            "wrong_per_chapter": {"1": 0, "25": 0, "30": 0},
+            "drills_per_chapter": {"1": 0, "25": 0, "30": 0},
+        },
+    )
+    monkeypatch.setattr(
+        engine_loop,
+        "render_stats",
+        lambda *_a, **kwargs: calls.append((kwargs.get("cursor"), kwargs.get("search_buffer", ""))),
+    )
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+
+    result = engine_loop._run_stats_loop(deck, config)
+
+    assert result is None
+    assert calls[-1] == (1, "")
+    assert (0, "25") in calls
+
+
+def test_run_stats_loop_enter_on_missing_chapter_keeps_cursor(deck, config, monkeypatch):
+    calls = []
+    _patch_tty(monkeypatch, ["9", "9", "\r", "\x1b"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(
+        engine_loop.engine,
+        "stats_snapshot",
+        lambda _deck: {
+            "total": 2,
+            "chapters": 2,
+            "marked": 0,
+            "note": 0,
+            "ai": 0,
+            "wrong": 0,
+            "wrong_files": 0,
+            "per_chapter": {"1": 1, "25": 1},
+            "wrong_per_chapter": {"1": 0, "25": 0},
+            "drills_per_chapter": {"1": 0, "25": 0},
+        },
+    )
+    monkeypatch.setattr(
+        engine_loop,
+        "render_stats",
+        lambda *_a, **kwargs: calls.append(
+            (kwargs.get("cursor"), kwargs.get("search_buffer", ""), kwargs.get("warning", ""))
+        ),
+    )
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+
+    result = engine_loop._run_stats_loop(deck, config)
+
+    assert result is None
+    assert calls[-1][0] == 0
+    assert calls[-1][1] == ""
+    assert "99" in calls[-1][2]
+
+
 def test_entry_menu_resume_keeps_mode_ans_filters_clears_chapters(deck, config, monkeypatch):
     """On resume, entry_menu skips the mode screen, drops into the chapter
     picker with chapters cleared, and preserves the mode/ans/filters from the
@@ -691,6 +1144,46 @@ def test_run_continue_finishes_resumed_session_and_clears_checkpoint(deck, confi
     assert seen["incorrect"][0]["wrong_input"] == "B"
     assert store.load_session(deck) is None
     assert len(store.load_history(deck)) == 1
+
+
+def test_run_continue_resumes_browse_session_from_saved_cursor(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    store.save_session(deck, {
+        "status": "paused",
+        "source": "tiku",
+        "ans_mode": True,
+        "selector": "1",
+        "filters": ["mark"],
+        "mode": "train",
+        "questions": [
+            {"chapter": "1", "key": engine.question_key("1", q1)},
+            {"chapter": "1", "key": engine.question_key("1", q2)},
+        ],
+        "cursor": 1,
+        "answered": [],
+    })
+    seen = {}
+
+    def fake_review_questions(_deck, _config, restored, *, start_index=0, on_progress=None):
+        seen["questions"] = restored.questions
+        seen["start_index"] = start_index
+        if on_progress is not None:
+            on_progress(1, restored)
+        return "done", [{
+            "chapter": "1",
+            "question": q2,
+            "options": list(q2["options"]),
+        }]
+
+    monkeypatch.setattr(engine_loop, "review_questions", fake_review_questions)
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: None)
+
+    outcome = engine_loop.run_continue(deck, config)
+
+    assert outcome == 0
+    assert seen["questions"] == [("1", q1), ("1", q2)]
+    assert seen["start_index"] == 1
+    assert store.load_session(deck) is None
 
 
 def test_entry_menu_continue_returns_continue_choice(deck, config, monkeypatch):

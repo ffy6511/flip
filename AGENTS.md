@@ -22,6 +22,12 @@
 - `cli.py` 用 Typer,只做命令解析/路由/help。**禁止用 Typer/Click 实现交互式 TUI 循环**。
 - TUI 主循环(`epoch`/`_prompt_answer`/`review_questions`/`_entry_menu`)的交互行为保持与 `se_regressor.py` 原版一致,除非 manifest/config 显式改变它(如翻译关闭时隐藏 `t` 键)。
 
+## bundled deck 安装
+
+- bundled deck 的**按需安装入口是 deck picker 的 Bootstrap tab**(`engine_loop.deck_picker` 顶部 ←/→ tab),不是首次启动的静默补装。`config.load_config` 不得调用任何安装函数。
+- `bootstrap.py` 只提供纯函数(`available_bundled_slugs` / `install_bundled` / `bundled_deck_summary`),不得含 TUI 循环。
+- 一个 bundled slug 是否"可装"的唯一判据是 `decks_dir/<slug>` 目录是否存在——删了就重新可装,装了就从 Bootstrap 列表消失。不需要 `.bootstrapped` 之类的持久戳。
+
 ## schema 是 source-of-truth
 
 - `docs/schema.md` 是 `tiku.json` 字段的权威定义。引擎读写、skill 提取、测试夹具都必须对齐它。

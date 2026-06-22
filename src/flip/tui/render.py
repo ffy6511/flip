@@ -10,6 +10,7 @@ do not advertise the `t` key.
 """
 
 import sys
+import re
 import shutil
 import unicodedata
 
@@ -126,9 +127,49 @@ def question_topic(q):
     """Return the display topic, adding a badge for multi-select questions."""
     topic = str(q.get("topic", ""))
     answer = str(q.get("answer", "")).strip()
+    return topic_with_answer_badge(topic, answer)
+
+
+def topic_with_answer_badge(topic, answer):
+    topic = str(topic)
+    answer = str(answer).strip()
     if len(answer) > 1:
         return topic + " [多选]"
     return topic
+
+
+def _strip_topic_number(topic):
+    return re.sub(r"^\s*\d+\s*[\.\)\u3001]\s*", "", str(topic)).strip()
+
+
+def question_view(q, options):
+    return {
+        "topic": question_topic(q),
+        "options": list(options),
+    }
+
+
+def translated_view(q, translation):
+    if not translation:
+        return None
+    return {
+        "topic": topic_with_answer_badge(translation["topic"], q.get("answer", "")),
+        "options": list(translation.get("options", [])),
+    }
+
+
+def session_item_topic(q):
+    return topic_with_answer_badge(_strip_topic_number(q.get("topic", "")), q.get("answer", ""))
+
+
+def session_item_translation(q):
+    translation = translated_question(q)
+    if not translation:
+        return None
+    return {
+        "topic": topic_with_answer_badge(_strip_topic_number(translation["topic"]), q.get("answer", "")),
+        "options": list(translation.get("options", [])),
+    }
 
 
 # ---- translation / explanation / note presence (pure) ----
@@ -196,12 +237,18 @@ def detail_key_hints(q):
 def print_translation_block(translation):
     if not translation:
         return
+    print_question_reference_block(translation)
+
+
+def print_question_reference_block(view, *, color=TRANSLATION_COLOR):
+    if not view:
+        return
     print()
-    print(LOWER_BLOCK_INDENT + TRANSLATION_COLOR + "─" * (terminal_width() - 2) + RESET_COLOR)
-    print_wrapped(LOWER_BLOCK_INDENT, translation["topic"], color=TRANSLATION_COLOR)
+    print(LOWER_BLOCK_INDENT + color + "─" * (terminal_width() - 2) + RESET_COLOR)
+    print_wrapped(LOWER_BLOCK_INDENT, view["topic"], color=color)
     print()
-    for choice in translation["options"]:
-        print_wrapped(LOWER_BLOCK_INDENT, choice, color=TRANSLATION_COLOR)
+    for choice in view["options"]:
+        print_wrapped(LOWER_BLOCK_INDENT, choice, color=color)
 
 
 def print_ai_explanation_block(q):
@@ -263,6 +310,25 @@ def print_warning(warning):
         print_wrapped(LOWER_BLOCK_INDENT, warning, color=WRONG_COLOR)
 
 
+def _primary_and_reference_views(q, options, show_translation, translation):
+    primary = question_view(q, options)
+    reference = None
+    if show_translation and translation:
+        primary = translated_view(q, translation)
+        reference = question_view(q, options)
+    return primary, reference
+
+
+def _answer_prefix(marker=""):
+    marker = marker if marker else " "
+    return marker + " "
+
+
+def _print_answer_option(marker, choice, *, color=""):
+    prefix = _answer_prefix(marker)
+    print_wrapped(prefix, choice, continuation_prefix=" " * display_width(prefix), color=color)
+
+
 # ---- full-screen renderers ----
 
 def _answer_footer(q, translation_enabled):
@@ -273,7 +339,7 @@ def _answer_footer(q, translation_enabled):
     parts.append(detail_key_hints(q))
     parts.append("m 标记")
     parts.append("r 移除")
-    parts.append("Esc 返回选题, q quit")
+    parts.append("Esc/q 退出")
     return ", ".join(parts)
 
 
@@ -286,7 +352,7 @@ def _result_footer(q, translation_enabled, override=None):
     parts.append(detail_key_hints(q))
     parts.append("m 标记")
     parts.append("r 移除")
-    parts.append("Esc 返回选题, q quit")
+    parts.append("Esc/q 退出")
     return ", ".join(parts)
 
 
@@ -297,18 +363,19 @@ def render_question(count, total, chapter, q, options, cursor, selected, *,
                     ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
     clear_screen()
     mark_text = " " + MARK_COLOR + "[MARKED]" + RESET_COLOR if marked else ""
+    primary, reference = _primary_and_reference_views(q, options, show_translation, translation)
     print("@ Chapter", chapter, f"({count} / {total})", mark_text)
-    print_wrapped("> ", question_topic(q), color=SELECTED_COLOR)
+    print_wrapped("> ", primary["topic"], color=SELECTED_COLOR)
     print()
 
-    for index, choice in enumerate(options):
+    for index, choice in enumerate(primary["options"]):
         cursor_marker = ">" if index == cursor else " "
         selected_marker = "[x]" if index in selected else "[ ]"
         prefix = f"{cursor_marker} {selected_marker} "
         print_wrapped(prefix, choice, continuation_prefix=" " * display_width(prefix))
 
-    if show_translation:
-        print_translation_block(translation)
+    if reference:
+        print_question_reference_block(reference)
     print_detail_view(q, detail_view)
 
     print_key_hint_footer(_answer_footer(q, translation_enabled))
@@ -323,23 +390,23 @@ def render_result(count, total, chapter, q, options, selected_answer, is_correct
                    ai_prompt_buffer=None, ai_waiting=False, footer=None, note_buffer=None):
     clear_screen()
     mark_text = " " + MARK_COLOR + "[MARKED]" + RESET_COLOR if marked else ""
+    primary, reference = _primary_and_reference_views(q, options, show_translation, translation)
     print("@ Chapter", chapter, f"({count} / {total})", mark_text)
-    print_wrapped("> ", question_topic(q), color=SELECTED_COLOR)
+    print_wrapped("> ", primary["topic"], color=SELECTED_COLOR)
     print()
 
     correct_answers = set(q['answer'])
     selected_answers = set(selected_answer)
-    for choice in options:
+    for choice in primary["options"]:
         label = option_label(choice)
         is_correct_option = label in correct_answers
         is_selected = label in selected_answers
         marker = "✓" if is_correct_option else ("✗" if is_selected else " ")
-        line = marker + " " + choice
         color = CORRECT_COLOR if is_correct_option else ("\033[1;31m" if is_selected else "")
-        print_wrapped("", line, continuation_prefix="  ", color=color)
+        _print_answer_option(marker, choice, color=color)
 
-    if show_translation:
-        print_translation_block(translation)
+    if reference:
+        print_question_reference_block(reference)
     print_detail_view(q, detail_view)
 
     print_key_hint_footer(_result_footer(q, translation_enabled, footer))
@@ -355,19 +422,19 @@ def render_review_question(index, total, chapter, q, *, options=None, show_trans
     correct_answers = set(q.get('answer', ''))
     clear_screen()
     mark_text = " " + MARK_COLOR + "[MARKED]" + RESET_COLOR if marked else ""
+    primary, reference = _primary_and_reference_views(q, options, show_translation, translation)
     print("@ Chapter", chapter, f"({index + 1} / {total})", mark_text)
-    print_wrapped("> ", question_topic(q), color=SELECTED_COLOR)
+    print_wrapped("> ", primary["topic"], color=SELECTED_COLOR)
     print()
 
-    for choice in options:
+    for choice in primary["options"]:
         label = option_label(choice)
         is_correct = label in correct_answers
         prefix = "✓" if is_correct else " "
-        line = prefix + " " + choice
-        print_wrapped("", line, continuation_prefix="  ", color=CORRECT_COLOR if is_correct else "")
+        _print_answer_option(prefix, choice, color=CORRECT_COLOR if is_correct else "")
 
-    if show_translation:
-        print_translation_block(translation)
+    if reference:
+        print_question_reference_block(reference)
     print_detail_view(q, detail_view)
 
     parts = ["←/→ 后退/前进"]
@@ -376,7 +443,7 @@ def render_review_question(index, total, chapter, q, *, options=None, show_trans
     parts.append(detail_key_hints(q))
     parts.append("m 标记")
     parts.append("r 移除")
-    parts.append("Esc 返回选题, q quit")
+    parts.append("Esc/q 退出")
     print_key_hint_footer(", ".join(parts))
     print_warning(warning)
     print_ai_interaction_footer(model_name, ai_prompt_buffer, ai_waiting, note_buffer)
@@ -457,30 +524,58 @@ def render_session_summary(summary):
         print_warning(warning)
 
 
-def render_session_item_list(title, items, cursor):
+def render_session_item_list(title, items, cursor, *, show_translation=False,
+                             translation_enabled=True):
     clear_screen()
     print("@ " + title)
     print()
     if not items:
         print_wrapped("  ", "(无记录)", color=DIM_COLOR)
-        print_key_hint_footer("Enter/Esc 返回结算页")
+        footer = "Enter/Esc 返回结算页"
+        if translation_enabled:
+            footer = "t 中文, " + footer
+        print_key_hint_footer(footer)
         return
     cursor = max(0, min(cursor, len(items) - 1))
+    current_chapter = None
     for i, item in enumerate(items):
         q = item["question"]
-        marker = ">" if i == cursor else " "
-        prefix = marker + " "
-        print_wrapped(prefix, f"ch{item.get('chapter', '')} {question_topic(q)}")
-        if i != cursor:
-            continue
-        correct = str(q.get("answer", ""))
-        selected = item.get("selected_answer")
-        if selected:
-            print_wrapped("    ", "你的答案: " + str(selected))
-        print_wrapped("    ", "正确答案: " + correct, color=CORRECT_COLOR)
-        for choice in item.get("options", q.get("options", [])):
-            label = option_label(choice)
-            color = CORRECT_COLOR if label in set(correct) else ""
-            print_wrapped("    ", choice, color=color)
-        print()
-    print_key_hint_footer("↑/↓ 移动, Enter/Esc 返回结算页")
+        chapter = str(item.get("chapter", ""))
+        if chapter != current_chapter:
+            if current_chapter is not None:
+                print()
+            print(f"ch{chapter}")
+            current_chapter = chapter
+
+        is_selected = i == cursor
+        prefix = (">" if is_selected else " ") + " · "
+        print_wrapped(
+            prefix,
+            session_item_topic(q),
+            continuation_prefix=" " * display_width(prefix),
+            color=SELECTED_COLOR if is_selected else "",
+        )
+
+        translation = session_item_translation(q) if (show_translation and is_selected) else None
+
+        if is_selected:
+            correct = str(q.get("answer", ""))
+            selected = item.get("selected_answer")
+            if selected:
+                print_wrapped("    ", "你的答案: " + str(selected))
+            print_wrapped("    ", "正确答案: " + correct, color=CORRECT_COLOR)
+            for choice in item.get("options", q.get("options", [])):
+                label = option_label(choice)
+                color = CORRECT_COLOR if label in set(correct) else ""
+                print_wrapped("    ", choice, color=color)
+            if translation:
+                print_wrapped("    ", translation["topic"], color=TRANSLATION_COLOR)
+                for choice in translation["options"]:
+                    print_wrapped("    ", choice, color=TRANSLATION_COLOR)
+
+        if i != len(items) - 1:
+            print("  " + DIM_COLOR + "─" * max(1, terminal_width() - 4) + RESET_COLOR)
+    footer = "↑/↓ 移动, Enter/Esc 返回结算页"
+    if translation_enabled:
+        footer = "↑/↓ 移动, t 中文, Enter/Esc 返回结算页"
+    print_key_hint_footer(footer)

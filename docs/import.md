@@ -5,6 +5,8 @@ file, or a whole deck directory. The format is inferred from the path: a
 directory is migrated as-is, a `.json`/`.csv`/`.tsv` file by its extension,
 or forced with `--format json|csv` (only for file sources).
 
+> **Bundled decks** ship inside the package and are installed from the deck picker's **Bootstrap** tab (run `flip`, switch tabs with ←/→, space-select, Enter twice) — not via `flip import`. See the "Getting started" section of the README. `flip import` is for decks you provide yourself.
+
 ## JSON source
 
 A compliant `tiku.json` (see `schema.md`). `flip import` validates it before
