@@ -787,9 +787,11 @@ def render_stats(deck, config):
     for chapter in sorted(stats["per_chapter"], key=store._chapter_sort_key):
         total = stats["per_chapter"][chapter]
         wrong = stats["wrong_per_chapter"].get(chapter, 0)
+        drills = stats.get("drills_per_chapter", {}).get(chapter, 0)
         ratio = wrong / total if total else 0
         bar = _stats_bar(total, wrong, max_total)
-        print("  ch{:<3} {:>3}题 / {:>2}错 {:>5.1%}  {}".format(str(chapter), total, wrong, ratio, bar))
+        print("  ch{:<3} {:>3}题 / {:>2}错 {:>5.1%}  {}  [×{}]".format(
+            str(chapter), total, wrong, ratio, bar, drills))
     print()
     print("  Enter/Esc 返回菜单，q 退出")
 
@@ -1268,6 +1270,10 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
         outcome = review_questions(deck, config, selected)
         if outcome == BACK_TO_SELECTOR:
             return BACK_TO_SELECTOR
+        # Review mode doesn't score, so incorrect=0; still counts as a drill
+        # so the user sees the chapter was visited.
+        _record_drill(deck, selected, total=len(selected.questions),
+                      incorrect=0, mode="review")
         return 0
 
     count, incorrects, status = epoch(deck, config, selected)
@@ -1287,7 +1293,29 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
         print(f"- Next epoch: \033[1;33m{disp}\033[0m")
         store.write_json(out, incorrects)
     print("====================================")
+    # A completed training run (not BACK_TO_SELECTOR) counts as a drill.
+    _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode="train")
     return 0
+
+
+def _record_drill(deck, selected, *, total, incorrect, mode):
+    """Append one drill record to the deck's history.
+
+    Centralizes record construction so train and review share the same shape.
+    `chapters` is the deduped sorted set of chapters this run covered, so
+    stats_snapshot can +1 each of them. Called only on completed runs —
+    BACK_TO_SELECTOR exits before reaching here, so abandoned drills aren't
+    counted (a half-finished session isn't a real drill).
+    """
+    import datetime
+    chapters = sorted({str(ch) for ch, _ in selected.questions})
+    store.append_history(deck, {
+        "date": datetime.datetime.now().isoformat(timespec="seconds"),
+        "chapters": chapters,
+        "total": total,
+        "incorrect": incorrect,
+        "mode": mode,
+    })
 
 
 def run_translate(deck, config, selector=None, force=False):

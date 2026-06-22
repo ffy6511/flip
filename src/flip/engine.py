@@ -580,6 +580,14 @@ def stats_snapshot(deck):
     for ch, _ in questions:
         per_chapter[ch] = per_chapter.get(ch, 0) + 1
 
+    # Drill counts per chapter: each history record's `chapters` list contributes
+    # +1 to every chapter it covered. A train run over "5-10" bumps ch5..ch10.
+    drills_per_chapter = {}
+    for record in store.load_history(deck):
+        for ch in record.get("chapters", []):
+            ch = str(ch)
+            drills_per_chapter[ch] = drills_per_chapter.get(ch, 0) + 1
+
     return {
         "total": len(questions),
         "chapters": len(per_chapter),
@@ -590,4 +598,5 @@ def stats_snapshot(deck):
         "wrong_files": len(store.wrong_files(deck)),
         "per_chapter": per_chapter,
         "wrong_per_chapter": wrong_per_chapter,
+        "drills_per_chapter": drills_per_chapter,
     }
