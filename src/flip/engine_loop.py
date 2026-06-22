@@ -342,7 +342,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                 if action[0] == 'quit':
                     return ('quit', show_translation, detail_view)
             if key == '\x1b':
-                return (BACK_TO_SELECTOR, show_translation, detail_view)
+                return ('quit', show_translation, detail_view)
     finally:
         restore_tty(old_settings)
 
@@ -442,7 +442,7 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
             if action and action[0] == 'quit':
                 return ('quit', show_translation, detail_view)
             if key == '\x1b':
-                return (BACK_TO_SELECTOR, show_translation, detail_view)
+                return ('quit', show_translation, detail_view)
     finally:
         restore_tty(old_settings)
 
@@ -462,8 +462,8 @@ def review_history(deck, config, history, start_index, total, *,
         before it.
 
     Returns a sentinel the epoch loop acts on: 'continue' (resume the current
-    question), 'quit' (abort the whole epoch), or BACK_TO_SELECTOR (Esc —
-    leave the epoch and go back to the chapter picker, clearing chapters).
+    question) or 'quit' (abort the whole epoch). In-question Esc now matches
+    q and exits while preserving the checkpoint.
     ←/→ at the ends either clamp with a warning or, at the right edge, also
     return 'continue' to resume.
     """
@@ -506,7 +506,7 @@ def review_history(deck, config, history, start_index, total, *,
             if key == '\x03':
                 raise KeyboardInterrupt
             if key == '\x1b':
-                return BACK_TO_SELECTOR, show_translation, detail_view
+                return 'quit', show_translation, detail_view
             if key in {'\r', '\n'}:
                 return 'continue', show_translation, detail_view
             if key == '\x1b[D':
@@ -616,8 +616,8 @@ def epoch(deck, config, selected_set, *, start_index=0, history=None,
     Returns (count, incorrect, status) where status is one of:
       'done'              — every question was attempted normally
       'quit'              — q / Esc-abort: leave flip entirely
-      BACK_TO_SELECTOR    — Esc pressed mid-question: go back to the chapter
-                            picker, keep mode/ans/filters but clear chapters
+      BACK_TO_SELECTOR    — reserved sentinel for explicit "back to picker"
+                            flows; normal in-question Esc now exits like q
     """
     questions = selected_set.questions
     alphabet = deck.answer_alphabet
@@ -719,12 +719,12 @@ def epoch(deck, config, selected_set, *, start_index=0, history=None,
 
 # ---- standalone review (browse a question set) ----
 
-def review_questions(deck, config, selected_set):
+def review_questions(deck, config, selected_set, *, start_index=0, on_progress=None):
     questions = selected_set.questions
     if not questions:
         print("No questions to review.")
         return 'done', []
-    index = 0
+    index = min(max(int(start_index), 0), len(questions) - 1)
     browse_items = [
         {"chapter": chapter, "question": q, "options": _options(q, deck)}
         for chapter, q in questions
@@ -761,12 +761,14 @@ def review_questions(deck, config, selected_set):
             if key == '\x03':
                 raise KeyboardInterrupt
             if key == '\x1b':
-                return BACK_TO_SELECTOR, browse_items
+                return 'quit', browse_items
             if key == '\x1b[C':
                 warning = ""
                 if index < len(questions) - 1:
                     index += 1
                     detail_view = default_detail_view(questions[index][1])
+                    if on_progress is not None:
+                        on_progress(index, selected_set)
                 else:
                     warning = "已经是最后一题。"
                 continue
@@ -775,6 +777,8 @@ def review_questions(deck, config, selected_set):
                 if index > 0:
                     index -= 1
                     detail_view = default_detail_view(questions[index][1])
+                    if on_progress is not None:
+                        on_progress(index, selected_set)
                 else:
                     warning = "已经是第一题。"
                 continue
@@ -805,6 +809,8 @@ def review_questions(deck, config, selected_set):
                         return 'done', browse_items
                     index = min(index, len(questions) - 1)
                     detail_view = default_detail_view(questions[index][1])
+                    if on_progress is not None:
+                        on_progress(index, selected_set)
                     warning = "已从索引中移除。" if selected_set.input_is_index else "已从 tiku 题库删除。"
                     confirm_remove = False
                     continue
@@ -1505,7 +1511,7 @@ def _run_session_item_list(summary, items):
 
 
 def _save_session_checkpoint(deck, selected, *, source, ans_mode, selector,
-                             filters, mode, history):
+                             filters, mode, history, cursor=None):
     questions = [
         {"chapter": str(chapter), "key": engine.question_key(chapter, q)}
         for chapter, q in selected.questions
@@ -1531,7 +1537,7 @@ def _save_session_checkpoint(deck, selected, *, source, ans_mode, selector,
         "filters": list(filters or []),
         "mode": mode,
         "questions": questions,
-        "cursor": len(answered),
+        "cursor": len(answered) if cursor is None else int(cursor),
         "answered": answered,
         "updated_at": now,
     })
@@ -1575,7 +1581,10 @@ def _restore_session_run(deck):
 
     source = session.get("source", "tiku")
     selected = engine.SelectedSet(questions, input_is_index=(source == "wrong"))
-    start_index = min(len(history), len(questions))
+    if bool(session.get("ans_mode")):
+        start_index = min(max(int(session.get("cursor", 0) or 0), 0), len(questions) - 1)
+    else:
+        start_index = min(len(history), len(questions))
     return {
         "session": session,
         "selected": selected,
@@ -1635,6 +1644,47 @@ def _run_scored_session(deck, config, selected, *, source, mode_label, selector,
     return 0
 
 
+def _run_browse_session(deck, config, selected, *, source, mode_label, selector,
+                        filters, start_index=0):
+    _save_session_checkpoint(
+        deck, selected, source=source, ans_mode=True, selector=selector,
+        filters=filters, mode=mode_label, history=[], cursor=start_index,
+    )
+
+    def on_progress(cursor, progress_selected):
+        _save_session_checkpoint(
+            deck, progress_selected, source=source, ans_mode=True, selector=selector,
+            filters=filters, mode=mode_label, history=[], cursor=cursor,
+        )
+
+    status, browse_items = review_questions(
+        deck, config, selected,
+        start_index=start_index,
+        on_progress=on_progress,
+    )
+    if status == BACK_TO_SELECTOR:
+        return BACK_TO_SELECTOR
+    if status == 'quit':
+        return 0
+
+    if mode_label == "review":
+        store.clear_session(deck)
+        _run_session_summary_loop(
+            deck, config,
+            _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
+        )
+        return 0
+
+    _record_drill(deck, selected, total=len(selected.questions),
+                  incorrect=0, mode=mode_label)
+    store.clear_session(deck)
+    _run_session_summary_loop(
+        deck, config,
+        _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
+    )
+    return 0
+
+
 def run_continue(deck, config):
     restored = _restore_session_run(deck)
     if restored is None:
@@ -1642,8 +1692,14 @@ def run_continue(deck, config):
         print("没有可继续的练习。")
         return 0
     if restored["ans_mode"]:
-        print("当前仅支持继续计分练习。")
-        return 0
+        return _run_browse_session(
+            deck, config, restored["selected"],
+            source=restored["source"],
+            mode_label=restored["mode"],
+            selector=restored["selector"],
+            filters=restored["filters"],
+            start_index=restored["start_index"],
+        )
     return _run_scored_session(
         deck, config, restored["selected"],
         source=restored["source"],
@@ -1671,7 +1727,7 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     but keeping mode/ans/filters); otherwise 0 after printing the report.
     """
     filters = filters or []
-    selected = engine.pick_questions(deck, config, selector=selector, shuffle=True,
+    selected = engine.pick_questions(deck, config, selector=selector, shuffle=not ans_mode,
                                      filters=filters, source=source)
     # `mode` follows the ENTRY mode (i.e. the question source), NOT the ans
     # toggle. ans only changes whether we score (epoch) or browse
@@ -1679,26 +1735,13 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     # Train+ans and Review+ans record under their respective entry modes.
     mode_label = "train" if source == "tiku" else "review"
     if ans_mode:
-        status, browse_items = review_questions(deck, config, selected)
-        if status == BACK_TO_SELECTOR:
-            return BACK_TO_SELECTOR
-        if status == 'quit':
-            return 0
-        if mode_label == "review":
-            _run_session_summary_loop(
-                deck, config,
-                _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
-            )
-            return 0
-        # Browse mode doesn't score, so incorrect=0; still counts as a drill
-        # so the user sees the chapter was visited.
-        _record_drill(deck, selected, total=len(selected.questions),
-                      incorrect=0, mode=mode_label)
-        _run_session_summary_loop(
-            deck, config,
-            _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
+        return _run_browse_session(
+            deck, config, selected,
+            source=source,
+            mode_label=mode_label,
+            selector=selector,
+            filters=filters,
         )
-        return 0
 
     return _run_scored_session(
         deck, config, selected,

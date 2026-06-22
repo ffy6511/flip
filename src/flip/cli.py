@@ -35,9 +35,9 @@ def main(ctx: typer.Context):
             deck = deck_picker(config)
             if deck is None:
                 raise typer.Exit(0)
-            # `resume` carries (mode_index, ans_mode, filters) so that an Esc
-            # mid-question bounces back to the chapter picker with chapters
-            # cleared but the mode/ans/filters preserved. None on first entry.
+        # `resume` carries (mode_index, ans_mode, filters) for explicit
+        # back-to-picker flows. Normal in-question Esc now exits like q and
+        # keeps the session for `continue`. None on first entry.
             resume = None
             while True:
                 choice = entry_menu(config, deck, resume=resume)
@@ -110,11 +110,11 @@ def _status_echo(message: str, *, ok: bool = True, err: bool = False):
 
 
 def _run_deck_train_after_esc(deck, config, mode, ans_mode, filters):
-    """Loop a fresh entry_menu after an Esc mid-question.
+    """Loop a fresh entry_menu after an explicit back-to-picker action.
 
     Called only after a `deck train`/`deck review` pass returns BACK_TO_SELECTOR.
     Re-enters the chapter picker (chapters cleared) preserving the mode/ans/
-    filters that came from the command line; subsequent Esc-backs keep looping
+    filters that came from the command line; subsequent back-to-picker actions keep looping
     here with whatever flags the learner last picked. Finishing a run or
     quitting the menu exits flip normally.
     """
@@ -156,14 +156,13 @@ def deck_train(
 
     With --ans, runs in browse mode: answers are shown immediately and nothing
     is scored. Corresponds to the entry-menu 'Train' entry. Pressing Esc
-    mid-question drops back into the chapter picker (chapters cleared, flags
-    preserved); the explicit --chapter value is ignored once Esc is used.
+    mid-question exits like q and preserves the session for `flip deck continue`.
     """
     config, deck = _resolve_deck(slug)
     filters = _collect_filters(marked, note, ai, filter_csv)
     from .engine_loop import run_train, BACK_TO_SELECTOR
-    # chapter is honored only on the first pass; an Esc-back re-runs via the
-    # interactive chapter picker and ignores the original --chapter.
+    # chapter is honored only on the first pass; explicit back-to-picker flows
+    # re-run via the interactive chapter picker and ignore the original --chapter.
     outcome = run_train(deck, config, chapter, source="tiku",
                         ans_mode=ans, filters=filters)
     if outcome == BACK_TO_SELECTOR:
@@ -186,9 +185,8 @@ def deck_review(
 
     Trains on exactly the questions previously answered wrong. With --ans,
     browses them with answers shown instead of scoring. Corresponds to the
-    entry-menu 'Review' entry. Pressing Esc mid-question drops back into the
-    chapter picker (chapters cleared, flags preserved); the explicit --chapter
-    value is ignored once Esc is used.
+    entry-menu 'Review' entry. Pressing Esc mid-question exits like q and
+    preserves the session for `flip deck continue`.
     """
     config, deck = _resolve_deck(slug)
     filters = _collect_filters(marked, note, ai, filter_csv)

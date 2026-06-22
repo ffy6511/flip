@@ -198,30 +198,30 @@ def test_epoch_pre_answer_hides_detail_post_answer_shows_it(deck, config, monkey
 
 
 
-def test_prompt_answer_esc_returns_back_to_selector(deck, config, monkeypatch):
-    """Esc on the answer screen signals "go back to chapter picker"."""
+def test_prompt_answer_esc_returns_quit(deck, config, monkeypatch):
+    """Esc on the answer screen quits the run and preserves progress like q."""
     q = store.load_tiku(deck)["1"][0]
     _patch_tty(monkeypatch, ["\x1b"])
     monkeypatch.setattr(engine_loop, "render_question", lambda *a, **k: None)
 
     result = engine_loop.prompt_answer(deck, config, 1, 1, "1", q)
 
-    assert result[0] == engine_loop.BACK_TO_SELECTOR
+    assert result[0] == "quit"
 
 
-def test_prompt_result_esc_returns_back_to_selector(deck, config, monkeypatch):
-    """Esc on the result screen signals "go back to chapter picker"."""
+def test_prompt_result_esc_returns_quit(deck, config, monkeypatch):
+    """Esc on the result screen quits the run and preserves progress like q."""
     q = store.load_tiku(deck)["1"][0]
     _patch_tty(monkeypatch, ["\x1b"])
     monkeypatch.setattr(engine_loop, "render_result", lambda *a, **k: None)
 
     result = engine_loop.prompt_result(deck, config, 1, 1, "1", q, "B", True)
 
-    assert result[0] == engine_loop.BACK_TO_SELECTOR
+    assert result[0] == "quit"
 
 
-def test_epoch_esc_returns_back_to_selector_without_writing_wrong(deck, config, monkeypatch, tmp_path):
-    """Esc mid-epoch bubbles up as status=BACK_TO_SELECTOR and writes no report.
+def test_epoch_esc_returns_quit_without_writing_wrong(deck, config, monkeypatch, tmp_path):
+    """Esc mid-epoch bubbles up as status=quit and writes no report.
 
     Guards the orchestration contract run_train relies on: an Esc abort must
     NOT touch the wrong-index file system (no partial epoch report).
@@ -236,11 +236,11 @@ def test_epoch_esc_returns_back_to_selector_without_writing_wrong(deck, config, 
 
     _count, _incorrect, status, _history = engine_loop.epoch(deck, config, selected)
 
-    assert status == engine_loop.BACK_TO_SELECTOR
+    assert status == "quit"
 
 
-def test_run_train_esc_returns_back_to_selector_and_no_report(deck, config, monkeypatch, capsys):
-    """run_train on Esc returns the sentinel verbatim and prints no report."""
+def test_run_train_esc_quits_and_keeps_session(deck, config, monkeypatch, capsys):
+    """run_train on Esc exits like q and keeps the checkpoint for continue."""
     selected = engine.pick_questions(deck, config, selector="1", shuffle=False)
     _patch_tty(monkeypatch, ["\x1b"])
     monkeypatch.setattr(engine_loop, "render_question", lambda *a, **k: None)
@@ -250,7 +250,8 @@ def test_run_train_esc_returns_back_to_selector_and_no_report(deck, config, monk
 
     outcome = engine_loop.run_train(deck, config, selector="1", source="tiku")
 
-    assert outcome == engine_loop.BACK_TO_SELECTOR
+    assert outcome == 0
+    assert store.load_session(deck) is not None
     assert "Report" not in capsys.readouterr().out
 
 
@@ -327,6 +328,58 @@ def test_run_train_browse_quit_does_not_record_history(deck, config, monkeypatch
 
     assert outcome == 0
     assert store.load_history(deck) == []
+
+
+def test_run_train_browse_uses_sequential_order(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q)], input_is_index=False)
+    seen = {}
+
+    def fake_pick_questions(*_args, **kwargs):
+        seen["shuffle"] = kwargs["shuffle"]
+        return selected
+
+    monkeypatch.setattr(engine, "pick_questions", fake_pick_questions)
+    monkeypatch.setattr(engine_loop, "review_questions", lambda *_a, **_k: ("done", []))
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *_a, **_k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku", ans_mode=True)
+
+    assert outcome == 0
+    assert seen["shuffle"] is False
+
+
+def test_run_train_browse_quit_overwrites_stale_session_and_saves_cursor(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    store.save_session(deck, {
+        "status": "paused",
+        "source": "tiku",
+        "ans_mode": False,
+        "selector": "1",
+        "filters": [],
+        "mode": "train",
+        "questions": [{"chapter": "1", "key": engine.question_key("1", q1)}],
+        "cursor": 0,
+        "answered": [],
+    })
+    _patch_tty(monkeypatch, ["\x1b[C", "q"])
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "render_review_question", lambda *a, **k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku", ans_mode=True)
+
+    session = store.load_session(deck)
+    assert outcome == 0
+    assert session["ans_mode"] is True
+    assert session["cursor"] == 1
+    assert session["mode"] == "train"
+    assert [item["key"] for item in session["questions"]] == [
+        engine.question_key("1", q1),
+        engine.question_key("1", q2),
+    ]
 
 
 def test_review_questions_q_returns_quit(deck, config, monkeypatch):
@@ -691,6 +744,46 @@ def test_run_continue_finishes_resumed_session_and_clears_checkpoint(deck, confi
     assert seen["incorrect"][0]["wrong_input"] == "B"
     assert store.load_session(deck) is None
     assert len(store.load_history(deck)) == 1
+
+
+def test_run_continue_resumes_browse_session_from_saved_cursor(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    store.save_session(deck, {
+        "status": "paused",
+        "source": "tiku",
+        "ans_mode": True,
+        "selector": "1",
+        "filters": ["mark"],
+        "mode": "train",
+        "questions": [
+            {"chapter": "1", "key": engine.question_key("1", q1)},
+            {"chapter": "1", "key": engine.question_key("1", q2)},
+        ],
+        "cursor": 1,
+        "answered": [],
+    })
+    seen = {}
+
+    def fake_review_questions(_deck, _config, restored, *, start_index=0, on_progress=None):
+        seen["questions"] = restored.questions
+        seen["start_index"] = start_index
+        if on_progress is not None:
+            on_progress(1, restored)
+        return "done", [{
+            "chapter": "1",
+            "question": q2,
+            "options": list(q2["options"]),
+        }]
+
+    monkeypatch.setattr(engine_loop, "review_questions", fake_review_questions)
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: None)
+
+    outcome = engine_loop.run_continue(deck, config)
+
+    assert outcome == 0
+    assert seen["questions"] == [("1", q1), ("1", q2)]
+    assert seen["start_index"] == 1
+    assert store.load_session(deck) is None
 
 
 def test_entry_menu_continue_returns_continue_choice(deck, config, monkeypatch):
