@@ -126,9 +126,31 @@ def question_topic(q):
     """Return the display topic, adding a badge for multi-select questions."""
     topic = str(q.get("topic", ""))
     answer = str(q.get("answer", "")).strip()
+    return topic_with_answer_badge(topic, answer)
+
+
+def topic_with_answer_badge(topic, answer):
+    topic = str(topic)
+    answer = str(answer).strip()
     if len(answer) > 1:
         return topic + " [多选]"
     return topic
+
+
+def question_view(q, options):
+    return {
+        "topic": question_topic(q),
+        "options": list(options),
+    }
+
+
+def translated_view(q, translation):
+    if not translation:
+        return None
+    return {
+        "topic": topic_with_answer_badge(translation["topic"], q.get("answer", "")),
+        "options": list(translation.get("options", [])),
+    }
 
 
 # ---- translation / explanation / note presence (pure) ----
@@ -196,12 +218,18 @@ def detail_key_hints(q):
 def print_translation_block(translation):
     if not translation:
         return
+    print_question_reference_block(translation)
+
+
+def print_question_reference_block(view, *, color=TRANSLATION_COLOR):
+    if not view:
+        return
     print()
-    print(LOWER_BLOCK_INDENT + TRANSLATION_COLOR + "─" * (terminal_width() - 2) + RESET_COLOR)
-    print_wrapped(LOWER_BLOCK_INDENT, translation["topic"], color=TRANSLATION_COLOR)
+    print(LOWER_BLOCK_INDENT + color + "─" * (terminal_width() - 2) + RESET_COLOR)
+    print_wrapped(LOWER_BLOCK_INDENT, view["topic"], color=color)
     print()
-    for choice in translation["options"]:
-        print_wrapped(LOWER_BLOCK_INDENT, choice, color=TRANSLATION_COLOR)
+    for choice in view["options"]:
+        print_wrapped(LOWER_BLOCK_INDENT, choice, color=color)
 
 
 def print_ai_explanation_block(q):
@@ -263,6 +291,25 @@ def print_warning(warning):
         print_wrapped(LOWER_BLOCK_INDENT, warning, color=WRONG_COLOR)
 
 
+def _primary_and_reference_views(q, options, show_translation, translation):
+    primary = question_view(q, options)
+    reference = None
+    if show_translation and translation:
+        primary = translated_view(q, translation)
+        reference = question_view(q, options)
+    return primary, reference
+
+
+def _answer_prefix(marker=""):
+    marker = marker if marker else " "
+    return marker + " "
+
+
+def _print_answer_option(marker, choice, *, color=""):
+    prefix = _answer_prefix(marker)
+    print_wrapped(prefix, choice, continuation_prefix=" " * display_width(prefix), color=color)
+
+
 # ---- full-screen renderers ----
 
 def _answer_footer(q, translation_enabled):
@@ -297,18 +344,19 @@ def render_question(count, total, chapter, q, options, cursor, selected, *,
                     ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
     clear_screen()
     mark_text = " " + MARK_COLOR + "[MARKED]" + RESET_COLOR if marked else ""
+    primary, reference = _primary_and_reference_views(q, options, show_translation, translation)
     print("@ Chapter", chapter, f"({count} / {total})", mark_text)
-    print_wrapped("> ", question_topic(q), color=SELECTED_COLOR)
+    print_wrapped("> ", primary["topic"], color=SELECTED_COLOR)
     print()
 
-    for index, choice in enumerate(options):
+    for index, choice in enumerate(primary["options"]):
         cursor_marker = ">" if index == cursor else " "
         selected_marker = "[x]" if index in selected else "[ ]"
         prefix = f"{cursor_marker} {selected_marker} "
         print_wrapped(prefix, choice, continuation_prefix=" " * display_width(prefix))
 
-    if show_translation:
-        print_translation_block(translation)
+    if reference:
+        print_question_reference_block(reference)
     print_detail_view(q, detail_view)
 
     print_key_hint_footer(_answer_footer(q, translation_enabled))
@@ -323,23 +371,23 @@ def render_result(count, total, chapter, q, options, selected_answer, is_correct
                    ai_prompt_buffer=None, ai_waiting=False, footer=None, note_buffer=None):
     clear_screen()
     mark_text = " " + MARK_COLOR + "[MARKED]" + RESET_COLOR if marked else ""
+    primary, reference = _primary_and_reference_views(q, options, show_translation, translation)
     print("@ Chapter", chapter, f"({count} / {total})", mark_text)
-    print_wrapped("> ", question_topic(q), color=SELECTED_COLOR)
+    print_wrapped("> ", primary["topic"], color=SELECTED_COLOR)
     print()
 
     correct_answers = set(q['answer'])
     selected_answers = set(selected_answer)
-    for choice in options:
+    for choice in primary["options"]:
         label = option_label(choice)
         is_correct_option = label in correct_answers
         is_selected = label in selected_answers
         marker = "✓" if is_correct_option else ("✗" if is_selected else " ")
-        line = marker + " " + choice
         color = CORRECT_COLOR if is_correct_option else ("\033[1;31m" if is_selected else "")
-        print_wrapped("", line, continuation_prefix="  ", color=color)
+        _print_answer_option(marker, choice, color=color)
 
-    if show_translation:
-        print_translation_block(translation)
+    if reference:
+        print_question_reference_block(reference)
     print_detail_view(q, detail_view)
 
     print_key_hint_footer(_result_footer(q, translation_enabled, footer))
@@ -355,19 +403,19 @@ def render_review_question(index, total, chapter, q, *, options=None, show_trans
     correct_answers = set(q.get('answer', ''))
     clear_screen()
     mark_text = " " + MARK_COLOR + "[MARKED]" + RESET_COLOR if marked else ""
+    primary, reference = _primary_and_reference_views(q, options, show_translation, translation)
     print("@ Chapter", chapter, f"({index + 1} / {total})", mark_text)
-    print_wrapped("> ", question_topic(q), color=SELECTED_COLOR)
+    print_wrapped("> ", primary["topic"], color=SELECTED_COLOR)
     print()
 
-    for choice in options:
+    for choice in primary["options"]:
         label = option_label(choice)
         is_correct = label in correct_answers
         prefix = "✓" if is_correct else " "
-        line = prefix + " " + choice
-        print_wrapped("", line, continuation_prefix="  ", color=CORRECT_COLOR if is_correct else "")
+        _print_answer_option(prefix, choice, color=CORRECT_COLOR if is_correct else "")
 
-    if show_translation:
-        print_translation_block(translation)
+    if reference:
+        print_question_reference_block(reference)
     print_detail_view(q, detail_view)
 
     parts = ["←/→ 后退/前进"]

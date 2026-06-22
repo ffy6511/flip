@@ -1,4 +1,9 @@
+import re
+
 from flip.tui import render
+
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def _question(answer="A"):
@@ -7,6 +12,10 @@ def _question(answer="A"):
         "options": ["A. Lexing", "B. Parsing", "C. Code emission", "D. Linking"],
         "answer": answer,
     }
+
+
+def _strip_ansi(text):
+    return ANSI_RE.sub("", text)
 
 
 def test_render_question_marks_multi_select_without_mutating_topic(capsys):
@@ -63,6 +72,48 @@ def test_render_question_wraps_long_options_to_terminal_width(capsys, monkeypatc
     out = capsys.readouterr().out
     assert "> [ ] A. This option is" in out
     assert "      intentionally long so it" in out
+
+
+def test_render_question_swaps_translation_into_primary_slot(capsys):
+    q = _question("AB")
+    translation = {
+        "topic": "哪些编译阶段会拒绝程序？",
+        "options": ["A. 词法分析", "B. 语法分析", "C. 代码生成", "D. 链接"],
+    }
+
+    render.render_question(
+        1, 1, "1", q, q["options"], 0, set(),
+        show_translation=True, translation=translation,
+    )
+
+    out = _strip_ansi(capsys.readouterr().out)
+    assert out.index("哪些编译阶段会拒绝程序？ [多选]") < out.index("Which compiler phases can reject a program? [多选]")
+    assert "A. 词法分析" in out
+    assert "A. Lexing" in out
+
+
+def test_render_result_keeps_answer_markers_aligned(capsys):
+    q = _question("A")
+
+    render.render_result(1, 1, "1", q, q["options"], "B", False)
+
+    lines = _strip_ansi(capsys.readouterr().out).splitlines()
+    assert "✓ A. Lexing" in lines
+    assert "✗ B. Parsing" in lines
+    assert "  C. Code emission" in lines
+    assert "  D. Linking" in lines
+
+
+def test_render_review_question_keeps_answer_markers_aligned(capsys):
+    q = _question("A")
+
+    render.render_review_question(0, 1, "1", q)
+
+    lines = _strip_ansi(capsys.readouterr().out).splitlines()
+    assert "✓ A. Lexing" in lines
+    assert "  B. Parsing" in lines
+    assert "  C. Code emission" in lines
+    assert "  D. Linking" in lines
 
 
 def test_render_scored_session_summary_colors_accuracy(capsys):
