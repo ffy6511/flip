@@ -1103,6 +1103,7 @@ def _edit_selector(selector, mode_name, deck=None, config=None):
     titles = {}
     per_chapter = {}
     wrong_per_chapter = {}
+    drills_per_chapter = {}
     max_total = 0
     if deck is not None:
         data = store.load_tiku(deck) or {}
@@ -1115,6 +1116,11 @@ def _edit_selector(selector, mode_name, deck=None, config=None):
             per_chapter = stats["per_chapter"]
             wrong_per_chapter = stats["wrong_per_chapter"]
             max_total = max(per_chapter.values(), default=0)
+        # Drills filtered by THIS entry mode (mode_name is "Train"/"Review").
+        # Stats keeps a merged count; the picker shows the context-specific
+        # count so the user sees "how many times I drilled this chapter in the
+        # mode I'm about to enter" rather than the merged total.
+        drills_per_chapter = _drills_per_chapter_for_mode(deck, mode_name)
         chapters = sorted(per_chapter.keys(), key=store._chapter_sort_key) if per_chapter else []
 
     cursor = 0
@@ -1133,7 +1139,8 @@ def _edit_selector(selector, mode_name, deck=None, config=None):
 
     while True:
         _render_chapter_picker(mode_name, chapters, titles, per_chapter,
-                               wrong_per_chapter, max_total, cursor, selected, buffer)
+                               wrong_per_chapter, drills_per_chapter,
+                               max_total, cursor, selected, buffer)
         key = read_key()
         if key == '\x03':
             raise KeyboardInterrupt
@@ -1201,7 +1208,8 @@ def _selector_set_from_text(buffer, chapters, max_n):
 
 
 def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
-                           wrong_per_chapter, max_total, cursor, selected, buffer):
+                           wrong_per_chapter, drills_per_chapter, max_total,
+                           cursor, selected, buffer):
     from .tui.render import (
         DIM_COLOR, RESET_COLOR, SELECTED_COLOR, STAT_TOTAL_COLOR, AI_COLOR,
     )
@@ -1221,17 +1229,47 @@ def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
         for i, ch in enumerate(chapters):
             total = per_chapter.get(ch, 0)
             wrong = wrong_per_chapter.get(ch, 0)
+            drills = drills_per_chapter.get(ch, 0)
             bar = _stats_bar(total, wrong, max_total, width=20)
             mark = "[x]" if ch in selected else "[ ]"
             title = titles.get(ch, "")
             title_field = ("  " + title) if title else ""
-            line = f"  {mark} ch{str(ch):<3} {bar}  {total:>3}题/{wrong:>2}错{title_field}"
+            line = f"  {mark} ch{str(ch):<3} {bar}  {total:>3}题/{wrong:>2}错{title_field}  [×{drills}]"
             print(SELECTED_COLOR + line + RESET_COLOR if i == cursor
                   else DIM_COLOR + line + RESET_COLOR)
     print()
     print("  " + DIM_COLOR +
           "↑/↓ 移动,空格 切换选中,数字/范围 直接输入,Enter 开始,Esc 返回" +
           RESET_COLOR)
+
+
+def _drills_per_chapter_for_mode(deck, mode_name):
+    """Aggregate drill counts per chapter, filtered to the given entry mode.
+
+    `mode_name` is the picker's display label ("Train" / "Review"). We map it
+    to the history record's `mode` field ("train" / "review") and count only
+    matching records. This is what makes the picker show context-specific
+    counts: entering via Train shows train drills, via Review shows review
+    drills, instead of the merged total that stats_snapshot reports.
+    """
+    if deck is None:
+        return {}
+    label = (mode_name or "").lower()
+    if "review" in label:
+        want_mode = "review"
+    elif "train" in label:
+        want_mode = "train"
+    else:
+        # Unknown mode label: show merged (defensive — shouldn't normally happen).
+        want_mode = None
+    counts = {}
+    for record in store.load_history(deck):
+        if want_mode is not None and record.get("mode") != want_mode:
+            continue
+        for ch in record.get("chapters", []):
+            ch = str(ch)
+            counts[ch] = counts.get(ch, 0) + 1
+    return counts
 
 
 def _run_stats_loop(deck, config):
@@ -1266,14 +1304,19 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     filters = filters or []
     selected = engine.pick_questions(deck, config, selector=selector, shuffle=True,
                                      filters=filters, source=source)
+    # `mode` follows the ENTRY mode (i.e. the question source), NOT the ans
+    # toggle. ans only changes whether we score (epoch) or browse
+    # (review_questions); it does not relabel a Train session as review. So
+    # Train+ans and Review+ans record under their respective entry modes.
+    mode_label = "train" if source == "tiku" else "review"
     if ans_mode:
         outcome = review_questions(deck, config, selected)
         if outcome == BACK_TO_SELECTOR:
             return BACK_TO_SELECTOR
-        # Review mode doesn't score, so incorrect=0; still counts as a drill
+        # Browse mode doesn't score, so incorrect=0; still counts as a drill
         # so the user sees the chapter was visited.
         _record_drill(deck, selected, total=len(selected.questions),
-                      incorrect=0, mode="review")
+                      incorrect=0, mode=mode_label)
         return 0
 
     count, incorrects, status = epoch(deck, config, selected)
@@ -1294,7 +1337,7 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
         store.write_json(out, incorrects)
     print("====================================")
     # A completed training run (not BACK_TO_SELECTOR) counts as a drill.
-    _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode="train")
+    _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
     return 0
 
 

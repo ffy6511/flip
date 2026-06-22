@@ -53,7 +53,13 @@ def main(ctx: typer.Context):
                     mode_index = 0 if mode == "train" else 1
                     resume = (mode_index, ans_mode, filters)
                     continue
-                raise typer.Exit(outcome)
+                # Normal completion: loop back to entry_menu so the user can
+                # pick a different chapter range / mode / deck section without
+                # relaunching flip. (Direct subcommands like `flip deck train`
+                # still exit after one pass — only the interactive `flip` entry
+                # point loops.)
+                resume = None
+                continue
             resume = None
 
 
