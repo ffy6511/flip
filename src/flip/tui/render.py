@@ -556,9 +556,7 @@ def render_session_item_list(title, items, cursor, *, show_translation=False,
             color=SELECTED_COLOR if is_selected else "",
         )
 
-        translation = session_item_translation(q) if show_translation else None
-        if translation:
-            print_wrapped("    ", translation["topic"], color=TRANSLATION_COLOR)
+        translation = session_item_translation(q) if (show_translation and is_selected) else None
 
         if is_selected:
             correct = str(q.get("answer", ""))
@@ -566,14 +564,14 @@ def render_session_item_list(title, items, cursor, *, show_translation=False,
             if selected:
                 print_wrapped("    ", "你的答案: " + str(selected))
             print_wrapped("    ", "正确答案: " + correct, color=CORRECT_COLOR)
-            translated_options = translation["options"] if translation else []
-            for index, choice in enumerate(item.get("options", q.get("options", []))):
+            for choice in item.get("options", q.get("options", [])):
                 label = option_label(choice)
                 color = CORRECT_COLOR if label in set(correct) else ""
                 print_wrapped("    ", choice, color=color)
-                translated_choice = translated_options[index] if index < len(translated_options) else ""
-                if translated_choice:
-                    print_wrapped("      ", translated_choice, color=TRANSLATION_COLOR)
+            if translation:
+                print_wrapped("    ", translation["topic"], color=TRANSLATION_COLOR)
+                for choice in translation["options"]:
+                    print_wrapped("    ", choice, color=TRANSLATION_COLOR)
 
         if i != len(items) - 1:
             print("  " + DIM_COLOR + "─" * max(1, terminal_width() - 4) + RESET_COLOR)

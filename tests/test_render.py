@@ -198,7 +198,7 @@ def test_render_session_item_list_groups_by_chapter_and_highlights_selected(caps
     assert render.DIM_COLOR in out and "─" in plain
 
 
-def test_render_session_item_list_shows_inline_translation(capsys):
+def test_render_session_item_list_shows_selected_translation_block_before_separator(capsys):
     items = [
         {
             "chapter": "25",
@@ -214,6 +214,15 @@ def test_render_session_item_list_shows_inline_translation(capsys):
             "options": ["A. Alpha", "B. Beta"],
             "selected_answer": "A",
         },
+        {
+            "chapter": "25",
+            "question": {
+                "topic": "13. Second prompt",
+                "options": ["A. One", "B. Two"],
+                "answer": "A",
+            },
+            "options": ["A. One", "B. Two"],
+        },
     ]
 
     render.render_session_item_list("本轮错题", items, 0, show_translation=True)
@@ -221,9 +230,9 @@ def test_render_session_item_list_shows_inline_translation(capsys):
     plain = _strip_ansi(capsys.readouterr().out)
     assert "· First prompt" in plain
     assert "第一题" in plain
-    assert plain.index("· First prompt") < plain.index("第一题") < plain.index("你的答案: A")
-    assert "A. 甲" in plain
-    assert "B. 乙" in plain
+    assert plain.index("· First prompt") < plain.index("你的答案: A") < plain.index("正确答案: B")
+    assert plain.index("B. Beta") < plain.index("第一题") < plain.index("──")
+    assert plain.index("第一题") < plain.index("A. 甲") < plain.index("B. 乙") < plain.index("──")
 
 
 def test_accuracy_style_thresholds():
