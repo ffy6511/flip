@@ -45,6 +45,8 @@ learner history survives the move:
 | `tiku.json` | yes | Validated, then copied. Drives `answer_alphabet` detection. |
 | `marked.json` | no | Copied as the deck's marked index. |
 | `wrong/*.json` | no | Whole directory copied into the deck's `wrong/`. |
+| `history.json` | no | Copied as the deck's drill-count history. |
+| `session.json` | no | Copied as the paused-session checkpoint. |
 | `manifest.toml` | no | Its `[deck].name` / `source_lang` are used as defaults (command-line flags still win); a fresh compliant manifest is always generated. |
 
 Notes:
@@ -59,8 +61,8 @@ Notes:
 ## Exporting a deck
 
 `flip export <slug>` writes a portable deck directory. It copies `tiku.json`,
-`manifest.toml`, `marked.json` when present, and the full `wrong/` directory
-when present.
+`manifest.toml`, `marked.json` when present, the full `wrong/` directory when
+present, `history.json` when present, and `session.json` when present.
 
 ```bash
 flip export se --out ./se-deck

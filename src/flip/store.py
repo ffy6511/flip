@@ -8,7 +8,14 @@ import json
 import os
 from pathlib import Path
 
-from .deck import Deck, TIKU_NAME, MARKED_NAME, WRONG_DIR_NAME
+from .deck import (
+    Deck,
+    TIKU_NAME,
+    MARKED_NAME,
+    WRONG_DIR_NAME,
+    HISTORY_NAME,
+    SESSION_NAME,
+)
 
 
 def write_json(path, data):
@@ -117,6 +124,8 @@ def import_dir(src_dir, deck: Deck):
     `src_dir` must contain `tiku.json` (required). Optional siblings:
       - `marked.json`  -> copied verbatim to the deck's marked path
       - `wrong/`       -> copied verbatim into the deck's wrong dir
+      - `history.json` -> copied verbatim to preserve drill counts
+      - `session.json` -> copied verbatim to preserve a paused session
 
     The old `marked_questions.json` name is NOT recognized — callers must
     rename it to `marked.json` first. wrong-file records missing `wrong_at`
@@ -134,7 +143,13 @@ def import_dir(src_dir, deck: Deck):
     # tiku.json is validated upstream by the caller; here we only relocate it.
     write_json(deck.tiku_path, read_json(src_tiku))
 
-    copied = {"tiku": True, "marked": False, "wrong_files": 0}
+    copied = {
+        "tiku": True,
+        "marked": False,
+        "wrong_files": 0,
+        "history": False,
+        "session": False,
+    }
 
     src_marked = src_dir / "marked.json"
     if src_marked.is_file():
@@ -148,17 +163,27 @@ def import_dir(src_dir, deck: Deck):
             write_json(deck.wrong_dir / path.name, read_json(path))
             copied["wrong_files"] += 1
 
+    src_history = src_dir / HISTORY_NAME
+    if src_history.is_file():
+        write_json(deck.history_path, read_json(src_history))
+        copied["history"] = True
+
+    src_session = src_dir / SESSION_NAME
+    if src_session.is_file():
+        write_json(deck.session_path, read_json(src_session))
+        copied["session"] = True
+
     return copied
 
 
 def export_deck(deck: Deck, dest_dir):
     """Copy a deck's files into `dest_dir` (the inverse of import_dir).
 
-    Bundles tiku.json, manifest.toml, marked.json (if present), and the
-    whole wrong/ directory — everything needed to re-import the deck on
-    another machine via `flip import <slug> <dir>`. Returns the destination
-    Path. Creates dest_dir (and wrong/ as needed); refuses to overwrite an
-    existing non-empty dest_dir.
+    Bundles tiku.json, manifest.toml, optional index/state files, and the
+    whole wrong/ directory. The result can be re-imported on another machine
+    via `flip import <slug> <dir>`. Returns the destination Path. Creates
+    dest_dir (and wrong/ as needed); refuses to overwrite an existing non-empty
+    dest_dir.
     """
     import shutil
 
@@ -176,6 +201,10 @@ def export_deck(deck: Deck, dest_dir):
         target_wrong.mkdir(parents=True, exist_ok=True)
         for path in json_files_in_directory(deck.wrong_dir):
             shutil.copyfile(path, target_wrong / path.name)
+    if deck.history_path.is_file():
+        shutil.copyfile(deck.history_path, dest_dir / HISTORY_NAME)
+    if deck.session_path.is_file():
+        shutil.copyfile(deck.session_path, dest_dir / SESSION_NAME)
     return dest_dir
 
 

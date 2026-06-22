@@ -489,7 +489,8 @@ def import_cmd(
     source: Path = typer.Argument(..., exists=True,
                                   help="A tiku.json / MCQ .csv/.tsv file, OR a deck "
                                        "directory (must contain tiku.json; optional "
-                                       "marked.json and wrong/ are migrated too)."),
+                                       "marked.json, wrong/, history.json, and "
+                                       "session.json are migrated too)."),
     name: str = typer.Option(None, "--name", help="Display name; defaults to slug."),
     source_lang: str = typer.Option("en", "--source-lang"),
     role: str = typer.Option(None, "--role", help="AI persona; defaults to '<name> 助教'."),
@@ -503,8 +504,9 @@ def import_cmd(
 
     File inputs (json/csv) are validated/converted as before. A *directory*
     input migrates a whole deck folder: its `tiku.json` (required) is
-    validated and copied; `marked.json` and `wrong/`, if present, are copied
-    verbatim so learner history survives the move. The old
+    validated and copied; `marked.json`, `wrong/`, `history.json`, and
+    `session.json`, if present, are copied verbatim so learner state survives
+    the move. The old
     `marked_questions.json` name is not recognized — rename it first.
 
     Extracting a source from PDF/HTML is the flip-deck-init skill's job.
@@ -627,6 +629,10 @@ def import_cmd(
             extra.append("marked.json")
         if report["wrong_files"]:
             extra.append(f"wrong/{report['wrong_files']} file(s)")
+        if report["history"]:
+            extra.append("history.json")
+        if report["session"]:
+            extra.append("session.json")
         if extra:
             typer.echo(f"migrated: {', '.join(extra)}")
         typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
@@ -649,9 +655,9 @@ def export_cmd(
 ):
     """Bundle a deck into a directory (the inverse of `flip import <dir>`).
 
-    Copies tiku.json, manifest.toml, marked.json (if any), and the whole
-    wrong/ directory. The result can be re-imported on another machine with
-    `flip import <slug> <dir>`.
+    Copies tiku.json, manifest.toml, marked.json (if any), wrong/ (if any),
+    history.json (if any), and session.json (if any). The result can be
+    re-imported on another machine with `flip import <slug> <dir>`.
     """
     config, deck = _resolve_deck(slug)
     from . import store
@@ -668,6 +674,10 @@ def export_cmd(
         parts.append("marked.json")
     if deck.wrong_dir.is_dir():
         parts.append(f"wrong/ ({len(store.wrong_files(deck))} file(s))")
+    if deck.history_path.is_file():
+        parts.append("history.json")
+    if deck.session_path.is_file():
+        parts.append("session.json")
     if parts:
         typer.echo("included: " + ", ".join(parts))
 
