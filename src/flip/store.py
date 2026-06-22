@@ -76,6 +76,18 @@ def append_history(deck: Deck, record):
     write_json(deck.history_path, history)
 
 
+def save_history(deck: Deck, history):
+    write_json(deck.history_path, history)
+
+
+def clear_history_mode(deck: Deck, mode):
+    kept = [
+        record for record in load_history(deck)
+        if record.get("mode") != mode
+    ]
+    save_history(deck, kept)
+
+
 # ---- session.json (paused drill checkpoint) ----
 
 def load_session(deck: Deck):

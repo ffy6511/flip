@@ -343,6 +343,52 @@ def test_review_questions_q_returns_quit(deck, config, monkeypatch):
     assert len(browse_items) == 1
 
 
+def test_epoch_r_removes_question_from_tiku_with_explicit_warning(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q)], input_is_index=False)
+    warnings = []
+    _patch_tty(monkeypatch, ["r", "r"])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(
+        engine_loop,
+        "render_question",
+        lambda *a, **k: warnings.append(k.get("warning", "")),
+    )
+
+    _count, _incorrect, status, _history = engine_loop.epoch(deck, config, selected)
+
+    assert status == "done"
+    assert "从 tiku 题库删除" in warnings[-1]
+    remaining = store.load_tiku(deck)["1"]
+    assert all(item.get("id") != q.get("id") for item in remaining)
+
+
+def test_review_questions_r_removes_wrong_index_only_with_explicit_warning(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    wrong = engine.incorrect_record("1", q, "A", deck.answer_alphabet)
+    path = deck.wrong_dir / "ch1.json"
+    store.write_json(path, [wrong])
+    selected = engine.pick_questions(deck, config, selector="1", shuffle=False, source="wrong")
+    warnings = []
+    _patch_tty(monkeypatch, ["r", "r"])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(
+        engine_loop,
+        "render_review_question",
+        lambda *a, **k: warnings.append(k.get("warning", "")),
+    )
+
+    status, _items = engine_loop.review_questions(deck, config, selected)
+
+    assert status == "done"
+    assert "不会删除题库" in warnings[-1]
+    assert store.read_json(path) == []
+    assert any(item.get("id") == q.get("id") for item in store.load_tiku(deck)["1"])
+
+
 def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypatch):
     q1, q2 = store.load_tiku(deck)["1"][:2]
     selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
@@ -370,6 +416,61 @@ def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypat
     assert summaries[0]["wrong_items"][0]["question"] is q1
 
 
+def test_run_train_review_counts_only_when_all_correct(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=True)
+    records = []
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(
+        engine_loop,
+        "epoch",
+        lambda *_a, **_k: (
+            3,
+            [engine.incorrect_record("1", q1, "A", deck.answer_alphabet)],
+            "done",
+            [],
+        ),
+    )
+    monkeypatch.setattr(engine_loop, "_record_drill", lambda *a, **k: records.append((a, k)))
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="wrong")
+
+    assert outcome == 0
+    assert records == []
+
+
+def test_run_train_review_counts_when_all_correct(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=True)
+    records = []
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "epoch", lambda *_a, **_k: (3, [], "done", []))
+    monkeypatch.setattr(engine_loop, "_record_drill", lambda *a, **k: records.append((a, k)))
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="wrong")
+
+    assert outcome == 0
+    assert records
+    assert records[0][1]["mode"] == "review"
+
+
+def test_run_train_review_browse_does_not_count(deck, config, monkeypatch):
+    q1 = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q1)], input_is_index=True)
+    records = []
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "review_questions", lambda *a, **k: ("done", []))
+    monkeypatch.setattr(engine_loop, "_record_drill", lambda *a, **k: records.append((a, k)))
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="wrong", ans_mode=True)
+
+    assert outcome == 0
+    assert records == []
+
+
 def test_run_train_browse_opens_summary_with_browse_count(deck, config, monkeypatch):
     q1, q2 = store.load_tiku(deck)["1"][:2]
     selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
@@ -392,6 +493,32 @@ def test_run_train_browse_opens_summary_with_browse_count(deck, config, monkeypa
     assert summaries[0]["kind"] == "browse"
     assert summaries[0]["total"] == 2
     assert len(summaries[0]["browse_items"]) == 2
+
+
+def test_write_wrong_report_merges_with_existing_wrong_records(deck):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    existing = engine.incorrect_record("1", q1, "A", deck.answer_alphabet)
+    incoming = engine.incorrect_record("1", q2, "A", deck.answer_alphabet)
+    out = store.build_result_filename(selected.questions, deck)
+    store.write_json(out, [existing])
+
+    engine_loop._write_wrong_report(deck, selected, [incoming])
+
+    records = store.read_json(out)
+    assert [item["key"] for item in records] == [existing["key"], incoming["key"]]
+
+
+def test_write_wrong_report_keeps_existing_when_no_new_wrong(deck):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    existing = engine.incorrect_record("1", q1, "A", deck.answer_alphabet)
+    out = store.build_result_filename(selected.questions, deck)
+    store.write_json(out, [existing])
+
+    engine_loop._write_wrong_report(deck, selected, [])
+
+    assert store.read_json(out) == [existing]
 
 
 def test_session_summary_v_opens_wrong_list(deck, config, monkeypatch):
@@ -577,6 +704,26 @@ def test_entry_menu_continue_returns_continue_choice(deck, config, monkeypatch):
     result = engine_loop.entry_menu(config, deck)
 
     assert result == ("continue", None, False, [])
+
+
+def test_entry_menu_c_twice_clears_current_mode_count(deck, config, monkeypatch):
+    store.append_history(deck, {
+        "date": "x", "chapters": ["1"], "total": 1, "incorrect": 0, "mode": "train",
+    })
+    store.append_history(deck, {
+        "date": "x", "chapters": ["1"], "total": 1, "incorrect": 0, "mode": "review",
+    })
+    _patch_tty(monkeypatch, ["c", "c", "q"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_render_entry_menu", lambda *a, **k: None)
+
+    result = engine_loop.entry_menu(config, deck)
+
+    assert result is None
+    assert [item["mode"] for item in store.load_history(deck)] == ["review"]
 
 
 def test_entry_menu_key_5_persists_deck_max_display_options(deck, config, monkeypatch):

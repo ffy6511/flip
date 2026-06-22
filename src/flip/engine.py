@@ -530,6 +530,49 @@ def remove_from_active_index(selected, chapter, q):
     return removed
 
 
+def remove_from_tiku(deck, chapter, q):
+    data = store.load_tiku(deck)
+    target_id = question_id(q)
+    target_keys = set(question_keys(chapter, q))
+    removed = False
+    if isinstance(data, dict):
+        qlist = data.get(str(chapter))
+        if not isinstance(qlist, list):
+            return False
+        kept = []
+        for existing in qlist:
+            if target_id and question_id(existing) == target_id:
+                removed = True
+                continue
+            if not target_id and question_key(chapter, existing) in target_keys:
+                removed = True
+                continue
+            kept.append(existing)
+        if removed:
+            data[str(chapter)] = kept
+            store.save_tiku(deck, data)
+        return removed
+    if isinstance(data, list):
+        kept = []
+        for item in data:
+            try:
+                ch, existing = _question_payload(item)
+            except Exception:
+                kept.append(item)
+                continue
+            if str(ch) == str(chapter) and target_id and question_id(existing) == target_id:
+                removed = True
+                continue
+            if str(ch) == str(chapter) and not target_id and question_key(ch, existing) in target_keys:
+                removed = True
+                continue
+            kept.append(item)
+        if removed:
+            store.save_tiku(deck, kept)
+        return removed
+    return False
+
+
 def _remove_keys_from_index_file(path, remove_keys):
     data = store.read_json(path, default=None)
     if not isinstance(data, list):

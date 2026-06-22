@@ -36,6 +36,18 @@ from .tui import (
 BACK_TO_SELECTOR = 'back-to-selector'
 
 
+def _remove_confirm_warning(selected_set):
+    if selected_set is not None and selected_set.input_is_index:
+        return "再次按 r 确认从 wrong/review 索引移除；不会删除题库。"
+    return "再次按 r 确认从 tiku 题库删除；该题会从 deck 移除。"
+
+
+def _remove_question_from_selected_source(deck, selected_set, chapter, q):
+    if selected_set is not None and selected_set.input_is_index:
+        return engine.remove_from_active_index(selected_set, chapter, q)
+    return engine.remove_from_tiku(deck, chapter, q)
+
+
 def _options(q, deck=None):
     options = list(q.get("options", []))
     if deck is None:
@@ -210,7 +222,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
       ←          go back into history (only if previous_available)
       t          toggle translation block (only if translation_enabled)
       m/x/n/e    mark / explain / note / edit-detail (via _handle_detail_keys)
-      r          remove from index (only if removable; double-tap to confirm)
+      r          remove from active source (double-tap to confirm)
       q          quit the epoch
 
     Returns one of:
@@ -307,9 +319,9 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                     if confirm_remove:
                         return ('remove', show_translation, detail_view)
                     confirm_remove = True
-                    warning = "再次按 r 确认移除，其他按键取消。"
+                    warning = _remove_confirm_warning(selected_set)
                     continue
-                warning = "当前输入不是索引文件，不能移除。"
+                warning = "当前题目不能移除。"
                 continue
 
             def render_current(ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
@@ -339,7 +351,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
 
 def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_correct, *,
                   show_translation=False, detail_view=None,
-                  previous_available=False, removable=False):
+                  previous_available=False, removable=False, selected_set=None):
     """Post-submit result loop.
 
     Detail-view policy here differs from prompt_answer: we DEFAULT to showing
@@ -408,9 +420,9 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                     if confirm_remove:
                         return ('remove', show_translation, detail_view)
                     confirm_remove = True
-                    warning = "再次按 r 确认移除，其他按键取消。"
+                    warning = _remove_confirm_warning(selected_set)
                     continue
-                warning = "当前输入不是索引文件，不能移除。"
+                warning = "当前题目不能移除。"
                 continue
 
             def render_current(ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
@@ -533,20 +545,24 @@ def review_history(deck, config, history, start_index, total, *,
                 if removable and selected_set is not None:
                     if not confirm_remove:
                         confirm_remove = True
-                        warning = "再次按 r 确认移除，其他按键取消。"
+                        warning = _remove_confirm_warning(selected_set)
                         continue
-                    if engine.remove_from_active_index(selected_set, chapter, q):
+                    if _remove_question_from_selected_source(deck, selected_set, chapter, q):
                         history.pop(index)
                         if not history:
                             return 'continue', show_translation, detail_view
                         index = min(index, len(history) - 1)
                         detail_view = default_detail_view(history[index]["question"])
-                        warning = "已从索引中移除。"
+                        warning = "已从索引中移除。" if selected_set.input_is_index else "已从 tiku 题库删除。"
                         confirm_remove = False
                         continue
-                    warning = "未找到可移除的索引记录。"
+                    warning = (
+                        "未找到可移除的 wrong/review 索引记录。"
+                        if selected_set.input_is_index else
+                        "未找到可从 tiku 删除的题目。"
+                    )
                     continue
-                warning = "当前输入不是索引文件，不能移除。"
+                warning = "当前题目不能移除。"
                 continue
 
             def render_current(ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
@@ -624,7 +640,7 @@ def epoch(deck, config, selected_set, *, start_index=0, history=None,
                     deck, config, count, len(questions), chapter, q,
                     show_translation=show_translation, detail_view=detail_view,
                     previous_available=bool(history),
-                    removable=selected_set.input_is_index,
+                    removable=True,
                     selected_set=selected_set,
                 )
                 if inpu == 'quit':
@@ -632,13 +648,13 @@ def epoch(deck, config, selected_set, *, start_index=0, history=None,
                 if inpu == BACK_TO_SELECTOR:
                     return count, incorrect, BACK_TO_SELECTOR, history
                 if inpu == 'remove':
-                    engine.remove_from_active_index(selected_set, chapter, q)
+                    _remove_question_from_selected_source(deck, selected_set, chapter, q)
                     break
                 if inpu == 'previous':
                     haction, show_translation, detail_view = review_history(
                         deck, config, history, len(history) - 1, len(questions),
                         show_translation=show_translation, detail_view=detail_view,
-                        removable=selected_set.input_is_index, selected_set=selected_set,
+                        removable=True, selected_set=selected_set,
                     )
                     if haction == 'quit':
                         return count, incorrect, 'quit', history
@@ -671,20 +687,21 @@ def epoch(deck, config, selected_set, *, start_index=0, history=None,
                     deck, config, count, len(questions), chapter, q, parsed, is_correct,
                     show_translation=show_translation, detail_view=detail_view,
                     previous_available=len(history) > 1,
-                    removable=selected_set.input_is_index,
+                    removable=True,
+                    selected_set=selected_set,
                 )
                 if raction == 'quit':
                     return count, incorrect, 'quit', history
                 if raction == BACK_TO_SELECTOR:
                     return count, incorrect, BACK_TO_SELECTOR, history
                 if raction == 'remove':
-                    engine.remove_from_active_index(selected_set, chapter, q)
+                    _remove_question_from_selected_source(deck, selected_set, chapter, q)
                     break
                 if raction == 'previous':
                     haction, show_translation, detail_view = review_history(
                         deck, config, history, len(history) - 2, len(questions),
                         show_translation=show_translation, detail_view=detail_view,
-                        removable=selected_set.input_is_index, selected_set=selected_set,
+                        removable=True, selected_set=selected_set,
                     )
                     if haction == 'quit':
                         return count, incorrect, 'quit', history
@@ -777,24 +794,25 @@ def review_questions(deck, config, selected_set):
                 warning = ""
                 continue
             if key in {'r', 'R'}:
-                if selected_set.input_is_index:
-                    if not confirm_remove:
-                        confirm_remove = True
-                        warning = "再次按 r 确认移除，其他按键取消。"
-                        continue
-                    if engine.remove_from_active_index(selected_set, chapter, q):
-                        questions.pop(index)
-                        browse_items.pop(index)
-                        if not questions:
-                            return 'done', browse_items
-                        index = min(index, len(questions) - 1)
-                        detail_view = default_detail_view(questions[index][1])
-                        warning = "已从索引中移除。"
-                        confirm_remove = False
-                        continue
-                    warning = "未找到可移除的索引记录。"
+                if not confirm_remove:
+                    confirm_remove = True
+                    warning = _remove_confirm_warning(selected_set)
                     continue
-                warning = "当前输入不是索引文件，不能移除。"
+                if _remove_question_from_selected_source(deck, selected_set, chapter, q):
+                    questions.pop(index)
+                    browse_items.pop(index)
+                    if not questions:
+                        return 'done', browse_items
+                    index = min(index, len(questions) - 1)
+                    detail_view = default_detail_view(questions[index][1])
+                    warning = "已从索引中移除。" if selected_set.input_is_index else "已从 tiku 题库删除。"
+                    confirm_remove = False
+                    continue
+                warning = (
+                    "未找到可移除的 wrong/review 索引记录。"
+                    if selected_set.input_is_index else
+                    "未找到可从 tiku 删除的题目。"
+                )
                 continue
 
             def render_current(ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
@@ -1046,6 +1064,8 @@ def entry_menu(config, deck, *, resume=None):
         ans_mode = False
         filters = []
     selector = None
+    warning = ""
+    confirm_clear_count = False
     old_settings = save_tty()
     try:
         enter_alt_screen()
@@ -1065,10 +1085,12 @@ def entry_menu(config, deck, *, resume=None):
                 if confirmed:
                     selector = next_selector
         while True:
-            _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters)
+            _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters, warning=warning)
             key = read_key()
             if key == RESIZE_KEY:
                 continue
+            if key not in {'c', 'C'}:
+                confirm_clear_count = False
             if key in {'q', 'Q', '\x1b'}:
                 return None
             if key == '\x03':
@@ -1093,6 +1115,21 @@ def entry_menu(config, deck, *, resume=None):
                 continue
             if key == '5':
                 _cycle_max_display_options(deck)
+                warning = ""
+                continue
+            if key in {'c', 'C'}:
+                name = modes[mode_index][0]
+                if name not in {"Train", "Review"}:
+                    warning = "当前模式没有可清空的刷题次数。"
+                    continue
+                mode = "train" if name == "Train" else "review"
+                if not confirm_clear_count:
+                    confirm_clear_count = True
+                    warning = f"再次按 c 清空 {name} 的刷题次数；不会删除题库或错题。"
+                    continue
+                store.clear_history_mode(deck, mode)
+                warning = f"已清空 {name} 的刷题次数。"
+                confirm_clear_count = False
                 continue
             if key in {'\r', '\n'}:
                 name = modes[mode_index][0]
@@ -1115,9 +1152,9 @@ def entry_menu(config, deck, *, resume=None):
         exit_alt_screen()
 
 
-def _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters):
+def _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters, warning=""):
     from .tui.render import (
-        DIM_COLOR, RESET_COLOR, SELECTED_COLOR,
+        DIM_COLOR, RESET_COLOR, SELECTED_COLOR, WRONG_COLOR,
     )
     from . import store
     filter_set = set(filters)
@@ -1133,12 +1170,15 @@ def _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters):
         print(SELECTED_COLOR + line + RESET_COLOR if i == mode_index
               else DIM_COLOR + line + RESET_COLOR)
     print()
-    print("  " + DIM_COLOR + "↑/↓ 选择模式,Enter 进入,1-5 切换配置,Esc/q 返回选 deck" + RESET_COLOR)
+    print("  " + DIM_COLOR + "↑/↓ 选择模式,Enter 进入,1-5 切换配置,c 清空当前模式次数,Esc/q 返回选 deck" + RESET_COLOR)
     print("  1", _opt_state("mark" in filter_set), "包含已标记")
     print("  2", _opt_state("note" in filter_set), "包含笔记")
     print("  3", _opt_state("ai" in filter_set), "包含 Agent Said")
     print("  4", _opt_state(ans_mode), "Ans 模式(直接显示答案,不计分)")
     print("  5", _opt_state(True), f"最多显示选项: {deck.max_display_options}")
+    if warning:
+        print()
+        print("  " + WRONG_COLOR + warning + RESET_COLOR)
 
 
 def _cycle_max_display_options(deck):
@@ -1578,7 +1618,8 @@ def _run_scored_session(deck, config, selected, *, source, mode_label, selector,
         return 0
 
     _write_wrong_report(deck, selected, incorrects)
-    _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
+    if mode_label != "review" or not incorrects:
+        _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
     store.clear_session(deck)
     _run_session_summary_loop(
         deck, config,
@@ -1642,6 +1683,12 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
             return BACK_TO_SELECTOR
         if status == 'quit':
             return 0
+        if mode_label == "review":
+            _run_session_summary_loop(
+                deck, config,
+                _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
+            )
+            return 0
         # Browse mode doesn't score, so incorrect=0; still counts as a drill
         # so the user sees the chapter was visited.
         _record_drill(deck, selected, total=len(selected.questions),
@@ -1662,10 +1709,22 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
 
 
 def _write_wrong_report(deck, selected, incorrects):
-    if selected.input_is_index or not incorrects:
+    if selected.input_is_index:
         return
     out = store.build_result_filename(selected.questions, deck)
-    store.write_json(out, incorrects)
+    existing = store.read_json(out, default=[])
+    if not isinstance(existing, list):
+        existing = []
+    merged = []
+    seen = set()
+    for record in existing + list(incorrects or []):
+        key = record.get("key") if isinstance(record, dict) else None
+        if not key or key in seen:
+            continue
+        merged.append(record)
+        seen.add(key)
+    if merged:
+        store.write_json(out, merged)
 
 
 def _record_drill(deck, selected, *, total, incorrect, mode):
