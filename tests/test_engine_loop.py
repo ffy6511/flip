@@ -297,11 +297,14 @@ def test_run_train_quit_from_wrong_source_does_not_rewrite_wrong(deck, config, m
         "epoch",
         lambda *_a, **_k: (1, [engine.incorrect_record("1", q, "B", deck.answer_alphabet)], "quit", []),
     )
-    monkeypatch.setattr(
-        engine_loop.store,
-        "write_json",
-        lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not write wrong source")),
-    )
+    orig_write_json = engine_loop.store.write_json
+
+    def guard_wrong_write(path, data):
+        if deck.wrong_dir in path.parents:
+            raise AssertionError("must not write wrong source")
+        return orig_write_json(path, data)
+
+    monkeypatch.setattr(engine_loop.store, "write_json", guard_wrong_write)
 
     outcome = engine_loop.run_train(deck, config, selector="1", source="wrong")
 
@@ -442,6 +445,138 @@ def test_entry_menu_resume_keeps_mode_ans_filters_clears_chapters(deck, config, 
     # First Esc in _edit_selector returns (False, selector) → drops to the
     # mode screen; second Esc at the mode screen returns None.
     assert result is None
+
+
+def test_save_session_checkpoint_records_order_and_answers(deck):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    history = [{
+        "count": 1,
+        "chapter": "1",
+        "question": q1,
+        "raw_input": "B",
+        "selected_answer": "B",
+        "is_correct": False,
+    }]
+
+    engine_loop._save_session_checkpoint(
+        deck,
+        selected,
+        source="tiku",
+        ans_mode=False,
+        selector="1",
+        filters=["mark"],
+        mode="train",
+        history=history,
+    )
+
+    session = store.load_session(deck)
+    assert session["status"] == "paused"
+    assert session["source"] == "tiku"
+    assert session["selector"] == "1"
+    assert session["filters"] == ["mark"]
+    assert session["cursor"] == 1
+    assert [item["key"] for item in session["questions"]] == [
+        engine.question_key("1", q1),
+        engine.question_key("1", q2),
+    ]
+    assert session["answered"][0]["raw_input"] == "B"
+    assert session["answered"][0]["is_correct"] is False
+
+
+def test_restore_session_run_rebuilds_history_and_incorrects(deck):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    store.save_session(deck, {
+        "status": "paused",
+        "source": "tiku",
+        "ans_mode": False,
+        "selector": "1",
+        "filters": [],
+        "mode": "train",
+        "questions": [
+            {"chapter": "1", "key": engine.question_key("1", q1)},
+            {"chapter": "1", "key": engine.question_key("1", q2)},
+        ],
+        "cursor": 1,
+        "answered": [{
+            "count": 1,
+            "chapter": "1",
+            "key": engine.question_key("1", q1),
+            "raw_input": "B",
+            "selected_answer": "B",
+            "is_correct": False,
+        }],
+    })
+
+    restored = engine_loop._restore_session_run(deck)
+
+    assert restored is not None
+    assert restored["selected"].questions == [("1", q1), ("1", q2)]
+    assert restored["start_index"] == 1
+    assert restored["history"][0]["question"] == q1
+    assert restored["incorrects"][0]["wrong_input"] == "B"
+
+
+def test_run_continue_finishes_resumed_session_and_clears_checkpoint(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    initial_history = [{
+        "count": 1,
+        "chapter": "1",
+        "question": q1,
+        "raw_input": "B",
+        "selected_answer": "B",
+        "is_correct": False,
+    }]
+    engine_loop._save_session_checkpoint(
+        deck,
+        selected,
+        source="tiku",
+        ans_mode=False,
+        selector="1",
+        filters=[],
+        mode="train",
+        history=initial_history,
+    )
+    seen = {}
+
+    def fake_epoch(_deck, _config, restored, **kwargs):
+        seen["start_index"] = kwargs["start_index"]
+        seen["history"] = kwargs["history"]
+        seen["incorrect"] = kwargs["incorrect"]
+        return 3, kwargs["incorrect"], "done", kwargs["history"] + [{
+            "count": 2,
+            "chapter": "1",
+            "question": q2,
+            "raw_input": "A",
+            "selected_answer": "A",
+            "is_correct": True,
+        }]
+
+    monkeypatch.setattr(engine_loop, "epoch", fake_epoch)
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: None)
+
+    outcome = engine_loop.run_continue(deck, config)
+
+    assert outcome == 0
+    assert seen["start_index"] == 1
+    assert seen["history"][0]["question"] == q1
+    assert seen["incorrect"][0]["wrong_input"] == "B"
+    assert store.load_session(deck) is None
+    assert len(store.load_history(deck)) == 1
+
+
+def test_entry_menu_continue_returns_continue_choice(deck, config, monkeypatch):
+    store.save_session(deck, {"status": "paused"})
+    _patch_tty(monkeypatch, ["\r"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_render_entry_menu", lambda *a, **k: None)
+
+    result = engine_loop.entry_menu(config, deck)
+
+    assert result == ("continue", None, False, [])
 
 
 def test_entry_menu_key_5_persists_deck_max_display_options(deck, config, monkeypatch):

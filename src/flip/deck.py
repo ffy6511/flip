@@ -19,6 +19,7 @@ TIKU_NAME = "tiku.json"
 MARKED_NAME = "marked.json"
 WRONG_DIR_NAME = "wrong"
 HISTORY_NAME = "history.json"
+SESSION_NAME = "session.json"
 DEFAULT_MAX_DISPLAY_OPTIONS = 4
 
 
@@ -85,6 +86,10 @@ class Deck:
     @property
     def history_path(self) -> Path:
         return self.path / HISTORY_NAME
+
+    @property
+    def session_path(self) -> Path:
+        return self.path / SESSION_NAME
 
     @property
     def manifest_path(self) -> Path:

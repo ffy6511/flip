@@ -76,6 +76,24 @@ def append_history(deck: Deck, record):
     write_json(deck.history_path, history)
 
 
+# ---- session.json (paused drill checkpoint) ----
+
+def load_session(deck: Deck):
+    data = read_json(deck.session_path, default=None)
+    return data if isinstance(data, dict) else None
+
+
+def save_session(deck: Deck, session):
+    write_json(deck.session_path, session)
+
+
+def clear_session(deck: Deck):
+    try:
+        Path(deck.session_path).unlink()
+    except FileNotFoundError:
+        pass
+
+
 # ---- directory import (migrate a whole deck folder) ----
 
 def import_dir(src_dir, deck: Deck):

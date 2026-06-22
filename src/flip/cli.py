@@ -27,7 +27,7 @@ def main(ctx: typer.Context):
     """flip — terminal quiz trainer."""
     if ctx.invoked_subcommand is None:
         config = load_config()
-        from .engine_loop import deck_picker, entry_menu, run_train, BACK_TO_SELECTOR
+        from .engine_loop import deck_picker, entry_menu, run_continue, run_train, BACK_TO_SELECTOR
         # Two-stage flow: pick a deck, then pick a mode/filters for it.
         # Esc at the mode stage returns here to re-pick a deck; only the deck
         # picker quitting exits flip.
@@ -44,10 +44,16 @@ def main(ctx: typer.Context):
                 if choice is None:
                     break  # back to deck picker
                 mode, selector, ans_mode, filters = choice
-                source = "wrong" if mode == "review" else "tiku"
-                outcome = run_train(deck, config, selector, source=source,
-                                    ans_mode=ans_mode, filters=filters)
+                if mode == "continue":
+                    outcome = run_continue(deck, config)
+                else:
+                    source = "wrong" if mode == "review" else "tiku"
+                    outcome = run_train(deck, config, selector, source=source,
+                                        ans_mode=ans_mode, filters=filters)
                 if outcome == BACK_TO_SELECTOR:
+                    if mode == "continue":
+                        resume = None
+                        continue
                     # Esc pressed: re-enter entry_menu at the chapter picker,
                     # keep mode/ans/filters, clear chapters.
                     mode_index = 0 if mode == "train" else 1
@@ -112,7 +118,7 @@ def _run_deck_train_after_esc(deck, config, mode, ans_mode, filters):
     here with whatever flags the learner last picked. Finishing a run or
     quitting the menu exits flip normally.
     """
-    from .engine_loop import run_train, entry_menu, BACK_TO_SELECTOR
+    from .engine_loop import run_continue, run_train, entry_menu, BACK_TO_SELECTOR
     mode_index = 0 if mode == "train" else 1
     resume = (mode_index, ans_mode, filters)
     while True:
@@ -120,10 +126,16 @@ def _run_deck_train_after_esc(deck, config, mode, ans_mode, filters):
         if choice is None:
             raise typer.Exit(0)
         ch_mode, selector, ch_ans, ch_filters = choice
-        source = "wrong" if ch_mode == "review" else "tiku"
-        outcome = run_train(deck, config, selector, source=source,
-                            ans_mode=ch_ans, filters=ch_filters)
+        if ch_mode == "continue":
+            outcome = run_continue(deck, config)
+        else:
+            source = "wrong" if ch_mode == "review" else "tiku"
+            outcome = run_train(deck, config, selector, source=source,
+                                ans_mode=ch_ans, filters=ch_filters)
         if outcome == BACK_TO_SELECTOR:
+            if ch_mode == "continue":
+                resume = None
+                continue
             mode_index = 0 if ch_mode == "train" else 1
             resume = (mode_index, ch_ans, ch_filters)
             continue
@@ -187,6 +199,14 @@ def deck_review(
         _run_deck_train_after_esc(deck, config, "review", ans, filters)
     else:
         raise typer.Exit(outcome)
+
+
+@deck_app.command("continue")
+def deck_continue(slug: str = typer.Argument(..., help="Deck slug, e.g. `se`.")):
+    """Continue the latest paused scored drill for a deck."""
+    config, deck = _resolve_deck(slug)
+    from .engine_loop import run_continue
+    raise typer.Exit(run_continue(deck, config))
 
 
 @deck_app.command("stats")

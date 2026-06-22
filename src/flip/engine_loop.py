@@ -576,7 +576,8 @@ def _detail_hint(q):
 
 # ---- top-level epoch (training) ----
 
-def epoch(deck, config, selected_set):
+def epoch(deck, config, selected_set, *, start_index=0, history=None,
+          incorrect=None, on_progress=None):
     """Run one training pass over selected_set.questions.
 
     For each question the flow is:
@@ -604,14 +605,14 @@ def epoch(deck, config, selected_set):
     """
     questions = selected_set.questions
     alphabet = deck.answer_alphabet
-    incorrect = []
-    count = 1
+    incorrect = list(incorrect or [])
+    history = list(history or [])
+    count = start_index + 1
     show_translation = False
     detail_view = None
-    history = []
     try:
         enter_alt_screen()
-        for question in questions:
+        for question in questions[start_index:]:
             chapter, q = question
             # Pre-answer screen must NOT auto-show x/n content (that would
             # leak the explanation before the learner commits an answer).
@@ -658,9 +659,12 @@ def epoch(deck, config, selected_set):
                 "count": count,
                 "chapter": chapter,
                 "question": q,
+                "raw_input": inpu,
                 "selected_answer": parsed,
                 "is_correct": is_correct,
             })
+            if on_progress is not None:
+                on_progress(list(history))
 
             while True:
                 raction, show_translation, detail_view = prompt_result(
@@ -1027,11 +1031,14 @@ def entry_menu(config, deck, *, resume=None):
         print("flip: 交互菜单需要 tty。使用 `flip deck <slug> train` 等子命令。")
         return None
 
-    modes = [
+    modes = []
+    if resume is None and store.load_session(deck):
+        modes.append(("Continue", "继续上次练习"))
+    modes.extend([
         ("Train", "章节题库训练"),
         ("Review", "错题索引复习"),
         ("List", "全局学习统计"),
-    ]
+    ])
     if resume is not None:
         mode_index, ans_mode, filters = resume
     else:
@@ -1089,6 +1096,8 @@ def entry_menu(config, deck, *, resume=None):
                 continue
             if key in {'\r', '\n'}:
                 name = modes[mode_index][0]
+                if name == "Continue":
+                    return "continue", None, False, []
                 if name == "List":
                     _run_stats_loop(deck, config)
                     continue
@@ -1454,6 +1463,157 @@ def _run_session_item_list(summary, items):
             continue
 
 
+def _save_session_checkpoint(deck, selected, *, source, ans_mode, selector,
+                             filters, mode, history):
+    questions = [
+        {"chapter": str(chapter), "key": engine.question_key(chapter, q)}
+        for chapter, q in selected.questions
+    ]
+    answered = []
+    for item in history:
+        chapter = str(item["chapter"])
+        q = item["question"]
+        answered.append({
+            "count": item.get("count", len(answered) + 1),
+            "chapter": chapter,
+            "key": engine.question_key(chapter, q),
+            "raw_input": item.get("raw_input", item.get("selected_answer", "")),
+            "selected_answer": item.get("selected_answer", ""),
+            "is_correct": bool(item.get("is_correct")),
+        })
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    store.save_session(deck, {
+        "status": "paused",
+        "source": source,
+        "ans_mode": bool(ans_mode),
+        "selector": selector,
+        "filters": list(filters or []),
+        "mode": mode,
+        "questions": questions,
+        "cursor": len(answered),
+        "answered": answered,
+        "updated_at": now,
+    })
+
+
+def _restore_session_run(deck):
+    session = store.load_session(deck)
+    if not session:
+        return None
+    tiku_index = engine.build_tiku_index(deck)
+    questions = []
+    for ref in session.get("questions", []):
+        key = ref.get("key") if isinstance(ref, dict) else None
+        if key in tiku_index:
+            questions.append(tiku_index[key])
+    if not questions:
+        return None
+
+    history = []
+    incorrects = []
+    for item in session.get("answered", []):
+        if not isinstance(item, dict):
+            continue
+        key = item.get("key")
+        if key not in tiku_index:
+            continue
+        chapter, q = tiku_index[key]
+        raw_input = item.get("raw_input", item.get("selected_answer", ""))
+        is_correct = bool(item.get("is_correct"))
+        history_item = {
+            "count": item.get("count", len(history) + 1),
+            "chapter": chapter,
+            "question": q,
+            "raw_input": raw_input,
+            "selected_answer": item.get("selected_answer", ""),
+            "is_correct": is_correct,
+        }
+        history.append(history_item)
+        if not is_correct:
+            incorrects.append(engine.incorrect_record(chapter, q, raw_input, deck.answer_alphabet))
+
+    source = session.get("source", "tiku")
+    selected = engine.SelectedSet(questions, input_is_index=(source == "wrong"))
+    start_index = min(len(history), len(questions))
+    return {
+        "session": session,
+        "selected": selected,
+        "source": source,
+        "ans_mode": bool(session.get("ans_mode")),
+        "selector": session.get("selector"),
+        "filters": list(session.get("filters") or []),
+        "mode": session.get("mode") or ("review" if source == "wrong" else "train"),
+        "start_index": start_index,
+        "history": history,
+        "incorrects": incorrects,
+    }
+
+
+def _run_scored_session(deck, config, selected, *, source, mode_label, selector,
+                        filters, start_index=0, history=None, incorrects=None):
+    history = list(history or [])
+    incorrects = list(incorrects or [])
+    _save_session_checkpoint(
+        deck, selected, source=source, ans_mode=False, selector=selector,
+        filters=filters, mode=mode_label, history=history,
+    )
+
+    def on_progress(progress_history):
+        _save_session_checkpoint(
+            deck, selected, source=source, ans_mode=False, selector=selector,
+            filters=filters, mode=mode_label, history=progress_history,
+        )
+
+    count, incorrects, status, history = epoch(
+        deck, config, selected,
+        start_index=start_index,
+        history=history,
+        incorrect=incorrects,
+        on_progress=on_progress,
+    )
+    if status == BACK_TO_SELECTOR:
+        return BACK_TO_SELECTOR
+    if status == 'quit':
+        _write_wrong_report(deck, selected, incorrects)
+        return 0
+
+    _write_wrong_report(deck, selected, incorrects)
+    _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
+    store.clear_session(deck)
+    _run_session_summary_loop(
+        deck, config,
+        _scored_summary(
+            deck,
+            mode_label=mode_label,
+            selector=selector,
+            total=count - 1,
+            history=history,
+        ),
+    )
+    return 0
+
+
+def run_continue(deck, config):
+    restored = _restore_session_run(deck)
+    if restored is None:
+        store.clear_session(deck)
+        print("没有可继续的练习。")
+        return 0
+    if restored["ans_mode"]:
+        print("当前仅支持继续计分练习。")
+        return 0
+    return _run_scored_session(
+        deck, config, restored["selected"],
+        source=restored["source"],
+        mode_label=restored["mode"],
+        selector=restored["selector"],
+        filters=restored["filters"],
+        start_index=restored["start_index"],
+        history=restored["history"],
+        incorrects=restored["incorrects"],
+    )
+
+
 def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=None):
     """Top-level runner used by the CLI after a deck/mode is chosen.
 
@@ -1492,27 +1652,13 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
         )
         return 0
 
-    count, incorrects, status, history = epoch(deck, config, selected)
-    if status == BACK_TO_SELECTOR:
-        return BACK_TO_SELECTOR
-    if status == 'quit':
-        _write_wrong_report(deck, selected, incorrects)
-        return 0
-
-    _write_wrong_report(deck, selected, incorrects)
-    # A completed training run (not BACK_TO_SELECTOR) counts as a drill.
-    _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
-    _run_session_summary_loop(
-        deck, config,
-        _scored_summary(
-            deck,
-            mode_label=mode_label,
-            selector=selector,
-            total=count - 1,
-            history=history,
-        ),
+    return _run_scored_session(
+        deck, config, selected,
+        source=source,
+        mode_label=mode_label,
+        selector=selector,
+        filters=filters,
     )
-    return 0
 
 
 def _write_wrong_report(deck, selected, incorrects):
