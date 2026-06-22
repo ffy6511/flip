@@ -38,6 +38,40 @@ def test_render_question_does_not_mark_single_select(capsys):
     assert "Which compiler phases can reject a program?" in out
 
 
+# ---- multi-select badge dedup ----
+#
+# If the source topic already ends with a multi-select marker (English
+# "[multi-select]" or Chinese "[多选]"), the renderer must NOT append another
+# [多选]. Otherwise we get "...? [multi-select] [多选]" / "...？ [多选] [多选]",
+# which is the user-reported bug.
+
+def test_badge_not_duplicated_when_topic_has_english_marker():
+    # The exact case from the bug report: English source with [multi-select].
+    assert render.topic_with_answer_badge(
+        "Which of the following are standard loop optimizations? [multi-select]", "ABC"
+    ) == "Which of the following are standard loop optimizations? [multi-select]"
+
+
+def test_badge_not_duplicated_when_topic_has_chinese_marker():
+    # Translated topic that already carries [多选].
+    assert render.topic_with_answer_badge(
+        "以下哪些是标准循环优化？ [多选]", "ABC"
+    ) == "以下哪些是标准循环优化？ [多选]"
+
+
+def test_badge_still_appended_when_topic_has_no_marker():
+    # No pre-existing marker → renderer adds exactly one [多选].
+    assert render.topic_with_answer_badge(
+        "Which compiler phases can reject a program?", "AB"
+    ) == "Which compiler phases can reject a program? [多选]"
+
+
+def test_badge_recognizes_marker_spacing_variants():
+    # Tolerate minor whitespace/separator variants so we don't half-fix it.
+    assert render.topic_with_answer_badge("... ? [multi select]", "AB") == "... ? [multi select]"
+    assert render.topic_with_answer_badge("... ? [Multi-Select]", "AB") == "... ? [Multi-Select]"
+
+
 def test_render_result_and_review_mark_multi_select(capsys):
     q = _question("AB")
 
