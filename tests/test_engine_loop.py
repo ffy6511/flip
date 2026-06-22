@@ -148,6 +148,139 @@ def test_deck_picker_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch):
     assert "deck10" in out
 
 
+# ---- Bootstrap tab (deck picker's left/right tab for installing bundled decks) ----
+#
+# These pin the tab-switch + multi-select + confirm-and-install flow introduced
+# to replace the old silent first-run auto-install. Goal ③ (a removed deck must
+# not reappear on launch) is guarded here by checking that install only happens
+# via the explicit Bootstrap tab, never via load_config.
+
+def _empty_config(tmp_path, monkeypatch):
+    """A Config backed by an FLIP_HOME with NO decks (Library tab empty)."""
+    home = tmp_path / "flip_home"
+    home.mkdir()
+    monkeypatch.setenv("FLIP_HOME", str(home))
+    from flip.config import load_config
+    return load_config(home)
+
+
+def _patch_deck_picker_tty(monkeypatch, keys):
+    """Wire fake keypresses + suppress the alt-screen/tty calls deck_picker makes."""
+    _patch_tty(monkeypatch, keys)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None, raising=False)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None, raising=False)
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+
+
+def test_deck_picker_empty_library_shows_bootstrap_hint(capsys, monkeypatch, tmp_path):
+    # Empty home: Library must NOT abort flip; it shows a pointer to the
+    # Bootstrap tab so the user can install without leaving the picker.
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b"])  # Esc immediately
+
+    config = _empty_config(tmp_path, monkeypatch)
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    assert "Bootstrap" in out
+    assert "→" in out  # the hint arrow pointing at the Bootstrap tab
+
+
+def test_deck_picker_right_arrow_switches_to_bootstrap_tab(capsys, monkeypatch, tmp_path):
+    # Right arrow moves the active tab to Bootstrap; its screen renders the
+    # bundled se-template row as installable (under its display name).
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    # Bootstrap screen shows the display name of the bundled deck.
+    assert "软件工程模板" in out
+    assert "[ Bootstrap ]" in out
+
+
+def test_bootstrap_tab_esc_with_selection_does_not_exit(capsys, monkeypatch, tmp_path):
+    # Esc when there's a selection must clear it, not bounce out to Library or
+    # exit flip. After clearing, another Esc falls back to Library, then q
+    # quits. If the first Esc had exited instead, the trailing Esc/q would
+    # either error or leave the picker hanging on StopIteration.
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", " ", "\x1b", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    result = engine_loop.deck_picker(config)
+
+    assert result is None
+    out = capsys.readouterr().out
+    # The very last rendered frame is Library (the fallback target of the 2nd
+    # Esc), proving the 1st Esc cleared the selection rather than exiting.
+    # The Bootstrap frames before it must show [ ] (selection cleared), not [x].
+    bootstrap_frames = out.split("@ flip — Bootstrap")[1:]
+    assert bootstrap_frames, "expected at least one Bootstrap render frame"
+    last_boot = bootstrap_frames[-1]
+    assert "[x]" not in last_boot
+
+
+def test_bootstrap_tab_space_toggles_selection_marker(capsys, monkeypatch, tmp_path):
+    # Space toggles a row into the selection; [x] appears in the row's own
+    # color (yellow here since the cursor is on it), no separate tint.
+    from flip.tui.render import SELECTED_COLOR, RESET_COLOR
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    # → into Bootstrap, space selects, then Esc (drops selection), Esc (back to
+    # Library), q quits Library.
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", " ", "\x1b", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    # The selected row is wrapped in SELECTED_COLOR (yellow) and carries [x].
+    assert SELECTED_COLOR + "  [x] " in out
+    assert RESET_COLOR in out
+
+
+def test_bootstrap_tab_enter_confirms_then_installs(capsys, monkeypatch, tmp_path):
+    # Full flow: → Bootstrap, space select se-template, Enter (confirm prompt),
+    # Enter again (commit install). Assert the deck lands on disk and the
+    # Bootstrap list refreshes to empty.
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(
+        monkeypatch,
+        ["\x1b[C", " ", "\r", "\r", "\x1b", "\x1b", "q"],
+    )
+
+    config = _empty_config(tmp_path, monkeypatch)
+    engine_loop.deck_picker(config)
+
+    deck_dir = config.decks_dir / "se-template"
+    assert deck_dir.is_dir()
+    assert (deck_dir / "manifest.toml").is_file()
+    assert (deck_dir / "tiku.json").is_file()
+
+    out = capsys.readouterr().out
+    # After install the Bootstrap list shows "all installed".
+    assert "所有内置 deck 已安装" in out
+    assert "已安装 1 个 deck" in out
+
+
+def test_bootstrap_tab_second_enter_without_selection_is_noop(capsys, monkeypatch, tmp_path):
+    # Enter with an empty selection should not enter confirm mode nor install
+    # anything — guards against stray installs from a double-tap.
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", "\r", "\r", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    engine_loop.deck_picker(config)
+
+    # Nothing installed despite two Enters.
+    assert not (config.decks_dir / "se-template").exists()
+    out = capsys.readouterr().out
+    assert "将安装" not in out  # confirm prompt never shown
+
+
 def test_render_stats_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch, deck, config):
     monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
     monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 14, raising=False)

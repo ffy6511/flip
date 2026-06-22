@@ -6,7 +6,7 @@ A deck-agnostic terminal quiz trainer. Pick a **deck** (a subject like Software 
 
 ## Install
 
-**Homebrew (recommended):**
+**Homebrew:**
 
 ```bash
 brew tap ffy6511/tap
@@ -43,6 +43,15 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ```
 
 
+
+## Getting started
+
+Run `flip` with no arguments. You land in a deck picker with two tabs at the top — switch with **←/→**:
+
+- **Library** — your installed decks. Pick one with ↑/↓ + Enter (typing filters by slug/name). When empty it shows a hint pointing at the Bootstrap tab (and the `flip import` command) instead of aborting, so you can install your first deck without leaving the picker.
+- **Bootstrap** — bundled decks not yet installed. Select with **space** (multi-select, marked `[x]`), then **Enter** twice to confirm and install.
+
+Bundled decks ship inside the package (currently the Software Engineering template, 561 questions, English→Chinese). Installing is **explicit and one-shot**: `flip deck remove <slug>` deletes a deck entirely, and it will **not** come back on the next launch — you'd re-pick it from the Bootstrap tab yourself. Nothing is auto-installed at startup.
 
 ## Optional: companion agent skills
 
@@ -88,11 +97,7 @@ flip config                       # show config and explain-backend status
 > Subcommand order is `flip deck <verb> <slug>` (verb before slug).
 > Chapter selectors accept single chapters, ranges, first-N shorthand, and
 > comma unions: `5`, `5-10`, `-3`, `5,3-4`.
-> Running `flip` with no args is a two-stage picker: choose a deck (with live
-> search), then choose a mode — **Train** (tiku), **Review** (wrong index),
-> **Continue** (paused scored drill), or **List** (stats) — plus the 1-5
-> filters/display toggles, a **clear-count** action, and an **Ans mode** toggle
-> that shows answers without scoring.
+> Running `flip` with no args starts in the deck picker (see [Getting started](#getting-started)): pick a deck on the **Library** tab (↑/↓ + Enter, live search) or install a bundled one on the **Bootstrap** tab (←/→ to switch). After choosing a deck you pick a mode — **Train** (tiku), **Review** (wrong index), **Continue** (paused scored drill), or **List** (stats) — plus the 1-5 filters/display toggles, a **clear-count** action, and an **Ans mode** toggle that shows answers without scoring.
 
 ## Layout
 
@@ -103,3 +108,8 @@ decks/example/ minimal demo deck (also a test fixture)
 skills/        flip-deck-init — agent skill to bootstrap a deck from source material
 tests/         pytest suite, including focused TUI-loop regressions
 ```
+
+## Acknowledgements
+
+- This project was inspired by [Zhang-Each/SE-FSE-exercise](https://github.com/Zhang-Each/SE-FSE-exercise.git).
+- Some of the original `tiku` question data used to build decks for flip was sourced from that project's JSON files.

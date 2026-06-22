@@ -226,13 +226,14 @@ def load_config(home: Path = None) -> Config:
         # Create the default file so users see it and can edit it.
         _bootstrap_default_config(config_path)
 
-    return Config(
+    cfg = Config(
         home=resolved_home,
         source_lang=source_lang,
         target_lang=target_lang,
         default_deck=default_deck,
         explain=explain,
     )
+    return cfg
 
 
 def save_default_deck(config: Config, slug: str) -> None:

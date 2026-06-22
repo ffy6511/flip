@@ -6,21 +6,23 @@
 
 ## 安装
 
-**Homebrew(推荐):**
+**从源码安装(pipx):**
+
+```bash
+# 还没有 pipx 的话先装
+brew install pipx          
+pipx install git+https://github.com/ffy6511/flip.git
+```
+
+
+**Homebrew:**
 
 ```bash
 brew tap ffy6511/tap
 brew install flip
 ```
 
-**从源码安装(pipx):**
-
-```bash
-brew install pipx          # 还没有 pipx 的话先装
-pipx install git+https://github.com/ffy6511/flip.git
-```
-
-**升级已有安装:**
+**更新:**
 
 ```bash
 brew update && brew upgrade flip
@@ -43,6 +45,15 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ```
 
 
+
+## 快速开始
+
+直接运行 `flip`,顶部有两个 tab,用 **←/→** 切换:
+
+- **Library** —— 你已安装的 deck。↑/↓ 选中、Enter 进入(输入字符可按 slug/名称实时过滤)；
+- **Bootstrap** —— 尚未安装的内置 deck。**空格** 多选,然后 **回车** 确认安装。
+
+内置 deck 随包发布。安装是**显式且一次性的**:`flip deck remove <slug>` 会把一个 deck 彻底删除。
 
 ## 可选:配套的 agent skill
 
@@ -86,10 +97,8 @@ flip config                       # 查看配置和解释后端状态
 
 > 子命令顺序是 `flip deck <动词> <slug>`(动词在前,slug 在后)。
 > 章节选择器支持单章、范围、前 N 章和逗号组合:`5`、`5-10`、`-3`、`5,3-4`。
-> 裸跑 `flip` 是两阶段选择:先选 deck(支持实时搜索),再选模式——
-> **Train**(tiku 题库)、**Review**(错题索引)、**Continue**(暂停的计分练习)
-> 或 **List**(统计)——外加 1-5 筛选/显示开关、清空次数动作和一个
-> **Ans 模式** 开关(直接显答案、不计分)。
+> 运行 `flip` 先进入 deck 选择界面(见
+> [快速开始](#快速开始)):在 **Library** tab 选 deck(↑/↓ + Enter,支持实时搜索),或在 **Bootstrap** tab(←/→ 切换)安装内置 deck。选好 deck 后再选模式——**Train**(tiku 题库)、**Review**(错题索引)、**Continue**(暂停的计分练习)或 **List**(统计)——外加 1-5 筛选/显示开关、清空次数动作和一个 **Ans 模式** 开关(直接显答案、不计分)。
 
 ## 目录结构
 
@@ -100,3 +109,8 @@ decks/example/ 最小示例 deck(同时用作测试夹具)
 skills/        flip-deck-init —— 从原始材料引导出一个 deck 的 agent skill
 tests/         pytest 套件,包含聚焦的 TUI 循环回归测试
 ```
+
+## 致谢
+
+- 本项目的整体灵感来自 [Zhang-Each/SE-FSE-exercise](https://github.com/Zhang-Each/SE-FSE-exercise.git)。
+- flip 中部分 `tiku` deck 的原始题目数据来自该项目提供的 JSON 文件。

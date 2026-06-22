@@ -104,6 +104,19 @@ class TestLoadConfigArgv:
         cfg = load_config(tmp_path)
         assert not cfg.explain.uses_argv()
 
+    def test_does_not_auto_install_bundled_decks(self, tmp_path):
+        # Regression for goal ③: load_config must NOT silently install bundled
+        # decks. The only install path is the Bootstrap tab. A removed deck must
+        # not reappear on the next launch.
+        cfg = load_config(tmp_path)
+        decks_dir = cfg.decks_dir
+        if decks_dir.exists():
+            assert not any(decks_dir.iterdir()), \
+                "load_config created deck directories — auto-install leaked back in"
+        else:
+            # decks_dir not even created is also fine (and the stronger guarantee).
+            assert True
+
 
 class TestBootstrapDefault:
     def test_bootstrap_mentions_argv_and_codex_preset(self, tmp_path):
