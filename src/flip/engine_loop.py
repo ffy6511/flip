@@ -736,7 +736,7 @@ def review_questions(deck, config, selected_set):
             if key not in {'r', 'R'}:
                 confirm_remove = False
             if key in {'q', 'Q'}:
-                return 'done', browse_items
+                return 'quit', browse_items
             if key == '\x03':
                 raise KeyboardInterrupt
             if key == '\x1b':
@@ -1480,6 +1480,8 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
         status, browse_items = review_questions(deck, config, selected)
         if status == BACK_TO_SELECTOR:
             return BACK_TO_SELECTOR
+        if status == 'quit':
+            return 0
         # Browse mode doesn't score, so incorrect=0; still counts as a drill
         # so the user sees the chapter was visited.
         _record_drill(deck, selected, total=len(selected.questions),
@@ -1494,11 +1496,10 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     if status == BACK_TO_SELECTOR:
         return BACK_TO_SELECTOR
     if status == 'quit':
+        _write_wrong_report(deck, selected, incorrects)
         return 0
 
-    if not selected.input_is_index:
-        out = store.build_result_filename(selected.questions, deck)
-        store.write_json(out, incorrects)
+    _write_wrong_report(deck, selected, incorrects)
     # A completed training run (not BACK_TO_SELECTOR) counts as a drill.
     _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
     _run_session_summary_loop(
@@ -1512,6 +1513,13 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
         ),
     )
     return 0
+
+
+def _write_wrong_report(deck, selected, incorrects):
+    if selected.input_is_index or not incorrects:
+        return
+    out = store.build_result_filename(selected.questions, deck)
+    store.write_json(out, incorrects)
 
 
 def _record_drill(deck, selected, *, total, incorrect, mode):

@@ -254,6 +254,92 @@ def test_run_train_esc_returns_back_to_selector_and_no_report(deck, config, monk
     assert "Report" not in capsys.readouterr().out
 
 
+def test_run_train_quit_writes_partial_wrong_without_history(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q)], input_is_index=False)
+    incorrect = [engine.incorrect_record("1", q, "B", deck.answer_alphabet)]
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "epoch", lambda *_a, **_k: (1, incorrect, "quit", []))
+    monkeypatch.setattr(
+        engine_loop,
+        "_run_session_summary_loop",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("must not summarize quit")),
+    )
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku")
+
+    assert outcome == 0
+    assert store.load_history(deck) == []
+    wrong_files = store.wrong_files(deck)
+    assert len(wrong_files) == 1
+    assert store.read_json(wrong_files[0]) == incorrect
+
+
+def test_run_train_quit_without_wrong_does_not_create_empty_wrong(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q)], input_is_index=False)
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "epoch", lambda *_a, **_k: (1, [], "quit", []))
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku")
+
+    assert outcome == 0
+    assert store.load_history(deck) == []
+    assert store.wrong_files(deck) == []
+
+
+def test_run_train_quit_from_wrong_source_does_not_rewrite_wrong(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q)], input_is_index=True)
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(
+        engine_loop,
+        "epoch",
+        lambda *_a, **_k: (1, [engine.incorrect_record("1", q, "B", deck.answer_alphabet)], "quit", []),
+    )
+    monkeypatch.setattr(
+        engine_loop.store,
+        "write_json",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not write wrong source")),
+    )
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="wrong")
+
+    assert outcome == 0
+    assert store.load_history(deck) == []
+
+
+def test_run_train_browse_quit_does_not_record_history(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q)], input_is_index=False)
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "review_questions", lambda *_a, **_k: ("quit", []))
+    monkeypatch.setattr(
+        engine_loop,
+        "_run_session_summary_loop",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("must not summarize quit")),
+    )
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku", ans_mode=True)
+
+    assert outcome == 0
+    assert store.load_history(deck) == []
+
+
+def test_review_questions_q_returns_quit(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q)], input_is_index=False)
+    _patch_tty(monkeypatch, ["q"])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "render_review_question", lambda *a, **k: None)
+
+    status, browse_items = engine_loop.review_questions(deck, config, selected)
+
+    assert status == "quit"
+    assert len(browse_items) == 1
+
+
 def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypatch):
     q1, q2 = store.load_tiku(deck)["1"][:2]
     selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
