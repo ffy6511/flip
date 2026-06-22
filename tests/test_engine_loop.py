@@ -148,6 +148,43 @@ def test_deck_picker_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch):
     assert "deck10" in out
 
 
+def test_render_stats_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch, deck, config):
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 14, raising=False)
+    monkeypatch.setattr(
+        engine_loop.engine,
+        "stats_snapshot",
+        lambda _deck: {
+            "total": 100,
+            "chapters": 12,
+            "marked": 0,
+            "note": 0,
+            "ai": 0,
+            "wrong": 0,
+            "wrong_files": 0,
+            "per_chapter": {str(i): i for i in range(1, 13)},
+            "wrong_per_chapter": {str(i): 0 for i in range(1, 13)},
+            "drills_per_chapter": {str(i): 0 for i in range(1, 13)},
+        },
+    )
+
+    engine_loop.render_stats(deck, config, cursor=11)
+
+    out = capsys.readouterr().out
+    assert "已标记" not in out
+    assert "有笔记" not in out
+    assert "有 Agent Said" not in out
+    assert "wrong 去重题数" not in out
+    assert "wrong 文件数" not in out
+    assert "章节数: 12" in out
+    assert "题目总数: 100" in out
+    assert "题量 / 错题分布:" not in out
+    assert "黄色" in out and "错题" in out and "[×N]" in out
+    assert "快速定位: e.g. 输入 5 + enter" in out
+    assert "  ch1 " not in out
+    assert "  ch12" in out
+
+
 def test_prompt_answer_refreshes_marked_state_after_m(deck, config, monkeypatch):
     q = store.load_tiku(deck)["1"][0]
     rendered = []
@@ -748,6 +785,93 @@ def test_session_item_list_toggles_inline_translation(deck, config, monkeypatch)
     engine_loop._run_session_item_list({"kind": "scored"}, items, config)
 
     assert renders[:2] == [False, True]
+
+
+def test_run_stats_loop_uses_alt_screen_and_cbreak_and_esc_returns(deck, config, monkeypatch):
+    calls = []
+    _patch_tty(monkeypatch, ["\x1b"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(engine_loop, "render_stats", lambda *_a, **_k: calls.append("render"))
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: calls.append("enter_alt"))
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: calls.append("exit_alt"))
+
+    result = engine_loop._run_stats_loop(deck, config)
+
+    assert result is None
+    assert calls == ["enter_alt", "render", "exit_alt"]
+
+
+def test_run_stats_loop_enter_jumps_to_matching_chapter_and_clears_search(deck, config, monkeypatch):
+    calls = []
+    _patch_tty(monkeypatch, ["2", "5", "\r", "\x1b"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(
+        engine_loop.engine,
+        "stats_snapshot",
+        lambda _deck: {
+            "total": 3,
+            "chapters": 3,
+            "marked": 0,
+            "note": 0,
+            "ai": 0,
+            "wrong": 0,
+            "wrong_files": 0,
+            "per_chapter": {"1": 1, "25": 1, "30": 1},
+            "wrong_per_chapter": {"1": 0, "25": 0, "30": 0},
+            "drills_per_chapter": {"1": 0, "25": 0, "30": 0},
+        },
+    )
+    monkeypatch.setattr(
+        engine_loop,
+        "render_stats",
+        lambda *_a, **kwargs: calls.append((kwargs.get("cursor"), kwargs.get("search_buffer", ""))),
+    )
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+
+    result = engine_loop._run_stats_loop(deck, config)
+
+    assert result is None
+    assert calls[-1] == (1, "")
+    assert (0, "25") in calls
+
+
+def test_run_stats_loop_enter_on_missing_chapter_keeps_cursor(deck, config, monkeypatch):
+    calls = []
+    _patch_tty(monkeypatch, ["9", "9", "\r", "\x1b"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(
+        engine_loop.engine,
+        "stats_snapshot",
+        lambda _deck: {
+            "total": 2,
+            "chapters": 2,
+            "marked": 0,
+            "note": 0,
+            "ai": 0,
+            "wrong": 0,
+            "wrong_files": 0,
+            "per_chapter": {"1": 1, "25": 1},
+            "wrong_per_chapter": {"1": 0, "25": 0},
+            "drills_per_chapter": {"1": 0, "25": 0},
+        },
+    )
+    monkeypatch.setattr(
+        engine_loop,
+        "render_stats",
+        lambda *_a, **kwargs: calls.append(
+            (kwargs.get("cursor"), kwargs.get("search_buffer", ""), kwargs.get("warning", ""))
+        ),
+    )
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+
+    result = engine_loop._run_stats_loop(deck, config)
+
+    assert result is None
+    assert calls[-1][0] == 0
+    assert calls[-1][1] == ""
+    assert "99" in calls[-1][2]
 
 
 def test_entry_menu_resume_keeps_mode_ans_filters_clears_chapters(deck, config, monkeypatch):

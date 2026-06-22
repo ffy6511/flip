@@ -861,28 +861,29 @@ def review_questions(deck, config, selected_set, *, start_index=0, on_progress=N
 
 # ---- stats ----
 
-def render_stats(deck, config):
+def render_stats(deck, config, *, cursor=0, search_buffer="", warning=""):
     stats = engine.stats_snapshot(deck)
     from .tui.render import (
-        AI_COLOR, DIM_COLOR, DRILL_COLOR, RESET_COLOR, STAT_TOTAL_COLOR,
+        AI_COLOR, DIM_COLOR, DRILL_COLOR, RESET_COLOR, SELECTED_COLOR, STAT_TOTAL_COLOR,
+        print_warning,
     )
     clear_screen()
     print("@ 全局统计 —", deck.name)
+    if search_buffer:
+        print("  " + DIM_COLOR + "search:" + RESET_COLOR + " ch" + str(search_buffer))
+    else:
+        print("  " + DIM_COLOR + "search: 输入章节号后回车跳转" + RESET_COLOR)
     print()
-    print("  题目总数:", stats["total"])
-    print("  章节数:", stats["chapters"])
-    print("  已标记:", stats["marked"])
-    print("  有笔记:", stats["note"])
-    print("  有 Agent Said:", stats["ai"])
-    print("  wrong 去重题数:", stats["wrong"])
-    print("  wrong 文件数:", stats["wrong_files"])
+    print(f"  章节数: {stats['chapters']}    题目总数: {stats['total']}")
     print()
-    print("  题量 / 错题分布:")
-    print("  整条柱=全部题量  " + AI_COLOR + "黄色" + RESET_COLOR + "=wrong 错题  "
+    print("  " + AI_COLOR + "黄色" + RESET_COLOR + "=错题  "
           + STAT_TOTAL_COLOR + "白色" + RESET_COLOR + "=其余题量  "
-          + DIM_COLOR + "灰色" + RESET_COLOR + "=相对最大章节余量")
+          + DIM_COLOR + "灰色" + RESET_COLOR + "=相对最大章节题量  [×N]：学习过N次")
+    chapters = sorted(stats["per_chapter"], key=store._chapter_sort_key)
     max_total = max(stats["per_chapter"].values(), default=0)
-    for chapter in sorted(stats["per_chapter"], key=store._chapter_sort_key):
+    cursor = max(0, min(int(cursor), max(len(chapters) - 1, 0)))
+    start, end = _window_bounds(len(chapters), cursor, _terminal_height() - 10)
+    for index, chapter in enumerate(chapters[start:end], start=start):
         total = stats["per_chapter"][chapter]
         wrong = stats["wrong_per_chapter"].get(chapter, 0)
         drills = stats.get("drills_per_chapter", {}).get(chapter, 0)
@@ -895,10 +896,21 @@ def render_stats(deck, config):
             drill_badge = f"{DRILL_COLOR}[×{drills}]{RESET_COLOR}"
         else:
             drill_badge = f"{DIM_COLOR}[×{drills}]{RESET_COLOR}"
-        print("  ch{:<3} {:>3}题 / {:>2}错 {:>5.1%}  {}  {}".format(
-            str(chapter), total, wrong, ratio, bar, drill_badge))
+        line_color = SELECTED_COLOR if index == cursor else ""
+        line = "  ch{:<3} {:>3}题 / {:>2}错 {:>5.1%}  {}  {}".format(
+            str(chapter), total, wrong, ratio, bar, drill_badge)
+        if line_color:
+            print(line_color + line + RESET_COLOR)
+        else:
+            print(line)
     print()
-    print("  Enter/Esc 返回菜单，q 退出")
+    if search_buffer:
+        print("  ↑/↓ 移动, Enter 跳转, Backspace 删除, Esc 返回菜单，q 退出")
+    else:
+        print("  ↑/↓ 移动, Enter/Esc 返回菜单，q 退出")
+    if warning:
+        print()
+        print_warning(warning)
 
 
 def _stats_bar(total, wrong, max_total, width=32):
@@ -1439,16 +1451,52 @@ def _run_stats_loop(deck, config):
     if not sys.stdin.isatty():
         render_stats(deck, config)
         return None
-    while True:
-        render_stats(deck, config)
-        key = read_key()
-        if key == RESIZE_KEY:
-            continue
-        if key in {'q', 'Q'}:
-            return None
-        if key in {'\r', '\n', '\x1b'}:
-            break
-    return None
+    stats = engine.stats_snapshot(deck)
+    chapters = sorted(stats["per_chapter"], key=store._chapter_sort_key)
+    cursor = 0
+    search_buffer = ""
+    warning = ""
+    old_settings = save_tty()
+    try:
+        enter_alt_screen()
+        enter_cbreak()
+        while True:
+            render_stats(deck, config, cursor=cursor, search_buffer=search_buffer, warning=warning)
+            key = read_key()
+            if key == RESIZE_KEY:
+                continue
+            if key in {'q', 'Q', '\x1b'}:
+                return None
+            if key in {'\x7f', '\b'}:
+                search_buffer = search_buffer[:-1]
+                warning = ""
+                continue
+            if key in {'\r', '\n'}:
+                if not search_buffer:
+                    return None
+                target = str(search_buffer)
+                if target in chapters:
+                    cursor = chapters.index(target)
+                    warning = ""
+                else:
+                    warning = f"未找到 ch{target}。"
+                search_buffer = ""
+                continue
+            if key == '\x1b[A' and chapters:
+                cursor = (cursor - 1) % len(chapters)
+                warning = ""
+                continue
+            if key == '\x1b[B' and chapters:
+                cursor = (cursor + 1) % len(chapters)
+                warning = ""
+                continue
+            if len(key) == 1 and key.isdigit():
+                search_buffer += key
+                warning = ""
+                continue
+    finally:
+        restore_tty(old_settings)
+        exit_alt_screen()
 
 
 def _summary_item(deck, item):
