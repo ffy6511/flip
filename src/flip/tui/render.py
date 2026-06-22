@@ -417,3 +417,70 @@ def render_note_input(chapter, q, buffer):
     print_wrapped(LOWER_BLOCK_INDENT, "Enter 保存；清空后 Enter 会删除笔记；Esc 取消。")
     print()
     print_wrapped(LOWER_BLOCK_INDENT + "> ", buffer)
+
+
+# ---- session summary ----
+
+def _accuracy_style(total, correct):
+    rate = (correct / total) if total else 0
+    if rate >= 0.5:
+        return CORRECT_COLOR, "状态不错，继续保持"
+    if rate >= 0.2:
+        return AI_COLOR, "还有提升空间，建议回看错题"
+    return WRONG_COLOR, "先回顾本轮错题，再继续下一轮"
+
+
+def render_session_summary(summary):
+    clear_screen()
+    print("@ 本轮结算")
+    print()
+    print_wrapped("  ", f"模式: {summary.get('mode', '')}")
+    print_wrapped("  ", f"范围: {summary.get('label', '全部')}")
+    print()
+    if summary.get("kind") == "scored":
+        total = int(summary.get("total", 0))
+        correct = int(summary.get("correct", 0))
+        incorrect = int(summary.get("incorrect", 0))
+        color, message = _accuracy_style(total, correct)
+        rate_text = f"{(correct / total * 100) if total else 0:.1f}%"
+        print_wrapped("  ", f"题目总数: {total}")
+        print_wrapped("  ", f"正确: {correct}  错误: {incorrect}")
+        print("  正确率: " + color + rate_text + RESET_COLOR + "  " + message)
+        print()
+        print_key_hint_footer("Enter 返回主界面, v 本轮错题, q 返回主界面")
+    else:
+        print_wrapped("  ", f"浏览数量: {int(summary.get('total', 0))}")
+        print()
+        print_key_hint_footer("Enter 返回主界面, v 本轮浏览, q 返回主界面")
+    warning = summary.get("warning", "")
+    if warning:
+        print_warning(warning)
+
+
+def render_session_item_list(title, items, cursor):
+    clear_screen()
+    print("@ " + title)
+    print()
+    if not items:
+        print_wrapped("  ", "(无记录)", color=DIM_COLOR)
+        print_key_hint_footer("Enter/Esc 返回结算页")
+        return
+    cursor = max(0, min(cursor, len(items) - 1))
+    for i, item in enumerate(items):
+        q = item["question"]
+        marker = ">" if i == cursor else " "
+        prefix = marker + " "
+        print_wrapped(prefix, f"ch{item.get('chapter', '')} {question_topic(q)}")
+        if i != cursor:
+            continue
+        correct = str(q.get("answer", ""))
+        selected = item.get("selected_answer")
+        if selected:
+            print_wrapped("    ", "你的答案: " + str(selected))
+        print_wrapped("    ", "正确答案: " + correct, color=CORRECT_COLOR)
+        for choice in item.get("options", q.get("options", [])):
+            label = option_label(choice)
+            color = CORRECT_COLOR if label in set(correct) else ""
+            print_wrapped("    ", choice, color=color)
+        print()
+    print_key_hint_footer("↑/↓ 移动, Enter/Esc 返回结算页")

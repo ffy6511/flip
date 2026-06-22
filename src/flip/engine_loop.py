@@ -23,6 +23,7 @@ from .tui import (
     has_translation, has_agent_said, has_user_note,
     translated_question, default_detail_view, normalize_detail_view,
     render_question, render_result, render_review_question,
+    render_session_summary, render_session_item_list,
     render_ai_waiting, render_ai_prompt_input, render_note_input,
 )
 
@@ -626,9 +627,9 @@ def epoch(deck, config, selected_set):
                     selected_set=selected_set,
                 )
                 if inpu == 'quit':
-                    return count, incorrect, 'quit'
+                    return count, incorrect, 'quit', history
                 if inpu == BACK_TO_SELECTOR:
-                    return count, incorrect, BACK_TO_SELECTOR
+                    return count, incorrect, BACK_TO_SELECTOR, history
                 if inpu == 'remove':
                     engine.remove_from_active_index(selected_set, chapter, q)
                     break
@@ -639,9 +640,9 @@ def epoch(deck, config, selected_set):
                         removable=selected_set.input_is_index, selected_set=selected_set,
                     )
                     if haction == 'quit':
-                        return count, incorrect, 'quit'
+                        return count, incorrect, 'quit', history
                     if haction == BACK_TO_SELECTOR:
-                        return count, incorrect, BACK_TO_SELECTOR
+                        return count, incorrect, BACK_TO_SELECTOR, history
                     continue
                 break
             if inpu == 'remove':
@@ -669,9 +670,9 @@ def epoch(deck, config, selected_set):
                     removable=selected_set.input_is_index,
                 )
                 if raction == 'quit':
-                    return count, incorrect, 'quit'
+                    return count, incorrect, 'quit', history
                 if raction == BACK_TO_SELECTOR:
-                    return count, incorrect, BACK_TO_SELECTOR
+                    return count, incorrect, BACK_TO_SELECTOR, history
                 if raction == 'remove':
                     engine.remove_from_active_index(selected_set, chapter, q)
                     break
@@ -682,15 +683,15 @@ def epoch(deck, config, selected_set):
                         removable=selected_set.input_is_index, selected_set=selected_set,
                     )
                     if haction == 'quit':
-                        return count, incorrect, 'quit'
+                        return count, incorrect, 'quit', history
                     if haction == BACK_TO_SELECTOR:
-                        return count, incorrect, BACK_TO_SELECTOR
+                        return count, incorrect, BACK_TO_SELECTOR, history
                     continue
                 break
 
             clear_screen()
             count += 1
-        return count, incorrect, 'done'
+        return count, incorrect, 'done', history
     finally:
         exit_alt_screen()
 
@@ -701,8 +702,12 @@ def review_questions(deck, config, selected_set):
     questions = selected_set.questions
     if not questions:
         print("No questions to review.")
-        return
+        return 'done', []
     index = 0
+    browse_items = [
+        {"chapter": chapter, "question": q, "options": _options(q, deck)}
+        for chapter, q in questions
+    ]
     show_translation = False
     translation_enabled = config.translation_enabled
     detail_view = default_detail_view(questions[0][1])
@@ -731,11 +736,11 @@ def review_questions(deck, config, selected_set):
             if key not in {'r', 'R'}:
                 confirm_remove = False
             if key in {'q', 'Q'}:
-                return
+                return 'done', browse_items
             if key == '\x03':
                 raise KeyboardInterrupt
             if key == '\x1b':
-                return BACK_TO_SELECTOR
+                return BACK_TO_SELECTOR, browse_items
             if key == '\x1b[C':
                 warning = ""
                 if index < len(questions) - 1:
@@ -775,8 +780,9 @@ def review_questions(deck, config, selected_set):
                         continue
                     if engine.remove_from_active_index(selected_set, chapter, q):
                         questions.pop(index)
+                        browse_items.pop(index)
                         if not questions:
-                            return
+                            return 'done', browse_items
                         index = min(index, len(questions) - 1)
                         detail_view = default_detail_view(questions[index][1])
                         warning = "已从索引中移除。"
@@ -1368,6 +1374,86 @@ def _run_stats_loop(deck, config):
     return None
 
 
+def _summary_item(deck, item):
+    q = item["question"]
+    return {
+        "chapter": item["chapter"],
+        "question": q,
+        "options": _options(q, deck),
+        "selected_answer": item.get("selected_answer", ""),
+        "is_correct": item.get("is_correct", False),
+    }
+
+
+def _scored_summary(deck, *, mode_label, selector, total, history):
+    wrong_items = [_summary_item(deck, item) for item in history if not item.get("is_correct")]
+    incorrect = len(wrong_items)
+    return {
+        "kind": "scored",
+        "mode": mode_label,
+        "label": selector if selector is not None else "全部",
+        "total": total,
+        "correct": max(0, total - incorrect),
+        "incorrect": incorrect,
+        "wrong_items": wrong_items,
+    }
+
+
+def _browse_summary(*, mode_label, selector, browse_items):
+    return {
+        "kind": "browse",
+        "mode": mode_label,
+        "label": selector if selector is not None else "全部",
+        "total": len(browse_items),
+        "browse_items": browse_items,
+    }
+
+
+def _run_session_summary_loop(deck, config, summary):
+    if not sys.stdin.isatty():
+        render_session_summary(summary)
+        return None
+    old_settings = save_tty()
+    try:
+        enter_alt_screen()
+        enter_cbreak()
+        while True:
+            render_session_summary(summary)
+            key = read_key()
+            if key == RESIZE_KEY:
+                continue
+            if key in {'\r', '\n', '\x1b', 'q', 'Q'}:
+                return None
+            if key in {'v', 'V'}:
+                items = summary.get("wrong_items") if summary.get("kind") == "scored" else summary.get("browse_items")
+                if items:
+                    _run_session_item_list(summary, list(items))
+                    summary.pop("warning", None)
+                else:
+                    summary["warning"] = "本轮无错题。" if summary.get("kind") == "scored" else "本轮无浏览记录。"
+    finally:
+        restore_tty(old_settings)
+        exit_alt_screen()
+
+
+def _run_session_item_list(summary, items):
+    cursor = 0
+    title = "本轮错题" if summary.get("kind") == "scored" else "本轮浏览"
+    while True:
+        render_session_item_list(title, items, cursor)
+        key = read_key()
+        if key == RESIZE_KEY:
+            continue
+        if key in {'\r', '\n', '\x1b', 'q', 'Q'}:
+            return
+        if key == '\x1b[A':
+            cursor = (cursor - 1) % len(items)
+            continue
+        if key == '\x1b[B':
+            cursor = (cursor + 1) % len(items)
+            continue
+
+
 def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=None):
     """Top-level runner used by the CLI after a deck/mode is chosen.
 
@@ -1391,34 +1477,40 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     # Train+ans and Review+ans record under their respective entry modes.
     mode_label = "train" if source == "tiku" else "review"
     if ans_mode:
-        outcome = review_questions(deck, config, selected)
-        if outcome == BACK_TO_SELECTOR:
+        status, browse_items = review_questions(deck, config, selected)
+        if status == BACK_TO_SELECTOR:
             return BACK_TO_SELECTOR
         # Browse mode doesn't score, so incorrect=0; still counts as a drill
         # so the user sees the chapter was visited.
         _record_drill(deck, selected, total=len(selected.questions),
                       incorrect=0, mode=mode_label)
+        _run_session_summary_loop(
+            deck, config,
+            _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
+        )
         return 0
 
-    count, incorrects, status = epoch(deck, config, selected)
+    count, incorrects, status, history = epoch(deck, config, selected)
     if status == BACK_TO_SELECTOR:
         return BACK_TO_SELECTOR
+    if status == 'quit':
+        return 0
 
-    alphabet = deck.answer_alphabet
-    print("============== Report ==============")
-    label = selector if selector is not None else "全部"
-    print(f"- Deck: {deck.name}, 范围 {label}, 源 {source}")
-    print(f"- Epoch Finished, \033[1;31m{len(incorrects)} / {count - 1}\033[0m incorrects.")
-    if selected.input_is_index:
-        print("- Source index unchanged (review-on-wrong writes no new file).")
-    else:
+    if not selected.input_is_index:
         out = store.build_result_filename(selected.questions, deck)
-        disp = store.relative_to_cwd(out)
-        print(f"- Next epoch: \033[1;33m{disp}\033[0m")
         store.write_json(out, incorrects)
-    print("====================================")
     # A completed training run (not BACK_TO_SELECTOR) counts as a drill.
     _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
+    _run_session_summary_loop(
+        deck, config,
+        _scored_summary(
+            deck,
+            mode_label=mode_label,
+            selector=selector,
+            total=count - 1,
+            history=history,
+        ),
+    )
     return 0
 
 

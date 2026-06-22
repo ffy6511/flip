@@ -234,7 +234,7 @@ def test_epoch_esc_returns_back_to_selector_without_writing_wrong(deck, config, 
     monkeypatch.setattr(engine_loop.store, "write_json",
                         lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not write")))
 
-    _count, _incorrect, status = engine_loop.epoch(deck, config, selected)
+    _count, _incorrect, status, _history = engine_loop.epoch(deck, config, selected)
 
     assert status == engine_loop.BACK_TO_SELECTOR
 
@@ -252,6 +252,90 @@ def test_run_train_esc_returns_back_to_selector_and_no_report(deck, config, monk
 
     assert outcome == engine_loop.BACK_TO_SELECTOR
     assert "Report" not in capsys.readouterr().out
+
+
+def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    history = [
+        {"count": 1, "chapter": "1", "question": q1, "selected_answer": "A", "is_correct": False},
+        {"count": 2, "chapter": "1", "question": q2, "selected_answer": "A", "is_correct": True},
+    ]
+    summaries = []
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(
+        engine_loop,
+        "epoch",
+        lambda *_a, **_k: (3, [{"topic": q1["topic"]}], "done", history),
+    )
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *_a: summaries.append(_a[2]))
+    monkeypatch.setattr(engine_loop.store, "write_json", lambda *a, **k: None)
+    monkeypatch.setattr(engine_loop, "_record_drill", lambda *a, **k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector=None, source="tiku")
+
+    assert outcome == 0
+    assert summaries[0]["kind"] == "scored"
+    assert summaries[0]["total"] == 2
+    assert summaries[0]["correct"] == 1
+    assert summaries[0]["wrong_items"][0]["question"] is q1
+
+
+def test_run_train_browse_opens_summary_with_browse_count(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    summaries = []
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(
+        engine_loop,
+        "review_questions",
+        lambda *_a, **_k: ("done", [
+            {"chapter": "1", "question": q1},
+            {"chapter": "1", "question": q2},
+        ]),
+    )
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *_a: summaries.append(_a[2]))
+    monkeypatch.setattr(engine_loop, "_record_drill", lambda *a, **k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="wrong", ans_mode=True)
+
+    assert outcome == 0
+    assert summaries[0]["kind"] == "browse"
+    assert summaries[0]["total"] == 2
+    assert len(summaries[0]["browse_items"]) == 2
+
+
+def test_session_summary_v_opens_wrong_list(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    summary = {
+        "kind": "scored",
+        "total": 1,
+        "correct": 0,
+        "incorrect": 1,
+        "wrong_items": [{
+            "chapter": "1",
+            "question": q,
+            "selected_answer": "A",
+            "is_correct": False,
+        }],
+    }
+    list_renders = []
+    _patch_tty(monkeypatch, ["v", "\r", "\r"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "render_session_summary", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        engine_loop,
+        "render_session_item_list",
+        lambda *args, **_kwargs: list_renders.append(args),
+    )
+
+    engine_loop._run_session_summary_loop(deck, config, summary)
+
+    assert list_renders
+    assert list_renders[0][1] == [summary["wrong_items"][0]]
+    assert list_renders[0][2] == 0
 
 
 def test_entry_menu_resume_keeps_mode_ans_filters_clears_chapters(deck, config, monkeypatch):
