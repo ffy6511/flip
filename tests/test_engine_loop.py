@@ -1,4 +1,5 @@
 from flip import engine, engine_loop, store
+from flip.tui.render import default_detail_view, normalize_detail_view
 
 
 def _patch_tty(monkeypatch, keys):
@@ -7,6 +8,59 @@ def _patch_tty(monkeypatch, keys):
     monkeypatch.setattr(engine_loop, "restore_tty", lambda _settings: None)
     monkeypatch.setattr(engine_loop, "enter_cbreak", lambda: None)
     monkeypatch.setattr(engine_loop, "read_key", lambda: next(key_iter))
+
+
+# ---- detail_view defaulting policy ----
+# prompt_result relies on default_detail_view to auto-show x/n content at the
+# moment of feedback. These tests lock that semantics down.
+
+def test_default_detail_view_none_when_no_content():
+    q = {"topic": "t", "options": ["A. x"], "answer": "A", "user_note": ""}
+    assert default_detail_view(q) is None
+
+
+def test_default_detail_view_prefers_note_over_ai():
+    # When both exist, note wins (matches the original se_regressor priority).
+    q = {
+        "topic": "t", "options": ["A. x"], "answer": "A",
+        "user_note": "remember this",
+        "ai_explanation": "some explanation",
+    }
+    assert default_detail_view(q) == "note"
+
+
+def test_default_detail_view_shows_ai_when_only_ai_present():
+    q = {
+        "topic": "t", "options": ["A. x"], "answer": "A",
+        "user_note": "",
+        "ai_explanation": "some explanation",
+    }
+    assert default_detail_view(q) == "ai"
+
+
+def test_default_detail_view_ignores_whitespace_only_note():
+    q = {
+        "topic": "t", "options": ["A. x"], "answer": "A",
+        "user_note": "   \n  ",
+        "ai_explanation": "x",
+    }
+    # Note is effectively empty -> fall through to ai
+    assert default_detail_view(q) == "ai"
+
+
+def test_normalize_detail_view_drops_to_none_without_explicit_request():
+    # normalize is the *conservative* policy (used by prompt_answer pre-submit
+    # and review_history): passing None yields None, NOT a default. This is
+    # the inverse of default_detail_view, and prompt_result switched from
+    # normalize to default precisely so the result screen auto-shows content.
+    q = {
+        "topic": "t", "options": ["A. x"], "answer": "A",
+        "user_note": "n",
+        "ai_explanation": "a",
+    }
+    assert normalize_detail_view(q, None) is None
+    assert normalize_detail_view(q, "ai") == "ai"
+    assert normalize_detail_view(q, "note") == "note"
 
 
 def test_selector_set_from_text_uses_engine_chapter_selector():

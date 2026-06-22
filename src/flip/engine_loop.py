@@ -315,9 +315,22 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
 def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_correct, *,
                   show_translation=False, detail_view=None,
                   previous_available=False, removable=False):
+    """Post-submit result loop.
+
+    Detail-view policy here differs from prompt_answer: we DEFAULT to showing
+    x/n content (the agent explanation or user note) when present, rather than
+    waiting for the user to press x/n. Rationale: the result screen is the
+    "moment of feedback" — surfacing the explanation/note automatically saves
+    a keypress at exactly the time the learner wants to see why.
+
+    The in-loop x/n toggle still works, and because detail_view is re-derived
+    from the question (not inherited) on every entry, the next question starts
+    fresh — no stale open state carries over.
+    """
     options = _options(q)
     translation_enabled = config.translation_enabled
-    detail_view = normalize_detail_view(q, detail_view)
+    # default_detail_view (not normalize) so x/n auto-shows when content exists.
+    detail_view = default_detail_view(q)
     translation = translated_question(q) if (translation_enabled and show_translation) else None
     if translation_enabled and show_translation and translation is None:
         show_translation = False
