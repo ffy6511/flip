@@ -81,6 +81,9 @@ def save_history(deck: Deck, history):
 
 
 def clear_history_mode(deck: Deck, mode):
+    if mode == "all":
+        save_history(deck, [])
+        return
     kept = [
         record for record in load_history(deck)
         if record.get("mode") != mode

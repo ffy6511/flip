@@ -218,6 +218,25 @@ def deck_stats(slug: str = typer.Argument(...)):
     raise typer.Exit(0)
 
 
+@deck_app.command("clear-count")
+def deck_clear_count(
+    slug: str = typer.Argument(..., help="Deck slug."),
+    mode: str = typer.Option("all", "--mode", help="train|review|all."),
+):
+    """Clear stored drill-count history for a deck.
+
+    This only updates history.json. It does not touch tiku.json, wrong/ indexes,
+    marked.json, or the paused session checkpoint.
+    """
+    _config, deck = _resolve_deck(slug)
+    mode = (mode or "all").lower()
+    if mode not in {"train", "review", "all"}:
+        _status_echo("mode must be one of: train, review, all", ok=False, err=True)
+        raise typer.Exit(1)
+    store.clear_history_mode(deck, mode)
+    _status_echo(f"cleared {mode} count: {slug}")
+
+
 @deck_app.command("mark")
 def deck_mark(
     slug: str = typer.Argument(..., help="Deck slug."),

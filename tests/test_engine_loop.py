@@ -726,6 +726,26 @@ def test_entry_menu_c_twice_clears_current_mode_count(deck, config, monkeypatch)
     assert [item["mode"] for item in store.load_history(deck)] == ["review"]
 
 
+def test_entry_menu_c_twice_on_list_clears_all_counts(deck, config, monkeypatch):
+    store.append_history(deck, {
+        "date": "x", "chapters": ["1"], "total": 1, "incorrect": 0, "mode": "train",
+    })
+    store.append_history(deck, {
+        "date": "x", "chapters": ["1"], "total": 1, "incorrect": 0, "mode": "review",
+    })
+    _patch_tty(monkeypatch, ["\x1b[B", "\x1b[B", "c", "c", "q"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_render_entry_menu", lambda *a, **k: None)
+
+    result = engine_loop.entry_menu(config, deck)
+
+    assert result is None
+    assert store.load_history(deck) == []
+
+
 def test_entry_menu_key_5_persists_deck_max_display_options(deck, config, monkeypatch):
     _patch_tty(monkeypatch, ["5", "q"])
     monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)

@@ -1119,16 +1119,17 @@ def entry_menu(config, deck, *, resume=None):
                 continue
             if key in {'c', 'C'}:
                 name = modes[mode_index][0]
-                if name not in {"Train", "Review"}:
+                if name not in {"Train", "Review", "List"}:
                     warning = "当前模式没有可清空的刷题次数。"
                     continue
-                mode = "train" if name == "Train" else "review"
+                mode = {"Train": "train", "Review": "review", "List": "all"}[name]
+                label = "全局" if mode == "all" else name
                 if not confirm_clear_count:
                     confirm_clear_count = True
-                    warning = f"再次按 c 清空 {name} 的刷题次数；不会删除题库或错题。"
+                    warning = f"再次按 c 清空 {label} 的刷题次数；不会删除题库或错题。"
                     continue
                 store.clear_history_mode(deck, mode)
-                warning = f"已清空 {name} 的刷题次数。"
+                warning = f"已清空 {label} 的刷题次数。"
                 confirm_clear_count = False
                 continue
             if key in {'\r', '\n'}:
