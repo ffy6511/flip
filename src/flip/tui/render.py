@@ -10,6 +10,7 @@ do not advertise the `t` key.
 """
 
 import sys
+import re
 import shutil
 import unicodedata
 
@@ -137,6 +138,10 @@ def topic_with_answer_badge(topic, answer):
     return topic
 
 
+def _strip_topic_number(topic):
+    return re.sub(r"^\s*\d+\s*[\.\)\u3001]\s*", "", str(topic)).strip()
+
+
 def question_view(q, options):
     return {
         "topic": question_topic(q),
@@ -149,6 +154,20 @@ def translated_view(q, translation):
         return None
     return {
         "topic": topic_with_answer_badge(translation["topic"], q.get("answer", "")),
+        "options": list(translation.get("options", [])),
+    }
+
+
+def session_item_topic(q):
+    return topic_with_answer_badge(_strip_topic_number(q.get("topic", "")), q.get("answer", ""))
+
+
+def session_item_translation(q):
+    translation = translated_question(q)
+    if not translation:
+        return None
+    return {
+        "topic": topic_with_answer_badge(_strip_topic_number(translation["topic"]), q.get("answer", "")),
         "options": list(translation.get("options", [])),
     }
 
@@ -505,30 +524,60 @@ def render_session_summary(summary):
         print_warning(warning)
 
 
-def render_session_item_list(title, items, cursor):
+def render_session_item_list(title, items, cursor, *, show_translation=False,
+                             translation_enabled=True):
     clear_screen()
     print("@ " + title)
     print()
     if not items:
         print_wrapped("  ", "(无记录)", color=DIM_COLOR)
-        print_key_hint_footer("Enter/Esc 返回结算页")
+        footer = "Enter/Esc 返回结算页"
+        if translation_enabled:
+            footer = "t 中文, " + footer
+        print_key_hint_footer(footer)
         return
     cursor = max(0, min(cursor, len(items) - 1))
+    current_chapter = None
     for i, item in enumerate(items):
         q = item["question"]
-        marker = ">" if i == cursor else " "
-        prefix = marker + " "
-        print_wrapped(prefix, f"ch{item.get('chapter', '')} {question_topic(q)}")
-        if i != cursor:
-            continue
-        correct = str(q.get("answer", ""))
-        selected = item.get("selected_answer")
-        if selected:
-            print_wrapped("    ", "你的答案: " + str(selected))
-        print_wrapped("    ", "正确答案: " + correct, color=CORRECT_COLOR)
-        for choice in item.get("options", q.get("options", [])):
-            label = option_label(choice)
-            color = CORRECT_COLOR if label in set(correct) else ""
-            print_wrapped("    ", choice, color=color)
-        print()
-    print_key_hint_footer("↑/↓ 移动, Enter/Esc 返回结算页")
+        chapter = str(item.get("chapter", ""))
+        if chapter != current_chapter:
+            if current_chapter is not None:
+                print()
+            print(f"ch{chapter}")
+            current_chapter = chapter
+
+        is_selected = i == cursor
+        prefix = (">" if is_selected else " ") + " · "
+        print_wrapped(
+            prefix,
+            session_item_topic(q),
+            continuation_prefix=" " * display_width(prefix),
+            color=SELECTED_COLOR if is_selected else "",
+        )
+
+        translation = session_item_translation(q) if show_translation else None
+        if translation:
+            print_wrapped("    ", translation["topic"], color=TRANSLATION_COLOR)
+
+        if is_selected:
+            correct = str(q.get("answer", ""))
+            selected = item.get("selected_answer")
+            if selected:
+                print_wrapped("    ", "你的答案: " + str(selected))
+            print_wrapped("    ", "正确答案: " + correct, color=CORRECT_COLOR)
+            translated_options = translation["options"] if translation else []
+            for index, choice in enumerate(item.get("options", q.get("options", []))):
+                label = option_label(choice)
+                color = CORRECT_COLOR if label in set(correct) else ""
+                print_wrapped("    ", choice, color=color)
+                translated_choice = translated_options[index] if index < len(translated_options) else ""
+                if translated_choice:
+                    print_wrapped("      ", translated_choice, color=TRANSLATION_COLOR)
+
+        if i != len(items) - 1:
+            print("  " + DIM_COLOR + "─" * max(1, terminal_width() - 4) + RESET_COLOR)
+    footer = "↑/↓ 移动, Enter/Esc 返回结算页"
+    if translation_enabled:
+        footer = "↑/↓ 移动, t 中文, Enter/Esc 返回结算页"
+    print_key_hint_footer(footer)

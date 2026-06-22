@@ -10,6 +10,7 @@ the example deck.
 """
 
 import datetime
+import shutil
 import sys
 
 from . import store
@@ -34,6 +35,22 @@ from .tui import (
 # apart. It is a string (not a tuple) so it threads through the existing
 # ('previous'|'quit'|'remove') plumbing without breaking the unpack shape.
 BACK_TO_SELECTOR = 'back-to-selector'
+
+
+def _terminal_height():
+    return max(8, shutil.get_terminal_size((80, 24)).lines)
+
+
+def _window_bounds(total, cursor, visible_rows):
+    if total <= 0:
+        return 0, 0
+    visible_rows = max(1, int(visible_rows))
+    cursor = max(0, min(int(cursor), total - 1))
+    if total <= visible_rows:
+        return 0, total
+    start = cursor - (visible_rows // 2)
+    start = max(0, min(start, total - visible_rows))
+    return start, start + visible_rows
 
 
 def _remove_confirm_warning(selected_set):
@@ -1017,7 +1034,8 @@ def _render_deck_picker(rows, index, query, default_deck):
         # Header (same left-aligned, CJK-aware style as `flip list`).
         header_cells = [store._pad(h, widths[i]) for i, h in enumerate(store.DECK_TABLE_HEADERS)]
         print("  " + "  ".join(header_cells))
-        for i, row in enumerate(rows):
+        start, end = _window_bounds(len(rows), index, _terminal_height() - 6)
+        for i, row in enumerate(rows[start:end], start=start):
             cells = [store._pad(c, widths[j]) for j, c in enumerate(row)]
             mark = " *" if row[0] == default_deck else "  "
             line = mark + "  ".join(cells)
@@ -1170,7 +1188,9 @@ def _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters, war
     clear_screen()
     print("@ flip —", deck.name, f"({deck.slug})")
     print()
-    for i, (name, desc) in enumerate(modes):
+    warning_rows = 2 if warning else 0
+    start, end = _window_bounds(len(modes), mode_index, _terminal_height() - (9 + warning_rows))
+    for i, (name, desc) in enumerate(modes[start:end], start=start):
         prefix = ">" if i == mode_index else " "
         name_field = store._pad(name, name_w)
         line = prefix + " " + name_field + "   " + desc
@@ -1359,11 +1379,12 @@ def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
     if not chapters:
         print("  " + DIM_COLOR + "(无章节数据)" + RESET_COLOR)
     else:
+        start, end = _window_bounds(len(chapters), cursor, _terminal_height() - 7)
         # The per-line wrapper color (dim vs highlighted) is applied to the
         # whole line. The drill badge embeds its own green-when-nonzero escape;
         # to keep the wrapper alive after RESET inside the badge, we re-apply
         # the wrapper color right after the badge.
-        for i, ch in enumerate(chapters):
+        for i, ch in enumerate(chapters[start:end], start=start):
             total = per_chapter.get(ch, 0)
             wrong = wrong_per_chapter.get(ch, 0)
             drills = drills_per_chapter.get(ch, 0)
@@ -1483,7 +1504,7 @@ def _run_session_summary_loop(deck, config, summary):
             if key in {'v', 'V'}:
                 items = summary.get("wrong_items") if summary.get("kind") == "scored" else summary.get("browse_items")
                 if items:
-                    _run_session_item_list(summary, list(items))
+                    _run_session_item_list(summary, list(items), config)
                     summary.pop("warning", None)
                 else:
                     summary["warning"] = "本轮无错题。" if summary.get("kind") == "scored" else "本轮无浏览记录。"
@@ -1492,16 +1513,25 @@ def _run_session_summary_loop(deck, config, summary):
         exit_alt_screen()
 
 
-def _run_session_item_list(summary, items):
+def _run_session_item_list(summary, items, config):
     cursor = 0
+    show_translation = False
+    translation_enabled = config.translation_enabled
     title = "本轮错题" if summary.get("kind") == "scored" else "本轮浏览"
     while True:
-        render_session_item_list(title, items, cursor)
+        render_session_item_list(
+            title, items, cursor,
+            show_translation=show_translation,
+            translation_enabled=translation_enabled,
+        )
         key = read_key()
         if key == RESIZE_KEY:
             continue
         if key in {'\r', '\n', '\x1b', 'q', 'Q'}:
             return
+        if translation_enabled and key in {'t', 'T'}:
+            show_translation = not show_translation
+            continue
         if key == '\x1b[A':
             cursor = (cursor - 1) % len(items)
             continue

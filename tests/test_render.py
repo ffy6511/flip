@@ -150,6 +150,82 @@ def test_render_browse_session_summary_shows_count_only(capsys):
     assert "正确率" not in out
 
 
+def test_render_session_item_list_groups_by_chapter_and_highlights_selected(capsys):
+    items = [
+        {
+            "chapter": "25",
+            "question": {
+                "topic": "12. First prompt",
+                "options": ["A. Alpha", "B. Beta"],
+                "answer": "B",
+            },
+            "options": ["A. Alpha", "B. Beta"],
+            "selected_answer": "A",
+        },
+        {
+            "chapter": "25",
+            "question": {
+                "topic": "9. Second prompt",
+                "options": ["A. One", "B. Two"],
+                "answer": "A",
+            },
+            "options": ["A. One", "B. Two"],
+        },
+        {
+            "chapter": "26",
+            "question": {
+                "topic": "1. Third prompt",
+                "options": ["A. Red", "B. Blue"],
+                "answer": "A",
+            },
+            "options": ["A. Red", "B. Blue"],
+        },
+    ]
+
+    render.render_session_item_list("本轮错题", items, 0)
+
+    out = capsys.readouterr().out
+    plain = _strip_ansi(out)
+    assert "\nch25\n" in plain
+    assert "\nch26\n" in plain
+    assert "12. First prompt" not in plain
+    assert "9. Second prompt" not in plain
+    assert "1. Third prompt" not in plain
+    assert "· First prompt" in plain
+    assert "· Second prompt" in plain
+    assert "· Third prompt" in plain
+    assert "> · " + render.SELECTED_COLOR + "First prompt" + render.RESET_COLOR in out
+    assert render.DIM_COLOR in out and "─" in plain
+
+
+def test_render_session_item_list_shows_inline_translation(capsys):
+    items = [
+        {
+            "chapter": "25",
+            "question": {
+                "topic": "12. First prompt",
+                "options": ["A. Alpha", "B. Beta"],
+                "answer": "B",
+                "zh": {
+                    "topic": "12. 第一题",
+                    "options": ["A. 甲", "B. 乙"],
+                },
+            },
+            "options": ["A. Alpha", "B. Beta"],
+            "selected_answer": "A",
+        },
+    ]
+
+    render.render_session_item_list("本轮错题", items, 0, show_translation=True)
+
+    plain = _strip_ansi(capsys.readouterr().out)
+    assert "· First prompt" in plain
+    assert "第一题" in plain
+    assert plain.index("· First prompt") < plain.index("第一题") < plain.index("你的答案: A")
+    assert "A. 甲" in plain
+    assert "B. 乙" in plain
+
+
 def test_accuracy_style_thresholds():
     assert render._accuracy_style(10, 5)[0] == render.CORRECT_COLOR
     assert render._accuracy_style(10, 2)[0] == render.AI_COLOR

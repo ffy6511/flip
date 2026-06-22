@@ -104,6 +104,50 @@ def test_chapter_picker_renders_zero_drill_badge_dim_when_selected(capsys, monke
     assert f"{DIM_COLOR}[×0]{RESET_COLOR}{SELECTED_COLOR}" in out
 
 
+def test_chapter_picker_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch):
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 12, raising=False)
+
+    chapters = [str(i) for i in range(1, 11)]
+    titles = {str(i): f"Title {i:02d}" for i in range(1, 11)}
+    per_chapter = {str(i): i for i in range(1, 11)}
+    wrong_per_chapter = {str(i): 0 for i in range(1, 11)}
+    drills_per_chapter = {str(i): 0 for i in range(1, 11)}
+
+    engine_loop._render_chapter_picker(
+        "训练",
+        chapters,
+        titles,
+        per_chapter,
+        wrong_per_chapter,
+        drills_per_chapter,
+        10,
+        9,
+        set(),
+        "",
+    )
+
+    out = capsys.readouterr().out
+    assert "Title 01" not in out
+    assert "Title 10" in out
+
+
+def test_deck_picker_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch):
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 10, raising=False)
+
+    rows = [
+        [f"deck{i:02d}", f"Deck {i}", "10", "2", "en", "ABCD", "0", "0"]
+        for i in range(1, 11)
+    ]
+
+    engine_loop._render_deck_picker(rows, 9, "", "deck10")
+
+    out = capsys.readouterr().out
+    assert "deck01" not in out
+    assert "deck10" in out
+
+
 def test_prompt_answer_refreshes_marked_state_after_m(deck, config, monkeypatch):
     q = store.load_tiku(deck)["1"][0]
     rendered = []
@@ -160,6 +204,79 @@ def test_prompt_result_refreshes_marked_state_after_m(deck, config, monkeypatch)
         item.get("key") == engine.question_key("1", q)
         for item in store.load_marked(deck)
     )
+
+
+def test_review_history_marks_previous_question_from_answer_screen(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    _patch_tty(monkeypatch, [
+        "1", "\r",      # q1 answer
+        "\r",           # q1 result -> next
+        "\x1b[D",       # q2 answer -> previous history
+        "m",            # mark q1 in history
+        "\r",           # return to q2
+        "q",            # quit run
+    ])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+
+    _count, _incorrect, status, _history = engine_loop.epoch(deck, config, selected)
+
+    assert status == "quit"
+    assert q1.get("marked") is True
+    assert any(
+        item.get("key") == engine.question_key("1", q1)
+        for item in store.load_marked(deck)
+    )
+
+
+def test_review_history_marks_previous_question_from_result_screen(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    _patch_tty(monkeypatch, [
+        "1", "\r",      # q1 answer
+        "\r",           # q1 result -> next
+        "1", "\r",      # q2 answer
+        "\x1b[D",       # q2 result -> previous history
+        "m",            # mark q1 in history
+        "\r",           # return to q2 result
+        "q",            # quit run
+    ])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+
+    _count, _incorrect, status, _history = engine_loop.epoch(deck, config, selected)
+
+    assert status == "quit"
+    assert q1.get("marked") is True
+    assert any(
+        item.get("key") == engine.question_key("1", q1)
+        for item in store.load_marked(deck)
+    )
+
+
+def test_review_history_rerenders_marked_state_after_m(deck, config, monkeypatch):
+    q1 = store.load_tiku(deck)["1"][0]
+    history = [{
+        "count": 1,
+        "chapter": "1",
+        "question": q1,
+        "raw_input": "A",
+        "selected_answer": "A",
+        "is_correct": True,
+    }]
+    rendered = []
+    _patch_tty(monkeypatch, ["m", "\r"])
+
+    def capture_render(*_args, **kwargs):
+        rendered.append(kwargs["marked"])
+
+    monkeypatch.setattr(engine_loop, "render_result", capture_render)
+
+    result = engine_loop.review_history(deck, config, history, 0, 1)
+
+    assert result[0] == "continue"
+    assert rendered[:2] == [False, True]
 
 
 # ---- detail_view visibility across the answer flow ----
@@ -605,6 +722,32 @@ def test_session_summary_v_opens_wrong_list(deck, config, monkeypatch):
     assert list_renders
     assert list_renders[0][1] == [summary["wrong_items"][0]]
     assert list_renders[0][2] == 0
+
+
+def test_session_item_list_toggles_inline_translation(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    q["zh"] = {
+        "topic": "1. 一加一等于几？",
+        "options": ["A. 1", "B. 2", "C. 3", "D. 4"],
+    }
+    items = [{
+        "chapter": "1",
+        "question": q,
+        "options": list(q["options"]),
+        "selected_answer": "B",
+        "is_correct": True,
+    }]
+    renders = []
+    _patch_tty(monkeypatch, ["t", "\r"])
+    monkeypatch.setattr(
+        engine_loop,
+        "render_session_item_list",
+        lambda *args, **kwargs: renders.append(kwargs.get("show_translation", False)),
+    )
+
+    engine_loop._run_session_item_list({"kind": "scored"}, items, config)
+
+    assert renders[:2] == [False, True]
 
 
 def test_entry_menu_resume_keeps_mode_ans_filters_clears_chapters(deck, config, monkeypatch):
