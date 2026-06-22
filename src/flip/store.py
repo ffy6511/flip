@@ -50,6 +50,32 @@ def save_marked(deck: Deck, marked):
     write_json(deck.marked_path, marked)
 
 
+# ---- history.json (drill session log) ----
+
+def load_history(deck: Deck):
+    """Return the deck's drill history as a list of records (empty if absent).
+
+    Each record is {date, chapters, total, incorrect, mode}. Read-only; callers
+    mutate via append_history.
+    """
+    data = read_json(deck.history_path, default=[])
+    return data if isinstance(data, list) else []
+
+
+def append_history(deck: Deck, record):
+    """Append one drill record to history.json (read-modify-rewrite).
+
+    Mirrors the marked.json convention (full overwrite, not true append/JSONL)
+    for codebase consistency. History stays small (a few thousand records max)
+    so the rewrite cost is negligible.
+
+    `record` is constructed by the caller; this function only does IO.
+    """
+    history = load_history(deck)
+    history.append(record)
+    write_json(deck.history_path, history)
+
+
 # ---- directory import (migrate a whole deck folder) ----
 
 def import_dir(src_dir, deck: Deck):

@@ -1,4 +1,5 @@
 from flip import engine, engine_loop, store
+from flip.tui.render import default_detail_view, normalize_detail_view
 
 
 def _patch_tty(monkeypatch, keys):
@@ -9,10 +10,85 @@ def _patch_tty(monkeypatch, keys):
     monkeypatch.setattr(engine_loop, "read_key", lambda: next(key_iter))
 
 
+# ---- detail_view defaulting policy ----
+# prompt_result relies on default_detail_view to auto-show x/n content at the
+# moment of feedback. These tests lock that semantics down.
+
+def test_default_detail_view_none_when_no_content():
+    q = {"topic": "t", "options": ["A. x"], "answer": "A", "user_note": ""}
+    assert default_detail_view(q) is None
+
+
+def test_default_detail_view_prefers_note_over_ai():
+    # When both exist, note wins (matches the original se_regressor priority).
+    q = {
+        "topic": "t", "options": ["A. x"], "answer": "A",
+        "user_note": "remember this",
+        "ai_explanation": "some explanation",
+    }
+    assert default_detail_view(q) == "note"
+
+
+def test_default_detail_view_shows_ai_when_only_ai_present():
+    q = {
+        "topic": "t", "options": ["A. x"], "answer": "A",
+        "user_note": "",
+        "ai_explanation": "some explanation",
+    }
+    assert default_detail_view(q) == "ai"
+
+
+def test_default_detail_view_ignores_whitespace_only_note():
+    q = {
+        "topic": "t", "options": ["A. x"], "answer": "A",
+        "user_note": "   \n  ",
+        "ai_explanation": "x",
+    }
+    # Note is effectively empty -> fall through to ai
+    assert default_detail_view(q) == "ai"
+
+
+def test_normalize_detail_view_drops_to_none_without_explicit_request():
+    # normalize is the *conservative* policy (used by prompt_answer pre-submit
+    # and review_history): passing None yields None, NOT a default. This is
+    # the inverse of default_detail_view, and prompt_result switched from
+    # normalize to default precisely so the result screen auto-shows content.
+    q = {
+        "topic": "t", "options": ["A. x"], "answer": "A",
+        "user_note": "n",
+        "ai_explanation": "a",
+    }
+    assert normalize_detail_view(q, None) is None
+    assert normalize_detail_view(q, "ai") == "ai"
+    assert normalize_detail_view(q, "note") == "note"
+
+
 def test_selector_set_from_text_uses_engine_chapter_selector():
     assert engine_loop._selector_set_from_text(
         "5,3-4", ["1", "2", "3", "4", "5"], 5
     ) == {"3", "4", "5"}
+
+
+def test_chapter_picker_renders_zero_drill_badge_dim_when_selected(capsys, monkeypatch):
+    from flip.tui.render import DIM_COLOR, RESET_COLOR, SELECTED_COLOR
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+
+    engine_loop._render_chapter_picker(
+        "训练",
+        ["1"],
+        {},
+        {"1": 3},
+        {"1": 0},
+        {"1": 0},
+        3,
+        0,
+        set(),
+        "",
+    )
+
+    out = capsys.readouterr().out
+    assert f"{DIM_COLOR}[×0]{RESET_COLOR}{SELECTED_COLOR}" in out
 
 
 def test_prompt_answer_refreshes_marked_state_after_m(deck, config, monkeypatch):
@@ -57,7 +133,41 @@ def test_prompt_result_refreshes_marked_state_after_m(deck, config, monkeypatch)
     )
 
 
-# ---- Esc mid-question returns to the chapter picker ----
+# ---- detail_view visibility across the answer flow ----
+# Regression: prompt_answer (pre-submit) must NOT auto-show x/n content even
+# when the question has ai_explanation, while prompt_result (post-submit)
+# must auto-show it. This was broken when epoch passed default_detail_view(q)
+# into prompt_answer — normalize couldn't strip a legitimately-valued "ai".
+
+def test_epoch_pre_answer_hides_detail_post_answer_shows_it(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    q["ai_explanation"] = "cached explanation"
+    store.save_tiku(deck, {"1": [q] + store.load_tiku(deck)["1"][1:]})
+
+    _patch_tty(monkeypatch, ["1", "\r", "q"])  # select A, submit, quit
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+
+    pre_answer = []
+    post_answer = []
+    orig_q = engine_loop.render_question
+    orig_r = engine_loop.render_result
+    monkeypatch.setattr(engine_loop, "render_question",
+        lambda *a, **k: (pre_answer.append(k.get("detail_view")), orig_q(*a, **k))[1])
+    monkeypatch.setattr(engine_loop, "render_result",
+        lambda *a, **k: (post_answer.append(k.get("detail_view")), orig_r(*a, **k))[1])
+
+    from flip.engine import SelectedSet
+    sel = SelectedSet([("1", q)], input_is_index=False)
+    engine_loop.epoch(deck, config, sel)
+
+    # Pre-submit screens must all be None — the explanation must not leak.
+    assert pre_answer == [None, None], f"pre-answer leaked detail: {pre_answer}"
+    # Post-submit must auto-show the explanation (default_detail_view policy).
+    assert post_answer == ["ai"], f"post-answer should show ai: {post_answer}"
+
+
 
 def test_prompt_answer_esc_returns_back_to_selector(deck, config, monkeypatch):
     """Esc on the answer screen signals "go back to chapter picker"."""
@@ -133,4 +243,3 @@ def test_entry_menu_resume_keeps_mode_ans_filters_clears_chapters(deck, config, 
     # First Esc in _edit_selector returns (False, selector) → drops to the
     # mode screen; second Esc at the mode screen returns None.
     assert result is None
-

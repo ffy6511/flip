@@ -315,9 +315,22 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
 def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_correct, *,
                   show_translation=False, detail_view=None,
                   previous_available=False, removable=False):
+    """Post-submit result loop.
+
+    Detail-view policy here differs from prompt_answer: we DEFAULT to showing
+    x/n content (the agent explanation or user note) when present, rather than
+    waiting for the user to press x/n. Rationale: the result screen is the
+    "moment of feedback" — surfacing the explanation/note automatically saves
+    a keypress at exactly the time the learner wants to see why.
+
+    The in-loop x/n toggle still works, and because detail_view is re-derived
+    from the question (not inherited) on every entry, the next question starts
+    fresh — no stale open state carries over.
+    """
     options = _options(q)
     translation_enabled = config.translation_enabled
-    detail_view = normalize_detail_view(q, detail_view)
+    # default_detail_view (not normalize) so x/n auto-shows when content exists.
+    detail_view = default_detail_view(q)
     translation = translated_question(q) if (translation_enabled and show_translation) else None
     if translation_enabled and show_translation and translation is None:
         show_translation = False
@@ -571,7 +584,11 @@ def epoch(deck, config, selected_set):
         enter_alt_screen()
         for question in questions:
             chapter, q = question
-            detail_view = default_detail_view(q)
+            # Pre-answer screen must NOT auto-show x/n content (that would
+            # leak the explanation before the learner commits an answer).
+            # Force None here; prompt_answer keeps it None via normalize, and
+            # prompt_result re-derives via default_detail_view to auto-show.
+            detail_view = None
             while True:
                 inpu, show_translation, detail_view = prompt_answer(
                     deck, config, count, len(questions), chapter, q,
@@ -766,7 +783,7 @@ def review_questions(deck, config, selected_set):
 def render_stats(deck, config):
     stats = engine.stats_snapshot(deck)
     from .tui.render import (
-        AI_COLOR, DIM_COLOR, RESET_COLOR, STAT_TOTAL_COLOR,
+        AI_COLOR, DIM_COLOR, DRILL_COLOR, RESET_COLOR, STAT_TOTAL_COLOR,
     )
     clear_screen()
     print("@ 全局统计 —", deck.name)
@@ -787,9 +804,18 @@ def render_stats(deck, config):
     for chapter in sorted(stats["per_chapter"], key=store._chapter_sort_key):
         total = stats["per_chapter"][chapter]
         wrong = stats["wrong_per_chapter"].get(chapter, 0)
+        drills = stats.get("drills_per_chapter", {}).get(chapter, 0)
         ratio = wrong / total if total else 0
         bar = _stats_bar(total, wrong, max_total)
-        print("  ch{:<3} {:>3}题 / {:>2}错 {:>5.1%}  {}".format(str(chapter), total, wrong, ratio, bar))
+        # Drill badge: green when nonzero (drilled), dim when zero (never
+        # drilled) so "未刷过" reads as visually secondary, not as loud as
+        # the default text color used for the rest of the line.
+        if drills > 0:
+            drill_badge = f"{DRILL_COLOR}[×{drills}]{RESET_COLOR}"
+        else:
+            drill_badge = f"{DIM_COLOR}[×{drills}]{RESET_COLOR}"
+        print("  ch{:<3} {:>3}题 / {:>2}错 {:>5.1%}  {}  {}".format(
+            str(chapter), total, wrong, ratio, bar, drill_badge))
     print()
     print("  Enter/Esc 返回菜单，q 退出")
 
@@ -1101,6 +1127,7 @@ def _edit_selector(selector, mode_name, deck=None, config=None):
     titles = {}
     per_chapter = {}
     wrong_per_chapter = {}
+    drills_per_chapter = {}
     max_total = 0
     if deck is not None:
         data = store.load_tiku(deck) or {}
@@ -1113,6 +1140,11 @@ def _edit_selector(selector, mode_name, deck=None, config=None):
             per_chapter = stats["per_chapter"]
             wrong_per_chapter = stats["wrong_per_chapter"]
             max_total = max(per_chapter.values(), default=0)
+        # Drills filtered by THIS entry mode (mode_name is "Train"/"Review").
+        # Stats keeps a merged count; the picker shows the context-specific
+        # count so the user sees "how many times I drilled this chapter in the
+        # mode I'm about to enter" rather than the merged total.
+        drills_per_chapter = _drills_per_chapter_for_mode(deck, mode_name)
         chapters = sorted(per_chapter.keys(), key=store._chapter_sort_key) if per_chapter else []
 
     cursor = 0
@@ -1131,7 +1163,8 @@ def _edit_selector(selector, mode_name, deck=None, config=None):
 
     while True:
         _render_chapter_picker(mode_name, chapters, titles, per_chapter,
-                               wrong_per_chapter, max_total, cursor, selected, buffer)
+                               wrong_per_chapter, drills_per_chapter,
+                               max_total, cursor, selected, buffer)
         key = read_key()
         if key == '\x03':
             raise KeyboardInterrupt
@@ -1199,9 +1232,10 @@ def _selector_set_from_text(buffer, chapters, max_n):
 
 
 def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
-                           wrong_per_chapter, max_total, cursor, selected, buffer):
+                           wrong_per_chapter, drills_per_chapter, max_total,
+                           cursor, selected, buffer):
     from .tui.render import (
-        DIM_COLOR, RESET_COLOR, SELECTED_COLOR, STAT_TOTAL_COLOR, AI_COLOR,
+        DIM_COLOR, DRILL_COLOR, RESET_COLOR, SELECTED_COLOR, STAT_TOTAL_COLOR, AI_COLOR,
     )
     clear_screen()
     print("@", mode_name, "— 章节选择")
@@ -1216,20 +1250,58 @@ def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
     if not chapters:
         print("  " + DIM_COLOR + "(无章节数据)" + RESET_COLOR)
     else:
+        # The per-line wrapper color (dim vs highlighted) is applied to the
+        # whole line. The drill badge embeds its own green-when-nonzero escape;
+        # to keep the wrapper alive after RESET inside the badge, we re-apply
+        # the wrapper color right after the badge.
         for i, ch in enumerate(chapters):
             total = per_chapter.get(ch, 0)
             wrong = wrong_per_chapter.get(ch, 0)
+            drills = drills_per_chapter.get(ch, 0)
             bar = _stats_bar(total, wrong, max_total, width=20)
             mark = "[x]" if ch in selected else "[ ]"
             title = titles.get(ch, "")
             title_field = ("  " + title) if title else ""
-            line = f"  {mark} ch{str(ch):<3} {bar}  {total:>3}题/{wrong:>2}错{title_field}"
-            print(SELECTED_COLOR + line + RESET_COLOR if i == cursor
-                  else DIM_COLOR + line + RESET_COLOR)
+            line_color = SELECTED_COLOR if i == cursor else DIM_COLOR
+            if drills > 0:
+                badge = f"{DRILL_COLOR}[×{drills}]{RESET_COLOR}{line_color}"
+            else:
+                badge = f"{DIM_COLOR}[×{drills}]{RESET_COLOR}{line_color}"
+            line = f"  {mark} ch{str(ch):<3} {bar}  {total:>3}题/{wrong:>2}错{title_field}  {badge}"
+            print(line_color + line + RESET_COLOR)
     print()
     print("  " + DIM_COLOR +
           "↑/↓ 移动,空格 切换选中,数字/范围 直接输入,Enter 开始,Esc 返回" +
           RESET_COLOR)
+
+
+def _drills_per_chapter_for_mode(deck, mode_name):
+    """Aggregate drill counts per chapter, filtered to the given entry mode.
+
+    `mode_name` is the picker's display label ("Train" / "Review"). We map it
+    to the history record's `mode` field ("train" / "review") and count only
+    matching records. This is what makes the picker show context-specific
+    counts: entering via Train shows train drills, via Review shows review
+    drills, instead of the merged total that stats_snapshot reports.
+    """
+    if deck is None:
+        return {}
+    label = (mode_name or "").lower()
+    if "review" in label:
+        want_mode = "review"
+    elif "train" in label:
+        want_mode = "train"
+    else:
+        # Unknown mode label: show merged (defensive — shouldn't normally happen).
+        want_mode = None
+    counts = {}
+    for record in store.load_history(deck):
+        if want_mode is not None and record.get("mode") != want_mode:
+            continue
+        for ch in record.get("chapters", []):
+            ch = str(ch)
+            counts[ch] = counts.get(ch, 0) + 1
+    return counts
 
 
 def _run_stats_loop(deck, config):
@@ -1264,10 +1336,19 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     filters = filters or []
     selected = engine.pick_questions(deck, config, selector=selector, shuffle=True,
                                      filters=filters, source=source)
+    # `mode` follows the ENTRY mode (i.e. the question source), NOT the ans
+    # toggle. ans only changes whether we score (epoch) or browse
+    # (review_questions); it does not relabel a Train session as review. So
+    # Train+ans and Review+ans record under their respective entry modes.
+    mode_label = "train" if source == "tiku" else "review"
     if ans_mode:
         outcome = review_questions(deck, config, selected)
         if outcome == BACK_TO_SELECTOR:
             return BACK_TO_SELECTOR
+        # Browse mode doesn't score, so incorrect=0; still counts as a drill
+        # so the user sees the chapter was visited.
+        _record_drill(deck, selected, total=len(selected.questions),
+                      incorrect=0, mode=mode_label)
         return 0
 
     count, incorrects, status = epoch(deck, config, selected)
@@ -1287,7 +1368,29 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
         print(f"- Next epoch: \033[1;33m{disp}\033[0m")
         store.write_json(out, incorrects)
     print("====================================")
+    # A completed training run (not BACK_TO_SELECTOR) counts as a drill.
+    _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
     return 0
+
+
+def _record_drill(deck, selected, *, total, incorrect, mode):
+    """Append one drill record to the deck's history.
+
+    Centralizes record construction so train and review share the same shape.
+    `chapters` is the deduped sorted set of chapters this run covered, so
+    stats_snapshot can +1 each of them. Called only on completed runs —
+    BACK_TO_SELECTOR exits before reaching here, so abandoned drills aren't
+    counted (a half-finished session isn't a real drill).
+    """
+    import datetime
+    chapters = sorted({str(ch) for ch, _ in selected.questions})
+    store.append_history(deck, {
+        "date": datetime.datetime.now().isoformat(timespec="seconds"),
+        "chapters": chapters,
+        "total": total,
+        "incorrect": incorrect,
+        "mode": mode,
+    })
 
 
 def run_translate(deck, config, selector=None, force=False):

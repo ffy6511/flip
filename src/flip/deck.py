@@ -18,6 +18,7 @@ MANIFEST_NAME = "manifest.toml"
 TIKU_NAME = "tiku.json"
 MARKED_NAME = "marked.json"
 WRONG_DIR_NAME = "wrong"
+HISTORY_NAME = "history.json"
 
 
 class DeckError(Exception):
@@ -78,6 +79,10 @@ class Deck:
     @property
     def wrong_dir(self) -> Path:
         return self.path / WRONG_DIR_NAME
+
+    @property
+    def history_path(self) -> Path:
+        return self.path / HISTORY_NAME
 
     @property
     def manifest_path(self) -> Path:

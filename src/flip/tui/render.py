@@ -21,6 +21,9 @@ ACTIVE_COLOR = "\033[1;32m"
 SELECTED_COLOR = "\033[1;33m"
 STAT_TOTAL_COLOR = "\033[37m"
 WRONG_COLOR = "\033[1;31m"
+# Non-bold green for the drill-count badge (distinct from CORRECT_COLOR's
+# bold green used for correct-answer checkmarks, so they don't visually clash).
+DRILL_COLOR = "\033[32m"
 LOWER_BLOCK_INDENT = " "
 
 
