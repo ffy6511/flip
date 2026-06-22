@@ -64,7 +64,7 @@ quoted in the template, but prompt text is always passed as one argv element.
 
 ```toml
 [explain]
-command = "codex exec -m {model} -o {outfile} {prompt}"
+command = "codex exec --skip-git-repo-check -m {model} -o {outfile} {prompt}"
 output = "tempfile"
 ```
 

@@ -21,21 +21,23 @@ DEFAULT_CONFIG_NAME = "config.toml"
 
 # Default command template matches the legacy hardcoded codex invocation.
 # Kept here (not in deck.py) so users editing config see what's available.
-DEFAULT_EXPLAIN_COMMAND = "codex exec -m {model} -o {outfile} {prompt}"
+# `--skip-git-repo-check` is mandatory: flip runs codex as a one-shot child
+# process to generate an explanation, and the cwd may well be a non-git dir or
+# an untrusted repo — codex would otherwise refuse to run there.
+DEFAULT_EXPLAIN_COMMAND = "codex exec --skip-git-repo-check -m {model} -o {outfile} {prompt}"
 DEFAULT_EXPLAIN_MODEL = "gpt-5.3-codex-spark"
 DEFAULT_EXPLAIN_OUTPUT = "tempfile"   # "stdout" | "tempfile"
 DEFAULT_EXPLAIN_TIMEOUT = 90
 
 # A drop-in "fast codex" argv, mirroring the se_regressor.py invocation that
 # disabled hooks/plugins, pinned the OpenAI responses wire-api, and ran at low
-# reasoning effort. Empty by default — `explain.command` stays the simple
-# single-line template for backward compat; users who want the accelerated
-# path set `explain.argv = [...]` (or uncomment it in the bootstrapped config).
-DEFAULT_EXPLAIN_ARGV = []
-
-# The full accelerated preset. Not the default (kept opt-in), but referenced
-# by the bootstrapped config comment and the legacy run_codex_explanation shim
-# so there is one source of truth for "what se_regressor.py used to run".
+# reasoning effort. This is the DEFAULT explain backend: when a user neither
+# sets `argv` nor changes `command` in config.toml, flip runs codex via this
+# list. Users who want a different backend override `command` (simple one-liner)
+# or `argv` (full token list) — see load_config for the precedence rules.
+# The codex accelerated preset: no hooks/plugins, low reasoning effort, OpenAI
+# responses wire-api, and --skip-git-repo-check so it runs in any cwd. This is
+# the single source of truth for "the default explain backend".
 CODEX_FAST_ARGV = [
     "codex", "exec",
     "--ignore-user-config", "--ignore-rules",
@@ -49,6 +51,12 @@ CODEX_FAST_ARGV = [
     "-o", "{outfile}",
     "{prompt}",
 ]
+
+# The DEFAULT explain argv. When a user neither sets `argv` nor changes
+# `command` in config.toml, flip runs codex via CODEX_FAST_ARGV. Users who want
+# a different backend override `command` (simple one-liner) or `argv` (full
+# token list) — see load_config for the precedence rules.
+DEFAULT_EXPLAIN_ARGV = list(CODEX_FAST_ARGV)
 
 
 @dataclass
@@ -76,7 +84,7 @@ class ExplainConfig:
     When output == "tempfile", flip creates the outfile, runs, then reads it.
     """
     command: str = DEFAULT_EXPLAIN_COMMAND
-    argv: list = field(default_factory=lambda: list(DEFAULT_EXPLAIN_ARGV))
+    argv: list = field(default_factory=list)
     model: str = DEFAULT_EXPLAIN_MODEL
     output: str = DEFAULT_EXPLAIN_OUTPUT
     timeout: int = DEFAULT_EXPLAIN_TIMEOUT
@@ -174,13 +182,19 @@ def _bootstrap_default_config(path: Path) -> None:
         'target_lang = "zh"\n'
         'default_deck = ""\n\n'
         '[explain]\n'
-        '# Shell-template with placeholders: {prompt} {model} {outfile}\n'
-        '# Used when `argv` below is empty. Best for simple one-line backends.\n'
-        f'command = "{DEFAULT_EXPLAIN_COMMAND}"\n'
+        '# Backend precedence: a non-empty `argv` wins; otherwise an overridden\n'
+        '# `command` wins; otherwise flip uses the codex accelerated preset\n'
+        '# (DEFAULT_EXPLAIN_ARGV = CODEX_FAST_ARGV) shown below. To switch to a\n'
+        '# different backend, uncomment one of the two and edit it.\n'
         '\n'
-        '# Explicit argv list (overrides `command` when non-empty). Best when\n'
-        '# flags are many or carry embedded quotes. Uncomment for the codex\n'
-        '# accelerated preset (no hooks/plugins, low reasoning, responses api).\n'
+        '# Simple one-liner backends (zhipu GLM, ollama, a wrapper script).\n'
+        '# Uncomment and edit to use `command` instead of the argv preset:\n'
+        f'# command = "{DEFAULT_EXPLAIN_COMMAND}"\n'
+        '\n'
+        '# Explicit argv list — this is the DEFAULT (codex accelerated preset:\n'
+        '# no hooks/plugins, low reasoning, OpenAI responses wire-api, skips the\n'
+        '# git-repo trust check so it runs anywhere). Edit in place to tweak;\n'
+        '# comment out to fall back to `command` above.\n'
         + argv_comment +
         '\n'
         f'model = "{DEFAULT_EXPLAIN_MODEL}"\n'
@@ -211,12 +225,28 @@ def load_config(home: Path = None) -> Config:
         default_deck = data.get("default_deck", default_deck)
         ex = data.get("explain", {})
         if isinstance(ex, dict):
+            # Explain-backend precedence (see DEFAULT_EXPLAIN_ARGV docstring):
+            #   1. User set a non-empty argv          → use it (argv wins).
+            #   2. User changed `command` away from    → drop argv, use command
+            #      the default template                  (e.g. ollama/GLM).
+            #   3. Neither                              → fall back to the
+            #                                            CODEX_FAST_ARGV default.
             raw_argv = ex.get("argv", [])
             if raw_argv is None:
                 raw_argv = []
             argv = [str(tok) for tok in raw_argv] if isinstance(raw_argv, list) else []
+            user_command = ex.get("command", DEFAULT_EXPLAIN_COMMAND)
+            command_overridden = user_command != DEFAULT_EXPLAIN_COMMAND
+            if not argv and command_overridden:
+                # The user wants a different backend via `command`; clear the
+                # CODEX_FAST_ARGV default so uses_argv() picks the command path.
+                argv = []
+            else:
+                # argv stays as user-provided, OR — when empty and command is
+                # untouched — as the module default (CODEX_FAST_ARGV).
+                argv = argv if argv else list(DEFAULT_EXPLAIN_ARGV)
             explain = ExplainConfig(
-                command=ex.get("command", DEFAULT_EXPLAIN_COMMAND),
+                command=user_command,
                 argv=argv,
                 model=ex.get("model", DEFAULT_EXPLAIN_MODEL),
                 output=ex.get("output", DEFAULT_EXPLAIN_OUTPUT),
@@ -225,6 +255,8 @@ def load_config(home: Path = None) -> Config:
     else:
         # Create the default file so users see it and can edit it.
         _bootstrap_default_config(config_path)
+        # Apply the same default the file would load to: CODEX_FAST_ARGV.
+        explain = ExplainConfig(argv=list(DEFAULT_EXPLAIN_ARGV))
 
     cfg = Config(
         home=resolved_home,
