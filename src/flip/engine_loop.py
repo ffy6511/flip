@@ -18,7 +18,7 @@ from . import explain as explain_mod
 from .config import Config
 from .deck import DEFAULT_MAX_DISPLAY_OPTIONS, Deck, save_max_display_options
 from .tui import (
-    read_key, save_tty, restore_tty, enter_cbreak,
+    RESIZE_KEY, read_key, save_tty, restore_tty, enter_cbreak,
     clear_screen, enter_alt_screen, exit_alt_screen,
     has_translation, has_agent_said, has_user_note,
     translated_question, default_detail_view, normalize_detail_view,
@@ -73,6 +73,8 @@ def _prompt_ai_extra(deck, chapter, q, render_current):
     while True:
         render_current(ai_prompt_buffer=buffer)
         key = read_key()
+        if key == RESIZE_KEY:
+            continue
         if key == '\x03':
             raise KeyboardInterrupt
         if key in {'\r', '\n'}:
@@ -91,6 +93,8 @@ def _prompt_user_note(deck, chapter, q, render_current):
     while True:
         render_current(note_buffer=buffer)
         key = read_key()
+        if key == RESIZE_KEY:
+            continue
         if key == '\x03':
             raise KeyboardInterrupt
         if key in {'\r', '\n'}:
@@ -241,6 +245,8 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                 translation_enabled=translation_enabled,
             )
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key not in {'r', 'R'}:
                 confirm_remove = False
 
@@ -369,6 +375,8 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                 translation_enabled=translation_enabled,
             )
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key not in {'r', 'R'}:
                 confirm_remove = False
             if key in {'\r', '\n'}:
@@ -476,6 +484,8 @@ def review_history(deck, config, history, start_index, total, *,
                 translation_enabled=translation_enabled, footer=footer,
             )
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key not in {'r', 'R'}:
                 confirm_remove = False
             if key in {'q', 'Q'}:
@@ -716,6 +726,8 @@ def review_questions(deck, config, selected_set):
                 model_name=model_name, translation_enabled=translation_enabled,
             )
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key not in {'r', 'R'}:
                 confirm_remove = False
             if key in {'q', 'Q'}:
@@ -900,6 +912,8 @@ def deck_picker(config):
             rows = _filter_rows(all_rows, name_index, query)
             _render_deck_picker(rows, index, query, config.default_deck)
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key == '\x03':
                 raise KeyboardInterrupt
             if key == '\x1b':
@@ -1040,6 +1054,8 @@ def entry_menu(config, deck, *, resume=None):
         while True:
             _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters)
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key in {'q', 'Q', '\x1b'}:
                 return None
             if key == '\x03':
@@ -1195,6 +1211,8 @@ def _edit_selector(selector, mode_name, deck=None, config=None):
                                wrong_per_chapter, drills_per_chapter,
                                max_total, cursor, selected, buffer)
         key = read_key()
+        if key == RESIZE_KEY:
+            continue
         if key == '\x03':
             raise KeyboardInterrupt
         if key == '\x1b':
@@ -1341,6 +1359,8 @@ def _run_stats_loop(deck, config):
     while True:
         render_stats(deck, config)
         key = read_key()
+        if key == RESIZE_KEY:
+            continue
         if key in {'q', 'Q'}:
             return None
         if key in {'\r', '\n', '\x1b'}:

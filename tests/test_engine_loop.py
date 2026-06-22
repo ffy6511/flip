@@ -125,6 +125,22 @@ def test_prompt_answer_refreshes_marked_state_after_m(deck, config, monkeypatch)
     )
 
 
+def test_prompt_answer_resize_key_rerenders_without_state_change(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    rendered = []
+    _patch_tty(monkeypatch, [engine_loop.RESIZE_KEY, "1", "\r"])
+
+    def capture_render(*args, **_kwargs):
+        rendered.append((args[5], set(args[6])))
+
+    monkeypatch.setattr(engine_loop, "render_question", capture_render)
+
+    result = engine_loop.prompt_answer(deck, config, 1, 1, "1", q)
+
+    assert result[0] == "A"
+    assert rendered == [(0, set()), (0, set()), (0, {0})]
+
+
 def test_prompt_result_refreshes_marked_state_after_m(deck, config, monkeypatch):
     q = store.load_tiku(deck)["1"][0]
     rendered = []
