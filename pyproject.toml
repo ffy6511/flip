@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flip"
-version = "0.1.6"
+version = "0.2.0"
 description = "Terminal quiz trainer — a deck-agnostic template engine."
 readme = "README.md"
 requires-python = ">=3.9"
