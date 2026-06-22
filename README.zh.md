@@ -70,8 +70,10 @@ flip                              # 交互:先选 deck,再选模式
 flip list                         # 列出已注册的 deck
 flip deck train se -c 5-10        # 训练软件工程,第 5–10 章(tiku,计分)
 flip deck review se               # 练习软件工程的错题索引(计分)
+flip deck continue se             # 继续上次暂停的计分练习
 flip deck train se --ans          # 浏览软件工程题目并直接显答案,不计分
 flip deck stats se                # 按章节分布统计
+flip deck clear-count se --mode all  # 只清空 train/review 刷题次数
 flip deck mark se                 # 列出已标记题目
 flip deck wrong se                # 列出错题索引题目
 flip deck merge se ./new.json --dry-run  # 预览增量更新
@@ -85,8 +87,9 @@ flip config                       # 查看配置和解释后端状态
 > 子命令顺序是 `flip deck <动词> <slug>`(动词在前,slug 在后)。
 > 章节选择器支持单章、范围、前 N 章和逗号组合:`5`、`5-10`、`-3`、`5,3-4`。
 > 裸跑 `flip` 是两阶段选择:先选 deck(支持实时搜索),再选模式——
-> **Train**(tiku 题库)、**Review**(错题索引)或 **List**(统计)——
-> 外加 1-4 题目筛选开关和一个 **Ans 模式** 开关(直接显答案、不计分)。
+> **Train**(tiku 题库)、**Review**(错题索引)、**Continue**(暂停的计分练习)
+> 或 **List**(统计)——外加 1-5 筛选/显示开关、清空次数动作和一个
+> **Ans 模式** 开关(直接显答案、不计分)。
 
 ## 目录结构
 

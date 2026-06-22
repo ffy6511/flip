@@ -71,8 +71,10 @@ flip                              # interactive: pick a deck, then pick a mode
 flip list                         # list registered decks
 flip deck train se -c 5-10        # train SE on chapters 5–10 (tiku, scored)
 flip deck review se               # drill SE's wrong index (scored)
+flip deck continue se             # resume the latest paused scored drill
 flip deck train se --ans          # browse SE showing answers, no scoring
 flip deck stats se                # per-chapter distribution
+flip deck clear-count se --mode all  # clear stored train/review counts only
 flip deck mark se                 # list marked questions
 flip deck wrong se                # list wrong-index questions
 flip deck merge se ./new.json --dry-run  # preview an incremental deck update
@@ -88,8 +90,9 @@ flip config                       # show config and explain-backend status
 > comma unions: `5`, `5-10`, `-3`, `5,3-4`.
 > Running `flip` with no args is a two-stage picker: choose a deck (with live
 > search), then choose a mode — **Train** (tiku), **Review** (wrong index),
-> or **List** (stats) — plus the 1-4 filters and an **Ans mode** toggle that
-> shows answers without scoring.
+> **Continue** (paused scored drill), or **List** (stats) — plus the 1-5
+> filters/display toggles, a **clear-count** action, and an **Ans mode** toggle
+> that shows answers without scoring.
 
 ## Layout
 

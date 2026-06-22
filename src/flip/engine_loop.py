@@ -16,13 +16,14 @@ from . import store
 from . import engine
 from . import explain as explain_mod
 from .config import Config
-from .deck import Deck
+from .deck import DEFAULT_MAX_DISPLAY_OPTIONS, Deck, save_max_display_options
 from .tui import (
-    read_key, save_tty, restore_tty, enter_cbreak,
+    RESIZE_KEY, read_key, save_tty, restore_tty, enter_cbreak,
     clear_screen, enter_alt_screen, exit_alt_screen,
     has_translation, has_agent_said, has_user_note,
     translated_question, default_detail_view, normalize_detail_view,
     render_question, render_result, render_review_question,
+    render_session_summary, render_session_item_list,
     render_ai_waiting, render_ai_prompt_input, render_note_input,
 )
 
@@ -35,9 +36,39 @@ from .tui import (
 BACK_TO_SELECTOR = 'back-to-selector'
 
 
-def _options(q):
-    """All options visible — no hidden-E suppression in flip."""
-    return list(q.get("options", []))
+def _remove_confirm_warning(selected_set):
+    if selected_set is not None and selected_set.input_is_index:
+        return "再次按 r 确认从 wrong/review 索引移除；不会删除题库。"
+    return "再次按 r 确认从 tiku 题库删除；该题会从 deck 移除。"
+
+
+def _remove_question_from_selected_source(deck, selected_set, chapter, q):
+    if selected_set is not None and selected_set.input_is_index:
+        return engine.remove_from_active_index(selected_set, chapter, q)
+    return engine.remove_from_tiku(deck, chapter, q)
+
+
+def _options(q, deck=None):
+    options = list(q.get("options", []))
+    if deck is None:
+        return options
+    return options[:deck.max_display_options]
+
+
+def _translated_options(q, options):
+    translation = translated_question(q)
+    if translation is None:
+        return None
+    visible_labels = [choice[:1].upper() for choice in options]
+    by_label = {
+        choice[:1].upper(): choice
+        for choice in translation.get("options", [])
+        if isinstance(choice, str) and choice
+    }
+    return {
+        "topic": translation["topic"],
+        "options": [by_label[label] for label in visible_labels if label in by_label],
+    }
 
 
 def _answer_from_selected(options, selected):
@@ -51,10 +82,12 @@ def _answer_from_selected(options, selected):
 
 def _prompt_ai_extra(deck, chapter, q, render_current):
     buffer = ""
-    options = _options(q)
+    options = _options(q, deck)
     while True:
         render_current(ai_prompt_buffer=buffer)
         key = read_key()
+        if key == RESIZE_KEY:
+            continue
         if key == '\x03':
             raise KeyboardInterrupt
         if key in {'\r', '\n'}:
@@ -73,6 +106,8 @@ def _prompt_user_note(deck, chapter, q, render_current):
     while True:
         render_current(note_buffer=buffer)
         key = read_key()
+        if key == RESIZE_KEY:
+            continue
         if key == '\x03':
             raise KeyboardInterrupt
         if key in {'\r', '\n'}:
@@ -187,7 +222,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
       ←          go back into history (only if previous_available)
       t          toggle translation block (only if translation_enabled)
       m/x/n/e    mark / explain / note / edit-detail (via _handle_detail_keys)
-      r          remove from index (only if removable; double-tap to confirm)
+      r          remove from active source (double-tap to confirm)
       q          quit the epoch
 
     Returns one of:
@@ -197,7 +232,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
     The termios tty is put in cbreak for raw key reading and restored in
     `finally` so a Ctrl-C / crash doesn't leave the terminal broken.
     """
-    options = _options(q)
+    options = _options(q, deck)
     alphabet = deck.answer_alphabet
     translation_enabled = config.translation_enabled
     detail_view = normalize_detail_view(q, detail_view)
@@ -205,7 +240,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
     selected = set()
     warning = ""
     confirm_remove = False
-    translation = translated_question(q) if (translation_enabled and show_translation) else None
+    translation = _translated_options(q, options) if (translation_enabled and show_translation) else None
     if translation_enabled and show_translation and translation is None:
         show_translation = False
         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
@@ -223,6 +258,8 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                 translation_enabled=translation_enabled,
             )
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key not in {'r', 'R'}:
                 confirm_remove = False
 
@@ -271,7 +308,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                     continue
                 show_translation = True
                 if translation is None:
-                    translation = translated_question(q)
+                    translation = _translated_options(q, options)
                     if translation is None:
                         show_translation = False
                         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
@@ -282,9 +319,9 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                     if confirm_remove:
                         return ('remove', show_translation, detail_view)
                     confirm_remove = True
-                    warning = "再次按 r 确认移除，其他按键取消。"
+                    warning = _remove_confirm_warning(selected_set)
                     continue
-                warning = "当前输入不是索引文件，不能移除。"
+                warning = "当前题目不能移除。"
                 continue
 
             def render_current(ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
@@ -314,7 +351,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
 
 def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_correct, *,
                   show_translation=False, detail_view=None,
-                  previous_available=False, removable=False):
+                  previous_available=False, removable=False, selected_set=None):
     """Post-submit result loop.
 
     Detail-view policy here differs from prompt_answer: we DEFAULT to showing
@@ -327,11 +364,11 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
     from the question (not inherited) on every entry, the next question starts
     fresh — no stale open state carries over.
     """
-    options = _options(q)
+    options = _options(q, deck)
     translation_enabled = config.translation_enabled
     # default_detail_view (not normalize) so x/n auto-shows when content exists.
     detail_view = default_detail_view(q)
-    translation = translated_question(q) if (translation_enabled and show_translation) else None
+    translation = _translated_options(q, options) if (translation_enabled and show_translation) else None
     if translation_enabled and show_translation and translation is None:
         show_translation = False
         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
@@ -351,6 +388,8 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                 translation_enabled=translation_enabled,
             )
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key not in {'r', 'R'}:
                 confirm_remove = False
             if key in {'\r', '\n'}:
@@ -371,7 +410,7 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                     continue
                 show_translation = True
                 if translation is None:
-                    translation = translated_question(q)
+                    translation = _translated_options(q, options)
                     if translation is None:
                         show_translation = False
                         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
@@ -381,9 +420,9 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                     if confirm_remove:
                         return ('remove', show_translation, detail_view)
                     confirm_remove = True
-                    warning = "再次按 r 确认移除，其他按键取消。"
+                    warning = _remove_confirm_warning(selected_set)
                     continue
-                warning = "当前输入不是索引文件，不能移除。"
+                warning = "当前题目不能移除。"
                 continue
 
             def render_current(ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
@@ -443,9 +482,9 @@ def review_history(deck, config, history, start_index, total, *,
             item = history[index]
             chapter = item["chapter"]
             q = item["question"]
-            options = _options(q)
+            options = _options(q, deck)
             detail_view = normalize_detail_view(q, detail_view)
-            translation = translated_question(q) if (translation_enabled and show_translation) else None
+            translation = _translated_options(q, options) if (translation_enabled and show_translation) else None
             marked = engine.is_marked(deck, chapter, q)
             footer = "←/→ 后退/前进, Enter 返回当前" + \
                 (", t 中文" if translation_enabled else "") + \
@@ -458,6 +497,8 @@ def review_history(deck, config, history, start_index, total, *,
                 translation_enabled=translation_enabled, footer=footer,
             )
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key not in {'r', 'R'}:
                 confirm_remove = False
             if key in {'q', 'Q'}:
@@ -495,7 +536,7 @@ def review_history(deck, config, history, start_index, total, *,
                     continue
                 show_translation = True
                 if translation is None:
-                    translation = translated_question(q)
+                    translation = _translated_options(q, options)
                     if translation is None:
                         show_translation = False
                         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
@@ -504,20 +545,24 @@ def review_history(deck, config, history, start_index, total, *,
                 if removable and selected_set is not None:
                     if not confirm_remove:
                         confirm_remove = True
-                        warning = "再次按 r 确认移除，其他按键取消。"
+                        warning = _remove_confirm_warning(selected_set)
                         continue
-                    if engine.remove_from_active_index(selected_set, chapter, q):
+                    if _remove_question_from_selected_source(deck, selected_set, chapter, q):
                         history.pop(index)
                         if not history:
                             return 'continue', show_translation, detail_view
                         index = min(index, len(history) - 1)
                         detail_view = default_detail_view(history[index]["question"])
-                        warning = "已从索引中移除。"
+                        warning = "已从索引中移除。" if selected_set.input_is_index else "已从 tiku 题库删除。"
                         confirm_remove = False
                         continue
-                    warning = "未找到可移除的索引记录。"
+                    warning = (
+                        "未找到可移除的 wrong/review 索引记录。"
+                        if selected_set.input_is_index else
+                        "未找到可从 tiku 删除的题目。"
+                    )
                     continue
-                warning = "当前输入不是索引文件，不能移除。"
+                warning = "当前题目不能移除。"
                 continue
 
             def render_current(ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
@@ -547,7 +592,8 @@ def _detail_hint(q):
 
 # ---- top-level epoch (training) ----
 
-def epoch(deck, config, selected_set):
+def epoch(deck, config, selected_set, *, start_index=0, history=None,
+          incorrect=None, on_progress=None):
     """Run one training pass over selected_set.questions.
 
     For each question the flow is:
@@ -575,14 +621,14 @@ def epoch(deck, config, selected_set):
     """
     questions = selected_set.questions
     alphabet = deck.answer_alphabet
-    incorrect = []
-    count = 1
+    incorrect = list(incorrect or [])
+    history = list(history or [])
+    count = start_index + 1
     show_translation = False
     detail_view = None
-    history = []
     try:
         enter_alt_screen()
-        for question in questions:
+        for question in questions[start_index:]:
             chapter, q = question
             # Pre-answer screen must NOT auto-show x/n content (that would
             # leak the explanation before the learner commits an answer).
@@ -594,26 +640,26 @@ def epoch(deck, config, selected_set):
                     deck, config, count, len(questions), chapter, q,
                     show_translation=show_translation, detail_view=detail_view,
                     previous_available=bool(history),
-                    removable=selected_set.input_is_index,
+                    removable=True,
                     selected_set=selected_set,
                 )
                 if inpu == 'quit':
-                    return count, incorrect, 'quit'
+                    return count, incorrect, 'quit', history
                 if inpu == BACK_TO_SELECTOR:
-                    return count, incorrect, BACK_TO_SELECTOR
+                    return count, incorrect, BACK_TO_SELECTOR, history
                 if inpu == 'remove':
-                    engine.remove_from_active_index(selected_set, chapter, q)
+                    _remove_question_from_selected_source(deck, selected_set, chapter, q)
                     break
                 if inpu == 'previous':
                     haction, show_translation, detail_view = review_history(
                         deck, config, history, len(history) - 1, len(questions),
                         show_translation=show_translation, detail_view=detail_view,
-                        removable=selected_set.input_is_index, selected_set=selected_set,
+                        removable=True, selected_set=selected_set,
                     )
                     if haction == 'quit':
-                        return count, incorrect, 'quit'
+                        return count, incorrect, 'quit', history
                     if haction == BACK_TO_SELECTOR:
-                        return count, incorrect, BACK_TO_SELECTOR
+                        return count, incorrect, BACK_TO_SELECTOR, history
                     continue
                 break
             if inpu == 'remove':
@@ -629,40 +675,44 @@ def epoch(deck, config, selected_set):
                 "count": count,
                 "chapter": chapter,
                 "question": q,
+                "raw_input": inpu,
                 "selected_answer": parsed,
                 "is_correct": is_correct,
             })
+            if on_progress is not None:
+                on_progress(list(history))
 
             while True:
                 raction, show_translation, detail_view = prompt_result(
                     deck, config, count, len(questions), chapter, q, parsed, is_correct,
                     show_translation=show_translation, detail_view=detail_view,
                     previous_available=len(history) > 1,
-                    removable=selected_set.input_is_index,
+                    removable=True,
+                    selected_set=selected_set,
                 )
                 if raction == 'quit':
-                    return count, incorrect, 'quit'
+                    return count, incorrect, 'quit', history
                 if raction == BACK_TO_SELECTOR:
-                    return count, incorrect, BACK_TO_SELECTOR
+                    return count, incorrect, BACK_TO_SELECTOR, history
                 if raction == 'remove':
-                    engine.remove_from_active_index(selected_set, chapter, q)
+                    _remove_question_from_selected_source(deck, selected_set, chapter, q)
                     break
                 if raction == 'previous':
                     haction, show_translation, detail_view = review_history(
                         deck, config, history, len(history) - 2, len(questions),
                         show_translation=show_translation, detail_view=detail_view,
-                        removable=selected_set.input_is_index, selected_set=selected_set,
+                        removable=True, selected_set=selected_set,
                     )
                     if haction == 'quit':
-                        return count, incorrect, 'quit'
+                        return count, incorrect, 'quit', history
                     if haction == BACK_TO_SELECTOR:
-                        return count, incorrect, BACK_TO_SELECTOR
+                        return count, incorrect, BACK_TO_SELECTOR, history
                     continue
                 break
 
             clear_screen()
             count += 1
-        return count, incorrect, 'done'
+        return count, incorrect, 'done', history
     finally:
         exit_alt_screen()
 
@@ -673,8 +723,12 @@ def review_questions(deck, config, selected_set):
     questions = selected_set.questions
     if not questions:
         print("No questions to review.")
-        return
+        return 'done', []
     index = 0
+    browse_items = [
+        {"chapter": chapter, "question": q, "options": _options(q, deck)}
+        for chapter, q in questions
+    ]
     show_translation = False
     translation_enabled = config.translation_enabled
     detail_view = default_detail_view(questions[0][1])
@@ -687,25 +741,27 @@ def review_questions(deck, config, selected_set):
         enter_cbreak()
         while True:
             chapter, q = questions[index]
-            options = _options(q)
+            options = _options(q, deck)
             detail_view = normalize_detail_view(q, detail_view)
-            translation = translated_question(q) if (translation_enabled and show_translation) else None
+            translation = _translated_options(q, options) if (translation_enabled and show_translation) else None
             marked = engine.is_marked(deck, chapter, q)
             render_review_question(
                 index, len(questions), chapter, q,
-                show_translation=show_translation, translation=translation,
+                options=options, show_translation=show_translation, translation=translation,
                 detail_view=detail_view, marked=marked, warning=warning,
                 model_name=model_name, translation_enabled=translation_enabled,
             )
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key not in {'r', 'R'}:
                 confirm_remove = False
             if key in {'q', 'Q'}:
-                return
+                return 'quit', browse_items
             if key == '\x03':
                 raise KeyboardInterrupt
             if key == '\x1b':
-                return BACK_TO_SELECTOR
+                return BACK_TO_SELECTOR, browse_items
             if key == '\x1b[C':
                 warning = ""
                 if index < len(questions) - 1:
@@ -727,7 +783,7 @@ def review_questions(deck, config, selected_set):
                 if show_translation:
                     show_translation = False
                     continue
-                translation = translated_question(q)
+                translation = _translated_options(q, options)
                 if translation is None:
                     warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
                     continue
@@ -738,30 +794,32 @@ def review_questions(deck, config, selected_set):
                 warning = ""
                 continue
             if key in {'r', 'R'}:
-                if selected_set.input_is_index:
-                    if not confirm_remove:
-                        confirm_remove = True
-                        warning = "再次按 r 确认移除，其他按键取消。"
-                        continue
-                    if engine.remove_from_active_index(selected_set, chapter, q):
-                        questions.pop(index)
-                        if not questions:
-                            return
-                        index = min(index, len(questions) - 1)
-                        detail_view = default_detail_view(questions[index][1])
-                        warning = "已从索引中移除。"
-                        confirm_remove = False
-                        continue
-                    warning = "未找到可移除的索引记录。"
+                if not confirm_remove:
+                    confirm_remove = True
+                    warning = _remove_confirm_warning(selected_set)
                     continue
-                warning = "当前输入不是索引文件，不能移除。"
+                if _remove_question_from_selected_source(deck, selected_set, chapter, q):
+                    questions.pop(index)
+                    browse_items.pop(index)
+                    if not questions:
+                        return 'done', browse_items
+                    index = min(index, len(questions) - 1)
+                    detail_view = default_detail_view(questions[index][1])
+                    warning = "已从索引中移除。" if selected_set.input_is_index else "已从 tiku 题库删除。"
+                    confirm_remove = False
+                    continue
+                warning = (
+                    "未找到可移除的 wrong/review 索引记录。"
+                    if selected_set.input_is_index else
+                    "未找到可从 tiku 删除的题目。"
+                )
                 continue
 
             def render_current(ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
                 marked_now = engine.is_marked(deck, chapter, q)
                 render_review_question(
                     index, len(questions), chapter, q,
-                    show_translation=show_translation, translation=translation,
+                    options=options, show_translation=show_translation, translation=translation,
                     detail_view=detail_view, marked=marked_now, warning=warning,
                     model_name=model_name, translation_enabled=translation_enabled,
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
@@ -882,6 +940,8 @@ def deck_picker(config):
             rows = _filter_rows(all_rows, name_index, query)
             _render_deck_picker(rows, index, query, config.default_deck)
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
             if key == '\x03':
                 raise KeyboardInterrupt
             if key == '\x1b':
@@ -989,11 +1049,14 @@ def entry_menu(config, deck, *, resume=None):
         print("flip: 交互菜单需要 tty。使用 `flip deck <slug> train` 等子命令。")
         return None
 
-    modes = [
+    modes = []
+    if resume is None and store.load_session(deck):
+        modes.append(("Continue", "继续上次练习"))
+    modes.extend([
         ("Train", "章节题库训练"),
         ("Review", "错题索引复习"),
         ("List", "全局学习统计"),
-    ]
+    ])
     if resume is not None:
         mode_index, ans_mode, filters = resume
     else:
@@ -1001,6 +1064,8 @@ def entry_menu(config, deck, *, resume=None):
         ans_mode = False
         filters = []
     selector = None
+    warning = ""
+    confirm_clear_count = False
     old_settings = save_tty()
     try:
         enter_alt_screen()
@@ -1020,8 +1085,12 @@ def entry_menu(config, deck, *, resume=None):
                 if confirmed:
                     selector = next_selector
         while True:
-            _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters)
+            _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters, warning=warning)
             key = read_key()
+            if key == RESIZE_KEY:
+                continue
+            if key not in {'c', 'C'}:
+                confirm_clear_count = False
             if key in {'q', 'Q', '\x1b'}:
                 return None
             if key == '\x03':
@@ -1044,8 +1113,29 @@ def entry_menu(config, deck, *, resume=None):
             if key == '4':
                 ans_mode = not ans_mode
                 continue
+            if key == '5':
+                _cycle_max_display_options(deck)
+                warning = ""
+                continue
+            if key in {'c', 'C'}:
+                name = modes[mode_index][0]
+                if name not in {"Train", "Review", "List"}:
+                    warning = "当前模式没有可清空的刷题次数。"
+                    continue
+                mode = {"Train": "train", "Review": "review", "List": "all"}[name]
+                label = "全局" if mode == "all" else name
+                if not confirm_clear_count:
+                    confirm_clear_count = True
+                    warning = f"再次按 c 清空 {label} 的刷题次数；不会删除题库或错题。"
+                    continue
+                store.clear_history_mode(deck, mode)
+                warning = f"已清空 {label} 的刷题次数。"
+                confirm_clear_count = False
+                continue
             if key in {'\r', '\n'}:
                 name = modes[mode_index][0]
+                if name == "Continue":
+                    return "continue", None, False, []
                 if name == "List":
                     _run_stats_loop(deck, config)
                     continue
@@ -1063,9 +1153,9 @@ def entry_menu(config, deck, *, resume=None):
         exit_alt_screen()
 
 
-def _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters):
+def _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters, warning=""):
     from .tui.render import (
-        DIM_COLOR, RESET_COLOR, SELECTED_COLOR,
+        DIM_COLOR, RESET_COLOR, SELECTED_COLOR, WRONG_COLOR,
     )
     from . import store
     filter_set = set(filters)
@@ -1081,11 +1171,22 @@ def _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters):
         print(SELECTED_COLOR + line + RESET_COLOR if i == mode_index
               else DIM_COLOR + line + RESET_COLOR)
     print()
-    print("  " + DIM_COLOR + "↑/↓ 选择模式,Enter 进入,1-4 切换配置,Esc/q 返回选 deck" + RESET_COLOR)
+    print("  " + DIM_COLOR + "↑/↓ 选择模式,Enter 进入,1-5 切换配置,c 清空当前模式次数,Esc/q 返回选 deck" + RESET_COLOR)
     print("  1", _opt_state("mark" in filter_set), "包含已标记")
     print("  2", _opt_state("note" in filter_set), "包含笔记")
     print("  3", _opt_state("ai" in filter_set), "包含 Agent Said")
     print("  4", _opt_state(ans_mode), "Ans 模式(直接显示答案,不计分)")
+    print("  5", _opt_state(True), f"最多显示选项: {deck.max_display_options}")
+    if warning:
+        print()
+        print("  " + WRONG_COLOR + warning + RESET_COLOR)
+
+
+def _cycle_max_display_options(deck):
+    max_options = max(DEFAULT_MAX_DISPLAY_OPTIONS, len(deck.answer_alphabet))
+    current = deck.max_display_options
+    next_value = current + 1 if current < max_options else DEFAULT_MAX_DISPLAY_OPTIONS
+    save_max_display_options(deck, next_value)
 
 
 def _opt_state(on):
@@ -1166,6 +1267,8 @@ def _edit_selector(selector, mode_name, deck=None, config=None):
                                wrong_per_chapter, drills_per_chapter,
                                max_total, cursor, selected, buffer)
         key = read_key()
+        if key == RESIZE_KEY:
+            continue
         if key == '\x03':
             raise KeyboardInterrupt
         if key == '\x1b':
@@ -1312,11 +1415,245 @@ def _run_stats_loop(deck, config):
     while True:
         render_stats(deck, config)
         key = read_key()
+        if key == RESIZE_KEY:
+            continue
         if key in {'q', 'Q'}:
             return None
         if key in {'\r', '\n', '\x1b'}:
             break
     return None
+
+
+def _summary_item(deck, item):
+    q = item["question"]
+    return {
+        "chapter": item["chapter"],
+        "question": q,
+        "options": _options(q, deck),
+        "selected_answer": item.get("selected_answer", ""),
+        "is_correct": item.get("is_correct", False),
+    }
+
+
+def _scored_summary(deck, *, mode_label, selector, total, history):
+    wrong_items = [_summary_item(deck, item) for item in history if not item.get("is_correct")]
+    incorrect = len(wrong_items)
+    return {
+        "kind": "scored",
+        "mode": mode_label,
+        "label": selector if selector is not None else "全部",
+        "total": total,
+        "correct": max(0, total - incorrect),
+        "incorrect": incorrect,
+        "wrong_items": wrong_items,
+    }
+
+
+def _browse_summary(*, mode_label, selector, browse_items):
+    return {
+        "kind": "browse",
+        "mode": mode_label,
+        "label": selector if selector is not None else "全部",
+        "total": len(browse_items),
+        "browse_items": browse_items,
+    }
+
+
+def _run_session_summary_loop(deck, config, summary):
+    if not sys.stdin.isatty():
+        render_session_summary(summary)
+        return None
+    old_settings = save_tty()
+    try:
+        enter_alt_screen()
+        enter_cbreak()
+        while True:
+            render_session_summary(summary)
+            key = read_key()
+            if key == RESIZE_KEY:
+                continue
+            if key in {'\r', '\n', '\x1b', 'q', 'Q'}:
+                return None
+            if key in {'v', 'V'}:
+                items = summary.get("wrong_items") if summary.get("kind") == "scored" else summary.get("browse_items")
+                if items:
+                    _run_session_item_list(summary, list(items))
+                    summary.pop("warning", None)
+                else:
+                    summary["warning"] = "本轮无错题。" if summary.get("kind") == "scored" else "本轮无浏览记录。"
+    finally:
+        restore_tty(old_settings)
+        exit_alt_screen()
+
+
+def _run_session_item_list(summary, items):
+    cursor = 0
+    title = "本轮错题" if summary.get("kind") == "scored" else "本轮浏览"
+    while True:
+        render_session_item_list(title, items, cursor)
+        key = read_key()
+        if key == RESIZE_KEY:
+            continue
+        if key in {'\r', '\n', '\x1b', 'q', 'Q'}:
+            return
+        if key == '\x1b[A':
+            cursor = (cursor - 1) % len(items)
+            continue
+        if key == '\x1b[B':
+            cursor = (cursor + 1) % len(items)
+            continue
+
+
+def _save_session_checkpoint(deck, selected, *, source, ans_mode, selector,
+                             filters, mode, history):
+    questions = [
+        {"chapter": str(chapter), "key": engine.question_key(chapter, q)}
+        for chapter, q in selected.questions
+    ]
+    answered = []
+    for item in history:
+        chapter = str(item["chapter"])
+        q = item["question"]
+        answered.append({
+            "count": item.get("count", len(answered) + 1),
+            "chapter": chapter,
+            "key": engine.question_key(chapter, q),
+            "raw_input": item.get("raw_input", item.get("selected_answer", "")),
+            "selected_answer": item.get("selected_answer", ""),
+            "is_correct": bool(item.get("is_correct")),
+        })
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    store.save_session(deck, {
+        "status": "paused",
+        "source": source,
+        "ans_mode": bool(ans_mode),
+        "selector": selector,
+        "filters": list(filters or []),
+        "mode": mode,
+        "questions": questions,
+        "cursor": len(answered),
+        "answered": answered,
+        "updated_at": now,
+    })
+
+
+def _restore_session_run(deck):
+    session = store.load_session(deck)
+    if not session:
+        return None
+    tiku_index = engine.build_tiku_index(deck)
+    questions = []
+    for ref in session.get("questions", []):
+        key = ref.get("key") if isinstance(ref, dict) else None
+        if key in tiku_index:
+            questions.append(tiku_index[key])
+    if not questions:
+        return None
+
+    history = []
+    incorrects = []
+    for item in session.get("answered", []):
+        if not isinstance(item, dict):
+            continue
+        key = item.get("key")
+        if key not in tiku_index:
+            continue
+        chapter, q = tiku_index[key]
+        raw_input = item.get("raw_input", item.get("selected_answer", ""))
+        is_correct = bool(item.get("is_correct"))
+        history_item = {
+            "count": item.get("count", len(history) + 1),
+            "chapter": chapter,
+            "question": q,
+            "raw_input": raw_input,
+            "selected_answer": item.get("selected_answer", ""),
+            "is_correct": is_correct,
+        }
+        history.append(history_item)
+        if not is_correct:
+            incorrects.append(engine.incorrect_record(chapter, q, raw_input, deck.answer_alphabet))
+
+    source = session.get("source", "tiku")
+    selected = engine.SelectedSet(questions, input_is_index=(source == "wrong"))
+    start_index = min(len(history), len(questions))
+    return {
+        "session": session,
+        "selected": selected,
+        "source": source,
+        "ans_mode": bool(session.get("ans_mode")),
+        "selector": session.get("selector"),
+        "filters": list(session.get("filters") or []),
+        "mode": session.get("mode") or ("review" if source == "wrong" else "train"),
+        "start_index": start_index,
+        "history": history,
+        "incorrects": incorrects,
+    }
+
+
+def _run_scored_session(deck, config, selected, *, source, mode_label, selector,
+                        filters, start_index=0, history=None, incorrects=None):
+    history = list(history or [])
+    incorrects = list(incorrects or [])
+    _save_session_checkpoint(
+        deck, selected, source=source, ans_mode=False, selector=selector,
+        filters=filters, mode=mode_label, history=history,
+    )
+
+    def on_progress(progress_history):
+        _save_session_checkpoint(
+            deck, selected, source=source, ans_mode=False, selector=selector,
+            filters=filters, mode=mode_label, history=progress_history,
+        )
+
+    count, incorrects, status, history = epoch(
+        deck, config, selected,
+        start_index=start_index,
+        history=history,
+        incorrect=incorrects,
+        on_progress=on_progress,
+    )
+    if status == BACK_TO_SELECTOR:
+        return BACK_TO_SELECTOR
+    if status == 'quit':
+        _write_wrong_report(deck, selected, incorrects)
+        return 0
+
+    _write_wrong_report(deck, selected, incorrects)
+    if mode_label != "review" or not incorrects:
+        _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
+    store.clear_session(deck)
+    _run_session_summary_loop(
+        deck, config,
+        _scored_summary(
+            deck,
+            mode_label=mode_label,
+            selector=selector,
+            total=count - 1,
+            history=history,
+        ),
+    )
+    return 0
+
+
+def run_continue(deck, config):
+    restored = _restore_session_run(deck)
+    if restored is None:
+        store.clear_session(deck)
+        print("没有可继续的练习。")
+        return 0
+    if restored["ans_mode"]:
+        print("当前仅支持继续计分练习。")
+        return 0
+    return _run_scored_session(
+        deck, config, restored["selected"],
+        source=restored["source"],
+        mode_label=restored["mode"],
+        selector=restored["selector"],
+        filters=restored["filters"],
+        start_index=restored["start_index"],
+        history=restored["history"],
+        incorrects=restored["incorrects"],
+    )
 
 
 def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=None):
@@ -1342,35 +1679,53 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     # Train+ans and Review+ans record under their respective entry modes.
     mode_label = "train" if source == "tiku" else "review"
     if ans_mode:
-        outcome = review_questions(deck, config, selected)
-        if outcome == BACK_TO_SELECTOR:
+        status, browse_items = review_questions(deck, config, selected)
+        if status == BACK_TO_SELECTOR:
             return BACK_TO_SELECTOR
+        if status == 'quit':
+            return 0
+        if mode_label == "review":
+            _run_session_summary_loop(
+                deck, config,
+                _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
+            )
+            return 0
         # Browse mode doesn't score, so incorrect=0; still counts as a drill
         # so the user sees the chapter was visited.
         _record_drill(deck, selected, total=len(selected.questions),
                       incorrect=0, mode=mode_label)
+        _run_session_summary_loop(
+            deck, config,
+            _browse_summary(mode_label=mode_label, selector=selector, browse_items=browse_items),
+        )
         return 0
 
-    count, incorrects, status = epoch(deck, config, selected)
-    if status == BACK_TO_SELECTOR:
-        return BACK_TO_SELECTOR
+    return _run_scored_session(
+        deck, config, selected,
+        source=source,
+        mode_label=mode_label,
+        selector=selector,
+        filters=filters,
+    )
 
-    alphabet = deck.answer_alphabet
-    print("============== Report ==============")
-    label = selector if selector is not None else "全部"
-    print(f"- Deck: {deck.name}, 范围 {label}, 源 {source}")
-    print(f"- Epoch Finished, \033[1;31m{len(incorrects)} / {count - 1}\033[0m incorrects.")
+
+def _write_wrong_report(deck, selected, incorrects):
     if selected.input_is_index:
-        print("- Source index unchanged (review-on-wrong writes no new file).")
-    else:
-        out = store.build_result_filename(selected.questions, deck)
-        disp = store.relative_to_cwd(out)
-        print(f"- Next epoch: \033[1;33m{disp}\033[0m")
-        store.write_json(out, incorrects)
-    print("====================================")
-    # A completed training run (not BACK_TO_SELECTOR) counts as a drill.
-    _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
-    return 0
+        return
+    out = store.build_result_filename(selected.questions, deck)
+    existing = store.read_json(out, default=[])
+    if not isinstance(existing, list):
+        existing = []
+    merged = []
+    seen = set()
+    for record in existing + list(incorrects or []):
+        key = record.get("key") if isinstance(record, dict) else None
+        if not key or key in seen:
+            continue
+        merged.append(record)
+        seen.add(key)
+    if merged:
+        store.write_json(out, merged)
 
 
 def _record_drill(deck, selected, *, total, incorrect, mode):

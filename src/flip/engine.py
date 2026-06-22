@@ -4,7 +4,7 @@ Behavior preserved from se_regressor.py except where deck manifest / global
 config replaces hardcoded assumptions:
 
 - parse_answer takes the deck's answer_alphabet (digits 1..N -> A..N)
-- no hidden E-option filtering; all options are visible
+- TUI option display is capped by deck.max_display_options; data keeps all options
 - translation UI gated by config.translation_enabled
 - AI explanation prompt built from deck.explain
 - all storage resolved through store.* keyed by a Deck
@@ -528,6 +528,49 @@ def remove_from_active_index(selected, chapter, q):
     for path in list(source_files):
         removed = _remove_keys_from_index_file(path, keys) or removed
     return removed
+
+
+def remove_from_tiku(deck, chapter, q):
+    data = store.load_tiku(deck)
+    target_id = question_id(q)
+    target_keys = set(question_keys(chapter, q))
+    removed = False
+    if isinstance(data, dict):
+        qlist = data.get(str(chapter))
+        if not isinstance(qlist, list):
+            return False
+        kept = []
+        for existing in qlist:
+            if target_id and question_id(existing) == target_id:
+                removed = True
+                continue
+            if not target_id and question_key(chapter, existing) in target_keys:
+                removed = True
+                continue
+            kept.append(existing)
+        if removed:
+            data[str(chapter)] = kept
+            store.save_tiku(deck, data)
+        return removed
+    if isinstance(data, list):
+        kept = []
+        for item in data:
+            try:
+                ch, existing = _question_payload(item)
+            except Exception:
+                kept.append(item)
+                continue
+            if str(ch) == str(chapter) and target_id and question_id(existing) == target_id:
+                removed = True
+                continue
+            if str(ch) == str(chapter) and not target_id and question_key(ch, existing) in target_keys:
+                removed = True
+                continue
+            kept.append(item)
+        if removed:
+            store.save_tiku(deck, kept)
+        return removed
+    return False
 
 
 def _remove_keys_from_index_file(path, remove_keys):

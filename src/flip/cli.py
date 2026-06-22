@@ -27,7 +27,7 @@ def main(ctx: typer.Context):
     """flip — terminal quiz trainer."""
     if ctx.invoked_subcommand is None:
         config = load_config()
-        from .engine_loop import deck_picker, entry_menu, run_train, BACK_TO_SELECTOR
+        from .engine_loop import deck_picker, entry_menu, run_continue, run_train, BACK_TO_SELECTOR
         # Two-stage flow: pick a deck, then pick a mode/filters for it.
         # Esc at the mode stage returns here to re-pick a deck; only the deck
         # picker quitting exits flip.
@@ -44,10 +44,16 @@ def main(ctx: typer.Context):
                 if choice is None:
                     break  # back to deck picker
                 mode, selector, ans_mode, filters = choice
-                source = "wrong" if mode == "review" else "tiku"
-                outcome = run_train(deck, config, selector, source=source,
-                                    ans_mode=ans_mode, filters=filters)
+                if mode == "continue":
+                    outcome = run_continue(deck, config)
+                else:
+                    source = "wrong" if mode == "review" else "tiku"
+                    outcome = run_train(deck, config, selector, source=source,
+                                        ans_mode=ans_mode, filters=filters)
                 if outcome == BACK_TO_SELECTOR:
+                    if mode == "continue":
+                        resume = None
+                        continue
                     # Esc pressed: re-enter entry_menu at the chapter picker,
                     # keep mode/ans/filters, clear chapters.
                     mode_index = 0 if mode == "train" else 1
@@ -112,7 +118,7 @@ def _run_deck_train_after_esc(deck, config, mode, ans_mode, filters):
     here with whatever flags the learner last picked. Finishing a run or
     quitting the menu exits flip normally.
     """
-    from .engine_loop import run_train, entry_menu, BACK_TO_SELECTOR
+    from .engine_loop import run_continue, run_train, entry_menu, BACK_TO_SELECTOR
     mode_index = 0 if mode == "train" else 1
     resume = (mode_index, ans_mode, filters)
     while True:
@@ -120,10 +126,16 @@ def _run_deck_train_after_esc(deck, config, mode, ans_mode, filters):
         if choice is None:
             raise typer.Exit(0)
         ch_mode, selector, ch_ans, ch_filters = choice
-        source = "wrong" if ch_mode == "review" else "tiku"
-        outcome = run_train(deck, config, selector, source=source,
-                            ans_mode=ch_ans, filters=ch_filters)
+        if ch_mode == "continue":
+            outcome = run_continue(deck, config)
+        else:
+            source = "wrong" if ch_mode == "review" else "tiku"
+            outcome = run_train(deck, config, selector, source=source,
+                                ans_mode=ch_ans, filters=ch_filters)
         if outcome == BACK_TO_SELECTOR:
+            if ch_mode == "continue":
+                resume = None
+                continue
             mode_index = 0 if ch_mode == "train" else 1
             resume = (mode_index, ch_ans, ch_filters)
             continue
@@ -189,6 +201,14 @@ def deck_review(
         raise typer.Exit(outcome)
 
 
+@deck_app.command("continue")
+def deck_continue(slug: str = typer.Argument(..., help="Deck slug, e.g. `se`.")):
+    """Continue the latest paused scored drill for a deck."""
+    config, deck = _resolve_deck(slug)
+    from .engine_loop import run_continue
+    raise typer.Exit(run_continue(deck, config))
+
+
 @deck_app.command("stats")
 def deck_stats(slug: str = typer.Argument(...)):
     """Show per-chapter distribution for a deck."""
@@ -196,6 +216,25 @@ def deck_stats(slug: str = typer.Argument(...)):
     from .engine_loop import _run_stats_loop
     _run_stats_loop(deck, config)
     raise typer.Exit(0)
+
+
+@deck_app.command("clear-count")
+def deck_clear_count(
+    slug: str = typer.Argument(..., help="Deck slug."),
+    mode: str = typer.Option("all", "--mode", help="train|review|all."),
+):
+    """Clear stored drill-count history for a deck.
+
+    This only updates history.json. It does not touch tiku.json, wrong/ indexes,
+    marked.json, or the paused session checkpoint.
+    """
+    _config, deck = _resolve_deck(slug)
+    mode = (mode or "all").lower()
+    if mode not in {"train", "review", "all"}:
+        _status_echo("mode must be one of: train, review, all", ok=False, err=True)
+        raise typer.Exit(1)
+    store.clear_history_mode(deck, mode)
+    _status_echo(f"cleared {mode} count: {slug}")
 
 
 @deck_app.command("mark")
@@ -450,7 +489,8 @@ def import_cmd(
     source: Path = typer.Argument(..., exists=True,
                                   help="A tiku.json / MCQ .csv/.tsv file, OR a deck "
                                        "directory (must contain tiku.json; optional "
-                                       "marked.json and wrong/ are migrated too)."),
+                                       "marked.json, wrong/, history.json, and "
+                                       "session.json are migrated too)."),
     name: str = typer.Option(None, "--name", help="Display name; defaults to slug."),
     source_lang: str = typer.Option("en", "--source-lang"),
     role: str = typer.Option(None, "--role", help="AI persona; defaults to '<name> 助教'."),
@@ -464,8 +504,9 @@ def import_cmd(
 
     File inputs (json/csv) are validated/converted as before. A *directory*
     input migrates a whole deck folder: its `tiku.json` (required) is
-    validated and copied; `marked.json` and `wrong/`, if present, are copied
-    verbatim so learner history survives the move. The old
+    validated and copied; `marked.json`, `wrong/`, `history.json`, and
+    `session.json`, if present, are copied verbatim so learner state survives
+    the move. The old
     `marked_questions.json` name is not recognized — rename it first.
 
     Extracting a source from PDF/HTML is the flip-deck-init skill's job.
@@ -588,6 +629,10 @@ def import_cmd(
             extra.append("marked.json")
         if report["wrong_files"]:
             extra.append(f"wrong/{report['wrong_files']} file(s)")
+        if report["history"]:
+            extra.append("history.json")
+        if report["session"]:
+            extra.append("session.json")
         if extra:
             typer.echo(f"migrated: {', '.join(extra)}")
         typer.echo(f"manifest: {dest_dir / 'manifest.toml'}")
@@ -610,9 +655,9 @@ def export_cmd(
 ):
     """Bundle a deck into a directory (the inverse of `flip import <dir>`).
 
-    Copies tiku.json, manifest.toml, marked.json (if any), and the whole
-    wrong/ directory. The result can be re-imported on another machine with
-    `flip import <slug> <dir>`.
+    Copies tiku.json, manifest.toml, marked.json (if any), wrong/ (if any),
+    history.json (if any), and session.json (if any). The result can be
+    re-imported on another machine with `flip import <slug> <dir>`.
     """
     config, deck = _resolve_deck(slug)
     from . import store
@@ -629,6 +674,10 @@ def export_cmd(
         parts.append("marked.json")
     if deck.wrong_dir.is_dir():
         parts.append(f"wrong/ ({len(store.wrong_files(deck))} file(s))")
+    if deck.history_path.is_file():
+        parts.append("history.json")
+    if deck.session_path.is_file():
+        parts.append("session.json")
     if parts:
         typer.echo("included: " + ", ".join(parts))
 
@@ -727,6 +776,7 @@ def _build_manifest_text(*, slug, display_name, source_lang, answer_alphabet, ro
         f'slug = "{slug}"\n'
         f'source_lang = "{source_lang}"\n'
         f'answer_alphabet = "{answer_alphabet}"\n'
+        'max_display_options = 4\n'
         '\n'
         '[explain]\n'
         f'role = "{role_text}"\n'

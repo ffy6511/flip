@@ -3,6 +3,7 @@ name = "示例题库"
 slug = "example"
 source_lang = "en"
 answer_alphabet = "ABCDE"
+max_display_options = 4
 
 [explain]
 role = "通用助教"

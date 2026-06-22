@@ -19,6 +19,8 @@ TIKU_NAME = "tiku.json"
 MARKED_NAME = "marked.json"
 WRONG_DIR_NAME = "wrong"
 HISTORY_NAME = "history.json"
+SESSION_NAME = "session.json"
+DEFAULT_MAX_DISPLAY_OPTIONS = 4
 
 
 class DeckError(Exception):
@@ -64,6 +66,7 @@ class Deck:
     path: Path                       # deck directory
     source_lang: str
     answer_alphabet: str = "ABCD"
+    max_display_options: int = DEFAULT_MAX_DISPLAY_OPTIONS
     explain: ExplainConfig = field(default_factory=ExplainConfig)
 
     # ---- derived paths ----
@@ -83,6 +86,10 @@ class Deck:
     @property
     def history_path(self) -> Path:
         return self.path / HISTORY_NAME
+
+    @property
+    def session_path(self) -> Path:
+        return self.path / SESSION_NAME
 
     @property
     def manifest_path(self) -> Path:
@@ -117,6 +124,16 @@ def _validate_alphabet(value: str) -> str:
     return value
 
 
+def _validate_max_display_options(value) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise DeckError(f"max_display_options must be a positive int, got: {value!r}")
+    if parsed <= 0:
+        raise DeckError(f"max_display_options must be positive, got: {parsed}")
+    return parsed
+
+
 def load_deck(deck_dir: Path) -> Deck:
     """Load and validate a deck from its directory.
 
@@ -145,6 +162,9 @@ def load_deck(deck_dir: Path) -> Deck:
     name = deck_table.get("name", "")
     source_lang = deck_table.get("source_lang", "")
     answer_alphabet = _validate_alphabet(deck_table.get("answer_alphabet", "ABCD"))
+    max_display_options = _validate_max_display_options(
+        deck_table.get("max_display_options", DEFAULT_MAX_DISPLAY_OPTIONS)
+    )
 
     if not name:
         raise DeckError(f"[deck].name is required in {manifest_path}")
@@ -177,8 +197,42 @@ def load_deck(deck_dir: Path) -> Deck:
         path=deck_dir,
         source_lang=source_lang,
         answer_alphabet=answer_alphabet,
+        max_display_options=max_display_options,
         explain=explain,
     )
+
+
+def save_max_display_options(deck: Deck, value: int) -> None:
+    """Persist `[deck].max_display_options` while preserving the manifest."""
+    value = _validate_max_display_options(value)
+    path = deck.manifest_path
+    lines = path.read_text(encoding="utf-8").splitlines()
+    wrote = False
+    in_deck = False
+    insert_at = 0
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            if in_deck and not wrote:
+                insert_at = i
+            in_deck = stripped == "[deck]"
+        if in_deck:
+            insert_at = i + 1
+            if stripped.startswith("max_display_options") and "=" in stripped:
+                lines[i] = f"max_display_options = {value}"
+                wrote = True
+                break
+
+    if not wrote:
+        for i, line in enumerate(lines):
+            if line.strip().startswith("answer_alphabet") and "=" in line:
+                insert_at = i + 1
+                break
+        lines.insert(insert_at, f"max_display_options = {value}")
+
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    deck.max_display_options = value
 
 
 def list_decks(decks_root: Path) -> list:
