@@ -584,7 +584,11 @@ def epoch(deck, config, selected_set):
         enter_alt_screen()
         for question in questions:
             chapter, q = question
-            detail_view = default_detail_view(q)
+            # Pre-answer screen must NOT auto-show x/n content (that would
+            # leak the explanation before the learner commits an answer).
+            # Force None here; prompt_answer keeps it None via normalize, and
+            # prompt_result re-derives via default_detail_view to auto-show.
+            detail_view = None
             while True:
                 inpu, show_translation, detail_view = prompt_answer(
                     deck, config, count, len(questions), chapter, q,
@@ -779,7 +783,7 @@ def review_questions(deck, config, selected_set):
 def render_stats(deck, config):
     stats = engine.stats_snapshot(deck)
     from .tui.render import (
-        AI_COLOR, DIM_COLOR, RESET_COLOR, STAT_TOTAL_COLOR,
+        AI_COLOR, DIM_COLOR, DRILL_COLOR, RESET_COLOR, STAT_TOTAL_COLOR,
     )
     clear_screen()
     print("@ 全局统计 —", deck.name)
@@ -803,8 +807,15 @@ def render_stats(deck, config):
         drills = stats.get("drills_per_chapter", {}).get(chapter, 0)
         ratio = wrong / total if total else 0
         bar = _stats_bar(total, wrong, max_total)
-        print("  ch{:<3} {:>3}题 / {:>2}错 {:>5.1%}  {}  [×{}]".format(
-            str(chapter), total, wrong, ratio, bar, drills))
+        # Drill badge: green when nonzero (drilled), dim when zero (never
+        # drilled) so "未刷过" reads as visually secondary, not as loud as
+        # the default text color used for the rest of the line.
+        if drills > 0:
+            drill_badge = f"{DRILL_COLOR}[×{drills}]{RESET_COLOR}"
+        else:
+            drill_badge = f"{DIM_COLOR}[×{drills}]{RESET_COLOR}"
+        print("  ch{:<3} {:>3}题 / {:>2}错 {:>5.1%}  {}  {}".format(
+            str(chapter), total, wrong, ratio, bar, drill_badge))
     print()
     print("  Enter/Esc 返回菜单，q 退出")
 
@@ -1224,7 +1235,7 @@ def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
                            wrong_per_chapter, drills_per_chapter, max_total,
                            cursor, selected, buffer):
     from .tui.render import (
-        DIM_COLOR, RESET_COLOR, SELECTED_COLOR, STAT_TOTAL_COLOR, AI_COLOR,
+        DIM_COLOR, DRILL_COLOR, RESET_COLOR, SELECTED_COLOR, STAT_TOTAL_COLOR, AI_COLOR,
     )
     clear_screen()
     print("@", mode_name, "— 章节选择")
@@ -1239,6 +1250,10 @@ def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
     if not chapters:
         print("  " + DIM_COLOR + "(无章节数据)" + RESET_COLOR)
     else:
+        # The per-line wrapper color (dim vs highlighted) is applied to the
+        # whole line. The drill badge embeds its own green-when-nonzero escape;
+        # to keep the wrapper alive after RESET inside the badge, we re-apply
+        # the wrapper color right after the badge.
         for i, ch in enumerate(chapters):
             total = per_chapter.get(ch, 0)
             wrong = wrong_per_chapter.get(ch, 0)
@@ -1247,9 +1262,13 @@ def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
             mark = "[x]" if ch in selected else "[ ]"
             title = titles.get(ch, "")
             title_field = ("  " + title) if title else ""
-            line = f"  {mark} ch{str(ch):<3} {bar}  {total:>3}题/{wrong:>2}错{title_field}  [×{drills}]"
-            print(SELECTED_COLOR + line + RESET_COLOR if i == cursor
-                  else DIM_COLOR + line + RESET_COLOR)
+            line_color = SELECTED_COLOR if i == cursor else DIM_COLOR
+            if drills > 0:
+                badge = f"{DRILL_COLOR}[×{drills}]{RESET_COLOR}{line_color}"
+            else:
+                badge = f"{DIM_COLOR}[×{drills}]{RESET_COLOR}{line_color}"
+            line = f"  {mark} ch{str(ch):<3} {bar}  {total:>3}题/{wrong:>2}错{title_field}  {badge}"
+            print(line_color + line + RESET_COLOR)
     print()
     print("  " + DIM_COLOR +
           "↑/↓ 移动,空格 切换选中,数字/范围 直接输入,Enter 开始,Esc 返回" +
