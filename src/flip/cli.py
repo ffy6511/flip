@@ -727,6 +727,7 @@ def _build_manifest_text(*, slug, display_name, source_lang, answer_alphabet, ro
         f'slug = "{slug}"\n'
         f'source_lang = "{source_lang}"\n'
         f'answer_alphabet = "{answer_alphabet}"\n'
+        'max_display_options = 4\n'
         '\n'
         '[explain]\n'
         f'role = "{role_text}"\n'

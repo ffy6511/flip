@@ -4,7 +4,7 @@ Behavior preserved from se_regressor.py except where deck manifest / global
 config replaces hardcoded assumptions:
 
 - parse_answer takes the deck's answer_alphabet (digits 1..N -> A..N)
-- no hidden E-option filtering; all options are visible
+- TUI option display is capped by deck.max_display_options; data keeps all options
 - translation UI gated by config.translation_enabled
 - AI explanation prompt built from deck.explain
 - all storage resolved through store.* keyed by a Deck

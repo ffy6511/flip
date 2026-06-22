@@ -283,11 +283,11 @@ def render_result(count, total, chapter, q, options, selected_answer, is_correct
     print_ai_interaction_footer(model_name, ai_prompt_buffer, ai_waiting, note_buffer)
 
 
-def render_review_question(index, total, chapter, q, *, show_translation=False,
+def render_review_question(index, total, chapter, q, *, options=None, show_translation=False,
                            translation=None, detail_view=None, marked=False,
                            warning="", model_name="", translation_enabled=True,
                            ai_prompt_buffer=None, ai_waiting=False, note_buffer=None):
-    options = q.get("options", [])
+    options = list(q.get("options", [])) if options is None else options
     correct_answers = set(q.get('answer', ''))
     clear_screen()
     mark_text = " " + MARK_COLOR + "[MARKED]" + RESET_COLOR if marked else ""

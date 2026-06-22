@@ -64,7 +64,7 @@ All optional fields are **persisted to disk** (not runtime-only). A re-read of `
 
 ## Answer alphabet
 
-`answer` letters come from the deck's `answer_alphabet` (see `deck-manifest.md`). Default `ABCD`. A 5-option question uses `ABCDE`; **`E` is a normal fifth option** — there is no hidden-option suppression in flip (the legacy `E. Both …` SE behavior is intentionally dropped).
+`answer` letters come from the deck's `answer_alphabet` (see `deck-manifest.md`). Default `ABCD`. A 5-option question uses `ABCDE`; **`E` is a normal fifth option**. `max_display_options` only controls how many leading options the TUI shows; it does not remove fields from `tiku.json`.
 
 Multi-select status is derived from `answer`: more than one answer letter means
 multi-select. Keep `topic` as the clean stem text; the TUI appends the `[多选]`

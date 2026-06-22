@@ -69,6 +69,19 @@ def test_selector_set_from_text_uses_engine_chapter_selector():
     ) == {"3", "4", "5"}
 
 
+def test_options_respects_deck_max_display_options(deck):
+    q = {
+        "topic": "t",
+        "options": ["A. a", "B. b", "C. c", "D. d", "E. e"],
+        "answer": "A",
+    }
+
+    assert engine_loop._options(q, deck) == ["A. a", "B. b", "C. c", "D. d"]
+
+    deck.max_display_options = 5
+    assert engine_loop._options(q, deck) == ["A. a", "B. b", "C. c", "D. d", "E. e"]
+
+
 def test_chapter_picker_renders_zero_drill_badge_dim_when_selected(capsys, monkeypatch):
     from flip.tui.render import DIM_COLOR, RESET_COLOR, SELECTED_COLOR
 
@@ -243,3 +256,18 @@ def test_entry_menu_resume_keeps_mode_ans_filters_clears_chapters(deck, config, 
     # First Esc in _edit_selector returns (False, selector) → drops to the
     # mode screen; second Esc at the mode screen returns None.
     assert result is None
+
+
+def test_entry_menu_key_5_persists_deck_max_display_options(deck, config, monkeypatch):
+    _patch_tty(monkeypatch, ["5", "q"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_render_entry_menu", lambda *a, **k: None)
+
+    result = engine_loop.entry_menu(config, deck)
+
+    assert result is None
+    assert deck.max_display_options == 5
+    assert "max_display_options = 5" in deck.manifest_path.read_text(encoding="utf-8")

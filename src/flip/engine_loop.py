@@ -16,7 +16,7 @@ from . import store
 from . import engine
 from . import explain as explain_mod
 from .config import Config
-from .deck import Deck
+from .deck import DEFAULT_MAX_DISPLAY_OPTIONS, Deck, save_max_display_options
 from .tui import (
     read_key, save_tty, restore_tty, enter_cbreak,
     clear_screen, enter_alt_screen, exit_alt_screen,
@@ -35,9 +35,27 @@ from .tui import (
 BACK_TO_SELECTOR = 'back-to-selector'
 
 
-def _options(q):
-    """All options visible — no hidden-E suppression in flip."""
-    return list(q.get("options", []))
+def _options(q, deck=None):
+    options = list(q.get("options", []))
+    if deck is None:
+        return options
+    return options[:deck.max_display_options]
+
+
+def _translated_options(q, options):
+    translation = translated_question(q)
+    if translation is None:
+        return None
+    visible_labels = [choice[:1].upper() for choice in options]
+    by_label = {
+        choice[:1].upper(): choice
+        for choice in translation.get("options", [])
+        if isinstance(choice, str) and choice
+    }
+    return {
+        "topic": translation["topic"],
+        "options": [by_label[label] for label in visible_labels if label in by_label],
+    }
 
 
 def _answer_from_selected(options, selected):
@@ -51,7 +69,7 @@ def _answer_from_selected(options, selected):
 
 def _prompt_ai_extra(deck, chapter, q, render_current):
     buffer = ""
-    options = _options(q)
+    options = _options(q, deck)
     while True:
         render_current(ai_prompt_buffer=buffer)
         key = read_key()
@@ -197,7 +215,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
     The termios tty is put in cbreak for raw key reading and restored in
     `finally` so a Ctrl-C / crash doesn't leave the terminal broken.
     """
-    options = _options(q)
+    options = _options(q, deck)
     alphabet = deck.answer_alphabet
     translation_enabled = config.translation_enabled
     detail_view = normalize_detail_view(q, detail_view)
@@ -205,7 +223,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
     selected = set()
     warning = ""
     confirm_remove = False
-    translation = translated_question(q) if (translation_enabled and show_translation) else None
+    translation = _translated_options(q, options) if (translation_enabled and show_translation) else None
     if translation_enabled and show_translation and translation is None:
         show_translation = False
         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
@@ -271,7 +289,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                     continue
                 show_translation = True
                 if translation is None:
-                    translation = translated_question(q)
+                    translation = _translated_options(q, options)
                     if translation is None:
                         show_translation = False
                         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
@@ -327,11 +345,11 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
     from the question (not inherited) on every entry, the next question starts
     fresh — no stale open state carries over.
     """
-    options = _options(q)
+    options = _options(q, deck)
     translation_enabled = config.translation_enabled
     # default_detail_view (not normalize) so x/n auto-shows when content exists.
     detail_view = default_detail_view(q)
-    translation = translated_question(q) if (translation_enabled and show_translation) else None
+    translation = _translated_options(q, options) if (translation_enabled and show_translation) else None
     if translation_enabled and show_translation and translation is None:
         show_translation = False
         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
@@ -371,7 +389,7 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                     continue
                 show_translation = True
                 if translation is None:
-                    translation = translated_question(q)
+                    translation = _translated_options(q, options)
                     if translation is None:
                         show_translation = False
                         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
@@ -443,9 +461,9 @@ def review_history(deck, config, history, start_index, total, *,
             item = history[index]
             chapter = item["chapter"]
             q = item["question"]
-            options = _options(q)
+            options = _options(q, deck)
             detail_view = normalize_detail_view(q, detail_view)
-            translation = translated_question(q) if (translation_enabled and show_translation) else None
+            translation = _translated_options(q, options) if (translation_enabled and show_translation) else None
             marked = engine.is_marked(deck, chapter, q)
             footer = "←/→ 后退/前进, Enter 返回当前" + \
                 (", t 中文" if translation_enabled else "") + \
@@ -495,7 +513,7 @@ def review_history(deck, config, history, start_index, total, *,
                     continue
                 show_translation = True
                 if translation is None:
-                    translation = translated_question(q)
+                    translation = _translated_options(q, options)
                     if translation is None:
                         show_translation = False
                         warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
@@ -687,13 +705,13 @@ def review_questions(deck, config, selected_set):
         enter_cbreak()
         while True:
             chapter, q = questions[index]
-            options = _options(q)
+            options = _options(q, deck)
             detail_view = normalize_detail_view(q, detail_view)
-            translation = translated_question(q) if (translation_enabled and show_translation) else None
+            translation = _translated_options(q, options) if (translation_enabled and show_translation) else None
             marked = engine.is_marked(deck, chapter, q)
             render_review_question(
                 index, len(questions), chapter, q,
-                show_translation=show_translation, translation=translation,
+                options=options, show_translation=show_translation, translation=translation,
                 detail_view=detail_view, marked=marked, warning=warning,
                 model_name=model_name, translation_enabled=translation_enabled,
             )
@@ -727,7 +745,7 @@ def review_questions(deck, config, selected_set):
                 if show_translation:
                     show_translation = False
                     continue
-                translation = translated_question(q)
+                translation = _translated_options(q, options)
                 if translation is None:
                     warning = f"题库缺少 {config.target_lang} 字段，请先运行：flip deck {deck.slug} translate"
                     continue
@@ -761,7 +779,7 @@ def review_questions(deck, config, selected_set):
                 marked_now = engine.is_marked(deck, chapter, q)
                 render_review_question(
                     index, len(questions), chapter, q,
-                    show_translation=show_translation, translation=translation,
+                    options=options, show_translation=show_translation, translation=translation,
                     detail_view=detail_view, marked=marked_now, warning=warning,
                     model_name=model_name, translation_enabled=translation_enabled,
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
@@ -1044,6 +1062,9 @@ def entry_menu(config, deck, *, resume=None):
             if key == '4':
                 ans_mode = not ans_mode
                 continue
+            if key == '5':
+                _cycle_max_display_options(deck)
+                continue
             if key in {'\r', '\n'}:
                 name = modes[mode_index][0]
                 if name == "List":
@@ -1081,11 +1102,19 @@ def _render_entry_menu(deck, modes, mode_index, selector, ans_mode, filters):
         print(SELECTED_COLOR + line + RESET_COLOR if i == mode_index
               else DIM_COLOR + line + RESET_COLOR)
     print()
-    print("  " + DIM_COLOR + "↑/↓ 选择模式,Enter 进入,1-4 切换配置,Esc/q 返回选 deck" + RESET_COLOR)
+    print("  " + DIM_COLOR + "↑/↓ 选择模式,Enter 进入,1-5 切换配置,Esc/q 返回选 deck" + RESET_COLOR)
     print("  1", _opt_state("mark" in filter_set), "包含已标记")
     print("  2", _opt_state("note" in filter_set), "包含笔记")
     print("  3", _opt_state("ai" in filter_set), "包含 Agent Said")
     print("  4", _opt_state(ans_mode), "Ans 模式(直接显示答案,不计分)")
+    print("  5", _opt_state(True), f"最多显示选项: {deck.max_display_options}")
+
+
+def _cycle_max_display_options(deck):
+    max_options = max(DEFAULT_MAX_DISPLAY_OPTIONS, len(deck.answer_alphabet))
+    current = deck.max_display_options
+    next_value = current + 1 if current < max_options else DEFAULT_MAX_DISPLAY_OPTIONS
+    save_max_display_options(deck, next_value)
 
 
 def _opt_state(on):

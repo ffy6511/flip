@@ -9,6 +9,7 @@ class TestLoadDeck:
         assert deck.name == "示例题库"
         assert deck.source_lang == "en"
         assert deck.answer_alphabet == "ABCDE"
+        assert deck.max_display_options == 4
 
     def test_paths_resolve(self, deck):
         assert deck.tiku_path.name == "tiku.json"
@@ -19,6 +20,20 @@ class TestLoadDeck:
     def test_explain_config(self, deck):
         assert deck.explain.role == "通用助教"
         assert deck.explain.max_chars == 200
+
+    def test_loads_max_display_options(self, tmp_path):
+        (tmp_path / "deck").mkdir()
+        (tmp_path / "deck" / "manifest.toml").write_text(
+            '[deck]\nname = "Deck"\nslug = "deck"\nsource_lang = "en"\n'
+            'answer_alphabet = "ABCDEFG"\n'
+            'max_display_options = 6\n\n'
+            '[explain]\nrole = "r"\n',
+            encoding="utf-8",
+        )
+
+        deck = load_deck(tmp_path / "deck")
+
+        assert deck.max_display_options == 6
 
 
 class TestLoadDeckValidation:

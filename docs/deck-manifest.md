@@ -14,6 +14,7 @@ name = "软件工程"          # human-readable subject name
 slug = "se"               # == directory name; used in `flip deck <verb> se`
 source_lang = "en"        # source language of topic/options; compared against global target_lang
 answer_alphabet = "ABCDE" # max option letters across this deck
+max_display_options = 4   # TUI displays at most this many options; default 4
 
 [explain]
 role = "软件工程课程助教"   # injected into the AI explanation prompt
@@ -30,6 +31,7 @@ model_env = "CODEX_EXPLAIN_MODEL"  # env var name; if set, overrides default_mod
 | `slug`            | string | yes      | Directory name and CLI identifier. Must match `[a-z0-9-]+`. |
 | `source_lang`     | string | yes      | Language code of the raw `topic`/`options`. Translation is enabled only if `source_lang != config.target_lang`. |
 | `answer_alphabet` | string | no       | Default `"ABCD"`. Letters that may appear in `answer`. Length drives `parse_answer`'s digit mapping (`1..N → A..`). |
+| `max_display_options` | int | no | Default `4`. TUI question/result/review screens display only the first N options. `tiku.json` still stores all options. |
 
 ## `[explain]` fields
 
@@ -102,4 +104,5 @@ commented out — uncomment it to opt into the accelerated preset.
 1. `slug` must match the directory name.
 2. `[deck].name`, `[deck].slug`, `[deck].source_lang`, `[explain].role` are required — missing any raises a load error.
 3. `answer_alphabet`, if present, must be uppercase ASCII letters, no duplicates.
-4. Unknown top-level tables/keys are ignored but logged as a warning (forward-compat).
+4. `max_display_options`, if present, must be a positive integer.
+5. Unknown top-level tables/keys are ignored but logged as a warning (forward-compat).
