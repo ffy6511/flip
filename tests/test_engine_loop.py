@@ -313,7 +313,7 @@ def test_render_stats_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch,
     assert "题目总数: 100" in out
     assert "题量 / 错题分布:" not in out
     assert "黄色" in out and "错题" in out and "[×N]" in out
-    assert "快速定位: e.g. 输入 5 + enter" in out
+    assert "search:" in out and "输入章节号后回车跳转" in out
     assert "  ch1 " not in out
     assert "  ch12" in out
 
