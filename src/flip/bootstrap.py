@@ -91,6 +91,45 @@ def update_bundled(slug: str, decks_dir: Path):
     Creates a full-deck backup under <home>/backups/<slug>-update-<stamp>/ via
     store.export_deck. Returns the MergeResult from the merge step.
     """
+    spec = BUNDLED_DECK_SPECS[slug]
+    decks_dir = Path(decks_dir)
+    deck_dir = decks_dir / slug
+    if not deck_dir.is_dir():
+        raise FileNotFoundError(f"deck not installed: {deck_dir}")
+
+    bundled_tiku = json.loads(_read_bundled_tiku_text(slug))
+    return _apply_incoming(
+        slug,
+        decks_dir,
+        bundled_tiku,
+        spec.get("content_version", "0"),
+        backup_op="update",
+    )
+
+
+def switch_bundled(slug: str, decks_dir: Path, backup_path) -> object:
+    spec = BUNDLED_DECK_SPECS[slug]
+    decks_dir = Path(decks_dir)
+    backup_path = Path(backup_path)
+    if not backup_path.is_dir():
+        raise FileNotFoundError(f"backup not found: {backup_path}")
+    incoming_tiku = json.loads((backup_path / "tiku.json").read_text(encoding="utf-8"))
+    incoming_version = _backup_meta(backup_path).get("content_version", "未知")
+    if incoming_version == "未知":
+        incoming_version = _read_local_version(backup_path)
+    return _apply_incoming(
+        slug,
+        decks_dir,
+        incoming_tiku,
+        incoming_version or "0",
+        backup_op="switch",
+        deck_name=spec["name"],
+        source_lang=spec["source_lang"],
+    )
+
+
+def _apply_incoming(slug: str, decks_dir: Path, incoming_tiku: dict, incoming_version: str,
+                    *, backup_op: str, deck_name: str | None = None, source_lang: str | None = None):
     from .merge import merge_tiku
 
     spec = BUNDLED_DECK_SPECS[slug]
@@ -98,16 +137,26 @@ def update_bundled(slug: str, decks_dir: Path):
     deck_dir = decks_dir / slug
     if not deck_dir.is_dir():
         raise FileNotFoundError(f"deck not installed: {deck_dir}")
+    deck = Deck(
+        slug=slug,
+        name=deck_name or spec["name"],
+        path=deck_dir,
+        source_lang=source_lang or spec["source_lang"],
+    )
+    current_version = _read_local_version(deck_dir)
 
-    deck = Deck(slug=slug, name=spec["name"], path=deck_dir,
-                source_lang=spec["source_lang"])
-
-    # Backup the whole deck dir before touching anything (mirrors flip deck merge).
-    backup_dir = decks_dir.parent / "backups" / f"{slug}-update-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    backup_dir, stamp = _backup_dir_for(decks_dir.parent / "backups", slug, backup_op)
     store.export_deck(deck, backup_dir)
+    _write_backup_meta(
+        backup_dir,
+        slug=slug,
+        content_version=current_version,
+        op=backup_op,
+        timestamp=stamp,
+    )
 
     local_tiku = store.load_tiku(deck) or {}
-    bundled_tiku = json.loads(_read_bundled_tiku_text(slug))
+    bundled_tiku = deepcopy(incoming_tiku)
 
     # Update-policy note preservation: the bundled deck always ships a
     # maintainer user_note (the explanation), so the default upsert rule
@@ -136,7 +185,7 @@ def update_bundled(slug: str, decks_dir: Path):
     if manifest_path.exists():
         manifest_path.write_text(
             _bump_manifest_version(manifest_path.read_text(encoding="utf-8"),
-                                   spec.get("content_version", "0")),
+                                   incoming_version),
             encoding="utf-8",
         )
 
@@ -144,6 +193,64 @@ def update_bundled(slug: str, decks_dir: Path):
     result.unmigrated = unmigrated  # type: ignore[attr-defined]
     result.backup_dir = str(backup_dir)  # type: ignore[attr-defined]
     return result
+
+
+def _backup_dir_for(backup_root: Path, slug: str, op: str):
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    return backup_root / f"{slug}-{op}-{stamp}", stamp
+
+
+def _write_backup_meta(backup_dir: Path, *, slug: str, content_version: str, op: str, timestamp: str) -> None:
+    (Path(backup_dir) / "meta.json").write_text(
+        json.dumps({
+            "slug": slug,
+            "content_version": str(content_version or "0"),
+            "op": op,
+            "timestamp": timestamp,
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _backup_meta(path: Path) -> dict:
+    meta_path = Path(path) / "meta.json"
+    if not meta_path.exists():
+        return {
+            "slug": Path(path).name.split("-", 1)[0],
+            "content_version": "未知",
+            "op": "unknown",
+            "timestamp": Path(path).name.rsplit("-", 1)[-1],
+        }
+    try:
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (ValueError, TypeError):
+        data = {}
+    return {
+        "slug": str(data.get("slug") or Path(path).name.split("-", 1)[0]),
+        "content_version": str(data.get("content_version") or "未知"),
+        "op": str(data.get("op") or "unknown"),
+        "timestamp": str(data.get("timestamp") or Path(path).name.rsplit("-", 1)[-1]),
+    }
+
+
+def list_backups(decks_dir: Path, slug: str) -> list[dict]:
+    backup_root = Path(decks_dir).parent / "backups"
+    if not backup_root.is_dir():
+        return []
+    entries = []
+    for path in backup_root.glob(f"{slug}-*"):
+        if not path.is_dir():
+            continue
+        meta = _backup_meta(path)
+        entries.append({
+            "path": str(path),
+            "content_version": meta["content_version"],
+            "op": meta["op"],
+            "timestamp": meta["timestamp"],
+            "name": path.name,
+        })
+    entries.sort(key=lambda item: item["timestamp"], reverse=True)
+    return entries
 
 
 def _read_local_version(deck_dir: Path) -> str:

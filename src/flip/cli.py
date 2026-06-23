@@ -305,6 +305,7 @@ def deck_merge(
     import datetime
 
     config, deck = _resolve_deck(slug)
+    from . import bootstrap
     from . import engine as _engine
     from . import store as _store
     from .merge import POLICIES, merge_tiku
@@ -351,6 +352,13 @@ def deck_merge(
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         backup_dir = config.home / "backups" / f"{slug}-deck-{stamp}"
         _store.export_deck(deck, backup_dir)
+        bootstrap._write_backup_meta(
+            backup_dir,
+            slug=slug,
+            content_version=deck.content_version,
+            op="merge",
+            timestamp=stamp,
+        )
         typer.echo(f"backup: {backup_dir}")
 
     _store.save_tiku(deck, result.data)
@@ -479,6 +487,13 @@ def deck_prune(
 
     backup_dir = config.home / "backups" / f"{slug}-prune-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
     _store.export_deck(deck, backup_dir)
+    bootstrap._write_backup_meta(
+        backup_dir,
+        slug=slug,
+        content_version=deck.content_version,
+        op="prune",
+        timestamp=backup_dir.name.rsplit("-", 1)[-1],
+    )
     typer.echo(f"backup: {backup_dir}")
 
     keep_ids = bundled_ids | {_engine.question_id(q) for _, q in _engine.iter_question_records(local)
@@ -518,6 +533,59 @@ def deck_gen_changelog(
         raise typer.Exit(1)
     typer.echo(text)
     _status_echo(f"appended changelog entry for {slug}")
+
+
+@deck_app.command("versions")
+def deck_versions(
+    slug: str = typer.Argument(..., help="Bundled deck slug."),
+):
+    """List historical versions from backups and switch to one."""
+    from . import bootstrap
+
+    config, deck = _resolve_deck(slug)
+    if slug not in bootstrap.BUNDLED_DECK_SPECS:
+        _status_echo(f"{slug!r} is not a bundled deck", ok=False, err=True)
+        raise typer.Exit(1)
+
+    backups = bootstrap.list_backups(config.decks_dir, slug)
+    typer.echo(f"current: content_version={deck.content_version}")
+    if not backups:
+        _status_echo(f"no backups available for {slug}", ok=False, err=True)
+        raise typer.Exit(1)
+    typer.echo("available backups:")
+    for i, item in enumerate(backups, start=1):
+        typer.echo(
+            f"  {i}. version={item['content_version']} op={item['op']} "
+            f"time={item['timestamp']} ({item['name']})"
+        )
+    choice = typer.prompt("Pick a backup to switch to", type=int)
+    if choice < 1 or choice > len(backups):
+        _status_echo("invalid backup selection", ok=False, err=True)
+        raise typer.Exit(1)
+
+    result = bootstrap.switch_bundled(slug, config.decks_dir, backups[choice - 1]["path"])
+    typer.echo(f"backup: {result.backup_dir}")
+    _status_echo(
+        "switch preview: "
+        f"added={result.added}, updated={result.updated}, skipped={result.skipped}, "
+        f"assigned_ids={result.assigned_ids}, conflicts={len(result.conflicts)}",
+        ok=not result.conflicts,
+    )
+    if result.conflicts:
+        _status_echo("conflicts:", ok=False, err=True)
+        for conflict in result.conflicts[:20]:
+            typer.echo(f"  {conflict}", err=True)
+    if result.unmigrated:
+        _status_echo(
+            f"{len(result.unmigrated)} question(s) could not be migrated to new ids "
+            "(content changed across versions); their history is orphaned:",
+            ok=False,
+            err=True,
+        )
+        for chapter, qid, topic in result.unmigrated[:20]:
+            typer.echo(f"  chapter {chapter}: id={qid}, topic={topic!r}", err=True)
+    current_version = bootstrap._read_local_version(config.decks_dir / slug)
+    _status_echo(f"switched deck {slug} to content_version={current_version}")
 
 
 @deck_app.command("repair")

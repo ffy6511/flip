@@ -137,3 +137,51 @@ def test_deck_gen_changelog_appends_entry(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "## [2] -" in result.output
     assert "appended changelog entry for demo" in result.output
+
+
+def test_deck_versions_cli_switches(tmp_path, monkeypatch):
+    home = tmp_path / "flip_home"
+    decks_dir = home / "decks"
+    monkeypatch.setenv("FLIP_HOME", str(home))
+
+    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
+        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "2",
+    })
+    monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
+                        lambda _slug: json.dumps({"1": [
+                            {"id": "q-1", "topic": "new topic", "options": ["A. x"], "answer": "A"},
+                        ]}, ensure_ascii=False))
+    bootstrap.install_bundled("demo", decks_dir)
+
+    backup_dir = home / "backups" / "demo-update-20260623-120000"
+    backup_dir.mkdir(parents=True)
+    (backup_dir / "tiku.json").write_text(
+        json.dumps({"1": [
+            {"id": "q-1", "topic": "old topic", "options": ["A. x"], "answer": "A", "user_note": "maintainer"},
+        ]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (backup_dir / "manifest.toml").write_text(
+        '[deck]\nname = "Demo"\nslug = "demo"\nsource_lang = "en"\n'
+        'answer_alphabet = "ABCD"\nmax_display_options = 4\n'
+        'content_version = "1"\n\n[explain]\nrole = "demo"\nmax_chars = 200\n',
+        encoding="utf-8",
+    )
+    (backup_dir / "meta.json").write_text(
+        json.dumps({"slug": "demo", "content_version": "1", "op": "update", "timestamp": "20260623-120000"}),
+        encoding="utf-8",
+    )
+
+    from flip.deck import load_deck
+    deck = load_deck(decks_dir / "demo")
+    tiku = store.load_tiku(deck)
+    tiku["1"][0]["user_note"] = "MINE"
+    store.save_tiku(deck, tiku)
+
+    result = CliRunner().invoke(app, ["deck", "versions", "demo"], input="1\n")
+
+    assert result.exit_code == 0, result.output
+    assert "switched deck demo to content_version=1" in result.output
+    deck2 = load_deck(decks_dir / "demo")
+    assert deck2.content_version == "1"
+    assert store.load_tiku(deck2)["1"][0]["user_note"] == "MINE"

@@ -9,8 +9,8 @@ No TUI loops here — those live in tests/test_engine_loop.py.
 """
 
 import json
-
 import shutil
+from pathlib import Path
 
 from flip import bootstrap, store
 from flip.deck import load_deck
@@ -171,6 +171,10 @@ def test_update_bundled_preserves_mark_and_note_across_topic_edit(tmp_path, monk
     assert revised["user_note"] == "MY NOTE"    # personal note preserved (not clobbered by upstream)
     assert revised["topic"] == "old topic [fixed]"  # topic update applied
     assert result.updated >= 1
+    backup_meta = json.loads((Path(result.backup_dir) / "meta.json").read_text(encoding="utf-8"))
+    assert backup_meta["slug"] == slug
+    assert backup_meta["content_version"] == "1"
+    assert backup_meta["op"] == "update"
 
 
 def test_update_bundled_migrates_legacy_positional_ids(tmp_path, monkeypatch):
@@ -336,3 +340,72 @@ def test_read_changelog_parses_versions(tmp_path, monkeypatch):
     assert [entry["version"] for entry in entries] == ["2", "1"]
     assert entries[0]["diff"][0]["id"] == "q-1"
     assert entries[1]["diff"] is None
+
+
+def test_list_backups_reads_meta_json(tmp_path):
+    backup_root = tmp_path / "backups"
+    first = backup_root / "demo-update-20260623-120000"
+    second = backup_root / "demo-prune-20260623-130000"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    (first / "meta.json").write_text(
+        json.dumps({"slug": "demo", "content_version": "1", "op": "update", "timestamp": "20260623-120000"}),
+        encoding="utf-8",
+    )
+    (second / "meta.json").write_text(
+        json.dumps({"slug": "demo", "content_version": "2", "op": "prune", "timestamp": "20260623-130000"}),
+        encoding="utf-8",
+    )
+
+    backups = bootstrap.list_backups(tmp_path / "decks", "demo")
+
+    assert [item["content_version"] for item in backups] == ["2", "1"]
+    assert backups[0]["op"] == "prune"
+    assert backups[0]["path"].endswith("demo-prune-20260623-130000")
+
+
+def test_list_backups_handles_missing_meta(tmp_path):
+    backup_root = tmp_path / "backups"
+    path = backup_root / "demo-update-20260623-120000"
+    path.mkdir(parents=True)
+
+    backups = bootstrap.list_backups(tmp_path / "decks", "demo")
+
+    assert len(backups) == 1
+    assert backups[0]["content_version"] == "未知"
+    assert backups[0]["op"] == "unknown"
+
+
+def test_switch_bundled_restores_old_version_preserving_notes(tmp_path, monkeypatch):
+    decks_dir = tmp_path / "decks"
+    slug = _install_fake_bundled(
+        monkeypatch,
+        decks_dir,
+        questions=[{"id": "q-1", "topic": "new topic", "options": ["A. x"], "answer": "A"}],
+        version="2",
+    )
+    deck = load_deck(decks_dir / slug)
+    local = store.load_tiku(deck)
+    local["1"][0]["user_note"] = "MY NOTE"
+    store.save_tiku(deck, local)
+
+    backup_dir = tmp_path / "backups" / "demo-update-20260623-120000"
+    backup_dir.mkdir(parents=True)
+    (backup_dir / "tiku.json").write_text(
+        json.dumps({"1": [{"id": "q-1", "topic": "old topic", "options": ["A. x"], "answer": "A", "user_note": "maintainer"}]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    _write_min_manifest(backup_dir, slug="demo", version="1")
+    (backup_dir / "meta.json").write_text(
+        json.dumps({"slug": "demo", "content_version": "1", "op": "update", "timestamp": "20260623-120000"}),
+        encoding="utf-8",
+    )
+
+    result = bootstrap.switch_bundled("demo", decks_dir, backup_dir)
+
+    deck2 = load_deck(decks_dir / slug)
+    tiku2 = store.load_tiku(deck2)
+    assert deck2.content_version == "1"
+    assert tiku2["1"][0]["topic"] == "old topic"
+    assert tiku2["1"][0]["user_note"] == "MY NOTE"
+    assert result.updated >= 1
