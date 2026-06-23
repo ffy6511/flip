@@ -496,6 +496,28 @@ def test_bootstrap_tab_c_key_shows_changelog(capsys, monkeypatch, tmp_path):
     assert "更新 1 题" in out
 
 
+def test_markdown_lines_render_heading_and_bullets():
+    lines = engine_loop._markdown_lines("# Title\n\n- item `code`", 40)
+
+    assert any("Title" in line for line in lines)
+    assert any("• item" in line for line in lines)
+    assert any("code" in line for line in lines)
+
+
+def test_changelog_view_scrolls_down(capsys, monkeypatch):
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 8, raising=False)
+    _patch_tty(monkeypatch, ["G", "q"])
+
+    text = "\n".join(f"- line {i}" for i in range(1, 9))
+
+    engine_loop._view_changelog("demo", text)
+
+    out = capsys.readouterr().out
+    assert "line 1" in out
+    assert "line 8" in out
+
+
 def test_render_stats_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch, deck, config):
     monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
     monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 14, raising=False)

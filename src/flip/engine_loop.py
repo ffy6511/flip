@@ -10,6 +10,7 @@ the example deck.
 """
 
 import datetime
+import re
 import shutil
 import sys
 
@@ -1191,10 +1192,7 @@ def deck_picker(config):
                 if key in {'c', 'C'} and boot_items:
                     slug = boot_items[boot_index]["slug"]
                     changelog_text = bootstrap.read_changelog(slug)
-                    _render_changelog_view(slug, changelog_text)
-                    wait_key = read_key()
-                    if wait_key == '\x03':
-                        raise KeyboardInterrupt
+                    _view_changelog(slug, changelog_text)
                     continue
                 # Any other key cancels a pending confirm.
                 if boot_confirming:
@@ -1318,7 +1316,109 @@ def _render_bootstrap_picker(items, cursor, selected, warning, confirming):
     print("  " + DIM_COLOR + hint + RESET_COLOR)
 
 
-def _render_changelog_view(slug, changelog_text):
+def _style_inline_code(text):
+    from .tui.render import AI_COLOR, RESET_COLOR
+
+    def repl(match):
+        return AI_COLOR + match.group(1) + RESET_COLOR
+
+    return re.sub(r"`([^`]+)`", repl, text)
+
+
+def _markdown_lines(text, width):
+    from .tui.render import ACTIVE_COLOR, AI_COLOR, DIM_COLOR, RESET_COLOR, SELECTED_COLOR, wrap_text
+
+    width = max(20, width)
+    out = []
+    in_code = False
+    for raw in str(text).splitlines():
+        line = raw.rstrip()
+        if line.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code:
+            for wrapped in wrap_text(line or " ", max(1, width - 4)):
+                out.append("    " + DIM_COLOR + wrapped + RESET_COLOR)
+            continue
+        if not line:
+            out.append("")
+            continue
+        if line.startswith("# "):
+            for wrapped in wrap_text(line[2:].strip(), width):
+                out.append(SELECTED_COLOR + wrapped + RESET_COLOR)
+            continue
+        if line.startswith("## "):
+            for wrapped in wrap_text(line[3:].strip(), width):
+                out.append(AI_COLOR + wrapped + RESET_COLOR)
+            continue
+        if line.startswith("### "):
+            for wrapped in wrap_text(line[4:].strip(), width):
+                out.append(ACTIVE_COLOR + wrapped + RESET_COLOR)
+            continue
+        if line.startswith("> "):
+            wrapped_lines = wrap_text(_style_inline_code(line[2:].strip()), max(1, width - 4))
+            for i, wrapped in enumerate(wrapped_lines):
+                prefix = "│ " if i == 0 else "  "
+                out.append(DIM_COLOR + prefix + wrapped + RESET_COLOR)
+            continue
+        bullet_match = re.match(r"^(\s*)([-*])\s+(.*)$", line)
+        if bullet_match:
+            base_indent = " " * len(bullet_match.group(1))
+            wrapped_lines = wrap_text(_style_inline_code(bullet_match.group(3)), max(1, width - len(base_indent) - 4))
+            for i, wrapped in enumerate(wrapped_lines):
+                prefix = base_indent + ("• " if i == 0 else "  ")
+                out.append(prefix + wrapped)
+            continue
+        number_match = re.match(r"^(\s*)(\d+\.)\s+(.*)$", line)
+        if number_match:
+            base_indent = " " * len(number_match.group(1))
+            marker = number_match.group(2)
+            wrapped_lines = wrap_text(_style_inline_code(number_match.group(3)), max(1, width - len(base_indent) - len(marker) - 1))
+            for i, wrapped in enumerate(wrapped_lines):
+                prefix = base_indent + (marker + " " if i == 0 else " " * (len(marker) + 1))
+                out.append(prefix + wrapped)
+            continue
+        for wrapped in wrap_text(_style_inline_code(line), width):
+            out.append(wrapped)
+    return out or [""]
+
+
+def _view_changelog(slug, changelog_text):
+    scroll = 0
+    while True:
+        _render_changelog_view(slug, changelog_text, scroll=scroll)
+        rendered_lines = _markdown_lines(str(changelog_text), max(20, shutil.get_terminal_size((80, 24)).columns - 4))
+        viewport = max(1, _terminal_height() - 7)
+        max_scroll = max(0, len(rendered_lines) - viewport)
+        key = read_key()
+        if key == RESIZE_KEY:
+            scroll = min(scroll, max_scroll)
+            continue
+        if key == '\x03':
+            raise KeyboardInterrupt
+        if key in {'\x1b', 'q', 'Q', '\r', '\n'}:
+            return
+        if key in {'\x1b[A', 'k', 'K'}:
+            scroll = max(0, scroll - 1)
+            continue
+        if key in {'\x1b[B', 'j', 'J'}:
+            scroll = min(max_scroll, scroll + 1)
+            continue
+        if key in {'g'}:
+            scroll = 0
+            continue
+        if key in {'G'}:
+            scroll = max_scroll
+            continue
+        if key in {'d', 'D', ' '}:
+            scroll = min(max_scroll, scroll + max(1, viewport // 2))
+            continue
+        if key in {'u', 'U', 'b', 'B'}:
+            scroll = max(0, scroll - max(1, viewport // 2))
+            continue
+
+
+def _render_changelog_view(slug, changelog_text, *, scroll=0):
     from .tui.render import DIM_COLOR, RESET_COLOR
 
     clear_screen()
@@ -1330,10 +1430,14 @@ def _render_changelog_view(slug, changelog_text):
     if not str(changelog_text).strip():
         print("  " + DIM_COLOR + "(暂无 changelog)" + RESET_COLOR)
     else:
-        for line in str(changelog_text).splitlines():
+        rendered_lines = _markdown_lines(str(changelog_text), max(20, shutil.get_terminal_size((80, 24)).columns - 4))
+        viewport = max(1, _terminal_height() - 7)
+        start = max(0, min(scroll, max(0, len(rendered_lines) - viewport)))
+        end = min(len(rendered_lines), start + viewport)
+        for line in rendered_lines[start:end]:
             print("  " + line if line else "")
     print()
-    print("  " + DIM_COLOR + "按任意键返回 Bootstrap" + RESET_COLOR)
+    print("  " + DIM_COLOR + "↑/↓ 滚动, j/k 滚动, 空格/d 下翻, b/u 上翻, g/G 首尾, Esc/q 返回" + RESET_COLOR)
 
 
 def _table_widths(rows):
