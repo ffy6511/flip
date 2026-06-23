@@ -787,13 +787,13 @@
         "D. What do you plan to accomplish be the next team meeting?"
       ],
       "answer": "C",
-      "user_note": "每日Scrum会议关注三个核心问题:你昨天做了什么？你今天准备做什么？你遇到了什么障碍？选项 B和C都问\"你遇到了什么障碍？\",内容重复.每日Scrum不会重复提问,因此C不是每日Scrum需要单独提问的问题.",
+      "user_note": "每日 Scrum 会议通常围绕三个核心问题展开：自上次会议以来做了什么、下次会议前计划做什么、当前遇到了哪些障碍。选项 C 问的是“这些问题产生的原因是什么”，它要求进一步做根因分析，不属于 daily Scrum 的标准三问，因此 C 不是该会议上的关键问题。",
       "zh": {
         "topic": "8. 以下哪一项不是每位团队成员在每日Scrum会议上需要回答的关键问题？",
         "options": [
           "A. 自上次会议以来你做了什么？",
           "B. 你遇到了哪些障碍？",
-          "C. 你遇到了哪些障碍？",
+          "C. 这些问题产生的原因是什么？",
           "D. 你计划在下次团队会议前完成什么？"
         ]
       },
@@ -939,8 +939,8 @@
         "D. Unclear definition of team roles",
         "E. a, b, d"
       ],
-      "answer": "ABD",
-      "user_note": "A\"紧张忙乱的工作氛围\"会增加压力,容易引发成员间摩擦；B\"预算不足\"让团队无法获得必要资源, 增加矛盾和不满；D\"团队角色定义不清\"会导致职责混乱、争执频发,这三项都会直接影响团队合作氛围.C\"软件过程协调不佳\"主要影响项目进度和质量,是流程问题,不一定直接导致团队成员间的毒性氛围.",
+      "answer": "ACD",
+      "user_note": "按课程 PPT 的语境,本题更应选 ACD。课件在 Avoid Team Toxicity 中明确列出 frenzied work atmosphere、fragmented or poorly coordinated procedures、unclear definition of roles。这里先不把 B 计入最终答案。",
       "zh": {
         "topic": "5. 下列哪些因素可能导致团队毒性？",
         "options": [
@@ -1652,8 +1652,8 @@
         "A. True",
         "B. False"
       ],
-      "answer": "B",
-      "user_note": "requirements validation(需求验证)主要检查需求是否正确、完整、一致、可理解,以及是否满足用户需求,不涉及技术可行性的评估.技术可行性通常在需求分析后、系统设计前的可行性研究阶段进行. 因此,题目中关于需求验证确保技术可行性的说法是错误的.",
+      "answer": "A",
+      "user_note": "本题更合理的答案是 A。课程材料在 requirements validation 部分明确把“不现实/不可实现的需求”列为检查对象，并进一步写到要看是否能在目标技术环境中实现，因此技术可行性属于验证时要复核的内容。",
       "zh": {
         "topic": "18. 在需求验证中,会对需求模型进行评审,以确保其技术可行性。",
         "options": [
@@ -7857,8 +7857,8 @@
         "D. test data",
         "E. All of the above."
       ],
-      "answer": "ABCD",
-      "user_note": "软件配置项(Software Configuration Items, SCI)是指在软件开发中需要管理和控制的对象,包括源代码、文档、可执行程序、测试数据等.CASE工具(A)、文档(B)、可执行程序(C)、测试数据(D)在实际项目中都可以作为配置项进行管理,所以四项都是有效的软件配置项.",
+      "answer": "BCD",
+      "user_note": "按课程 PPT 的口径,本题更合理的答案是 BCD。课件把 software configuration items 直接列为 programs、documents、data；tools 则在 SCM elements 中单独出现，更像管理 SCI 的元素，而不是 SCI 本体。",
       "zh": {
         "topic": "1. 以下哪些是有效的软件配置项？",
         "options": [
@@ -8131,8 +8131,8 @@
         "D. politics",
         "E. a, b, c"
       ],
-      "answer": "ABC",
-      "user_note": "内容(content)是指应用中展示和处理的信息；成本(cost)涉及开发、部署和维护所需的资源；人员(people)包括开发、测试和运维等相关人员配置,这些都是开发Web和移动应用时必须考虑的配置因素.政治(politics)有时会影响项目,但通常不属于技术配置问题,因此不选D.",
+      "answer": "ACD",
+      "user_note": "按课程 PPT 的主项分类,本题更接近 ACD。课件列出的是 Content、People、Scalability、Politics；当前题面漏掉了 scalability，而把 cost 放成了并列主项，因此这里只能近似修正为 ACD。",
       "zh": {
         "topic": "15. 开发Web和移动应用时需要考虑的配置问题包括:",
         "options": [
@@ -8902,8 +8902,8 @@
         "D. software process model",
         "E. b and c"
       ],
-      "answer": "BC",
-      "user_note": "项目范围界定(project scoping)活动中,问题分解的主要领域包括要交付的功能(B),即软件需实现的功能,是范围界定的核心内容,以及交付功能所用的过程(C),即开发这些功能所采用的具体过程,这也是范围界定时需明确的问题.A(客户工作流程)和D(软件过程模型)虽然相关,但不是在范围界定时直接需要分解的主要领域.",
+      "answer": "B",
+      "user_note": "按课程 PPT 的表述,本题更应选 B。problem decomposition 在 project scoping 中更直接对应 constituent functions / functionality to be delivered；The Process 是后续单列讨论的部分，不应直接并入这里的答案。",
       "zh": {
         "topic": "14. 在项目范围界定活动中,问题分解的主要领域是",
         "options": [
