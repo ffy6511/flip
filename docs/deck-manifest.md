@@ -32,6 +32,7 @@ model_env = "CODEX_EXPLAIN_MODEL"  # env var name; if set, overrides default_mod
 | `source_lang`     | string | yes      | Language code of the raw `topic`/`options`. Translation is enabled only if `source_lang != config.target_lang`. |
 | `answer_alphabet` | string | no       | Default `"ABCD"`. Letters that may appear in `answer`. Length drives `parse_answer`'s digit mapping (`1..N → A..`). |
 | `max_display_options` | int | no | Default `4`. TUI question/result/review screens display only the first N options. `tiku.json` still stores all options. |
+| `content_version` | string | no | Default `"0"` (unknown / pre-versioning). Monotonic content version of the tiku data; bundled decks bump it on each upstream change so the Bootstrap tab can offer an in-place update. A non-bundled deck can leave it unset. |
 
 ## `[explain]` fields
 

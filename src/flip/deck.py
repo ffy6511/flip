@@ -68,6 +68,12 @@ class Deck:
     answer_alphabet: str = "ABCD"
     max_display_options: int = DEFAULT_MAX_DISPLAY_OPTIONS
     explain: ExplainConfig = field(default_factory=ExplainConfig)
+    # Content version of the deck's tiku data, tracked so bundled decks can
+    # detect upstream updates. "0" means "unknown / pre-versioning" — older
+    # decks without this field in manifest.toml load as "0", which is older
+    # than any shipped bundled version, so the first bundled update triggers
+    # the legacy-id migration. See docs/deck-manifest.md.
+    content_version: str = "0"
 
     # ---- derived paths ----
 
@@ -165,6 +171,7 @@ def load_deck(deck_dir: Path) -> Deck:
     max_display_options = _validate_max_display_options(
         deck_table.get("max_display_options", DEFAULT_MAX_DISPLAY_OPTIONS)
     )
+    content_version = str(deck_table.get("content_version", "0")).strip() or "0"
 
     if not name:
         raise DeckError(f"[deck].name is required in {manifest_path}")
@@ -199,6 +206,7 @@ def load_deck(deck_dir: Path) -> Deck:
         answer_alphabet=answer_alphabet,
         max_display_options=max_display_options,
         explain=explain,
+        content_version=content_version,
     )
 
 
