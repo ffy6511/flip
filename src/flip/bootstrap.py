@@ -467,14 +467,12 @@ def _read_bundled_metadata(slug: str) -> dict:
     data = load_toml(_bundled_file_path(slug, "metadata.toml"))
     deck = data.get("deck", {})
     explain = data.get("explain", {})
-    changelog = data.get("changelog", {})
     return {
         "slug": str(deck.get("slug", slug)),
         "name": str(deck.get("name", slug)),
         "source_lang": str(deck.get("source_lang", "en")),
         "role": str(explain.get("role", "")),
         "content_version": str(deck.get("content_version", "0")).strip() or "0",
-        "changelog_file": str(changelog.get("file", "CHANGELOG.md")),
     }
 
 
@@ -483,7 +481,7 @@ def _read_bundled_tiku_text(slug: str) -> str:
 
 
 def read_changelog(slug: str) -> str:
-    return _read_bundled_text(slug, _read_bundled_metadata(slug)["changelog_file"])
+    return _read_bundled_text(slug, "CHANGELOG.md")
 
 
 def _detect_alphabet_from_tiku(data):

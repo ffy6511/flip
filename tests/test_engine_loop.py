@@ -242,7 +242,6 @@ def _install_fake_bootstrap_deck(monkeypatch, decks_dir, *, version="1", topic="
         "source_lang": "en",
         "role": "软件工程助教",
         "content_version": version,
-        "changelog_file": "CHANGELOG.md",
     })
     monkeypatch.setattr(
         bootstrap,
@@ -416,7 +415,6 @@ def test_bootstrap_tab_shows_updateable_deck(capsys, monkeypatch, tmp_path):
         "source_lang": "en",
         "role": "软件工程助教",
         "content_version": "2",
-        "changelog_file": "CHANGELOG.md",
     })
 
     engine_loop.deck_picker(config)
@@ -456,7 +454,6 @@ def test_bootstrap_tab_enter_updates_and_refreshes(capsys, monkeypatch, tmp_path
         "source_lang": "en",
         "role": "软件工程助教",
         "content_version": "2",
-        "changelog_file": "CHANGELOG.md",
     })
 
     engine_loop.deck_picker(config)
@@ -490,7 +487,6 @@ def test_bootstrap_tab_c_key_shows_changelog(capsys, monkeypatch, tmp_path):
         "source_lang": "en",
         "role": "软件工程助教",
         "content_version": "2",
-        "changelog_file": "CHANGELOG.md",
     })
 
     engine_loop.deck_picker(config)

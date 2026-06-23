@@ -107,7 +107,6 @@ def _install_fake_bundled(monkeypatch, decks_dir, *, questions, version="1",
         "source_lang": source_lang,
         "role": role,
         "content_version": version,
-        "changelog_file": "CHANGELOG.md",
     })
     monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
                         lambda _slug: json.dumps(tiku, ensure_ascii=False))
@@ -139,7 +138,6 @@ def test_updatable_bundled_decks_detects_version_diff(tmp_path, monkeypatch):
         "source_lang": "en",
         "role": "demo",
         "content_version": "2",
-        "changelog_file": "CHANGELOG.md",
     })
     upd = bootstrap.updatable_bundled_decks(decks_dir)
     assert len(upd) == 1
@@ -176,7 +174,6 @@ def test_update_bundled_preserves_mark_and_note_across_topic_edit(tmp_path, monk
         "source_lang": "en",
         "role": "demo",
         "content_version": "2",
-        "changelog_file": "CHANGELOG.md",
     })
 
     result = bootstrap.update_bundled(slug, decks_dir)
@@ -222,7 +219,6 @@ def test_update_bundled_migrates_legacy_positional_ids(tmp_path, monkeypatch):
         "source_lang": "en",
         "role": "demo",
         "content_version": "1",
-        "changelog_file": "CHANGELOG.md",
     })
     monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
                         lambda _slug: json.dumps({"1": [
@@ -264,7 +260,6 @@ def test_update_bundled_reports_unmigrated_when_content_changed(tmp_path, monkey
         "source_lang": "en",
         "role": "demo",
         "content_version": "1",
-        "changelog_file": "CHANGELOG.md",
     })
     # Bundled ships the same id-slot but DIFFERENT content -> no content-key match.
     monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
@@ -283,8 +278,8 @@ def test_read_bundled_metadata_reads_current_version_and_role(tmp_path, monkeypa
     slug_dir = root / "bundled_decks" / "demo"
     slug_dir.mkdir(parents=True)
     (slug_dir / "metadata.toml").write_text(
-        '[deck]\nname = "Demo"\nslug = "demo"\nsource_lang = "en"\ncontent_version = "v1.1"\n\n'
-        '[explain]\nrole = "demo"\n\n[changelog]\nfile = "CHANGELOG.md"\n',
+        '[deck]\nname = "Demo"\nslug = "demo"\nsource_lang = "en"\ncontent_version = "1.1"\n\n'
+        '[explain]\nrole = "demo"\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
@@ -292,9 +287,8 @@ def test_read_bundled_metadata_reads_current_version_and_role(tmp_path, monkeypa
     meta = bootstrap._read_bundled_metadata("demo")
 
     assert meta["slug"] == "demo"
-    assert meta["content_version"] == "v1.1"
+    assert meta["content_version"] == "1.1"
     assert meta["role"] == "demo"
-    assert meta["changelog_file"] == "CHANGELOG.md"
 
 
 def test_read_changelog_returns_manual_text(tmp_path, monkeypatch):
@@ -302,25 +296,25 @@ def test_read_changelog_returns_manual_text(tmp_path, monkeypatch):
     slug_dir = root / "bundled_decks" / "demo"
     slug_dir.mkdir(parents=True)
     (slug_dir / "metadata.toml").write_text(
-        '[deck]\nname = "Demo"\nslug = "demo"\nsource_lang = "en"\ncontent_version = "v1.1"\n\n'
-        '[explain]\nrole = "demo"\n\n[changelog]\nfile = "CHANGELOG.md"\n',
+        '[deck]\nname = "Demo"\nslug = "demo"\nsource_lang = "en"\ncontent_version = "1.1"\n\n'
+        '[explain]\nrole = "demo"\n',
         encoding="utf-8",
     )
     (slug_dir / "CHANGELOG.md").write_text(
-        "# Changelog — Demo\n\n## v1.1\n\n修正 2 道题答案。\n",
+        "# Changelog — Demo\n\n## 1.1\n\n修正 2 道题答案。\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
 
     text = bootstrap.read_changelog("demo")
 
-    assert "## v1.1" in text
+    assert "## 1.1" in text
     assert "修正 2 道题答案" in text
 
 
 def test_version_lt_supports_semver_like_strings():
-    assert bootstrap._version_lt("v1.1", "v1.2") is True
-    assert bootstrap._version_lt("v1.10", "v1.2") is False
+    assert bootstrap._version_lt("1.1", "1.2") is True
+    assert bootstrap._version_lt("1.10", "1.2") is False
     assert bootstrap._version_lt("2", "v1.9") is False
 
 

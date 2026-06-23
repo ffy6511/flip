@@ -16,7 +16,6 @@ def _patch_demo_bundled(monkeypatch, *, version="1", name="Demo", source_lang="e
         "source_lang": source_lang,
         "role": role,
         "content_version": version,
-        "changelog_file": "CHANGELOG.md",
     })
 
 
