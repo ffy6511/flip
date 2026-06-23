@@ -261,6 +261,11 @@ def which_backend(config: ExplainConfig):
     Used by `flip config` to tell users whether their backend is on PATH.
     Honors the `argv` list when set, otherwise the `command` template.
     """
+    # Placeholder path substituted into {outfile}; only argv[0] is read, so the
+    # actual location is irrelevant — but use a platform-neutral tempdir token
+    # rather than a hardcoded "/tmp" so the probe doesn't leak a Unix-ism.
+    import tempfile
+    _probe_outfile = str(Path(tempfile.gettempdir()) / "__flip_probe__")
     try:
         if config.uses_argv():
             # argv[0] is the executable; placeholders don't affect it in
@@ -268,14 +273,14 @@ def which_backend(config: ExplainConfig):
             # so a leading {model} token still resolves cleanly.
             argv = _substitute_placeholders(
                 config.argv, prompt="__probe__", model=config.model,
-                outfile="/tmp/__probe__",
+                outfile=_probe_outfile,
             )
         else:
             rendered = render_command(
                 config.command,
                 prompt="__probe__",
                 model=config.model,
-                outfile="/tmp/__probe__",
+                outfile=_probe_outfile,
             )
             argv = shlex.split(rendered)
         return argv[0] if argv else None

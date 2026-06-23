@@ -2051,7 +2051,7 @@ def _record_drill(deck, selected, *, total, incorrect, mode):
 def run_translate(deck, config, selector=None, force=False):
     if not config.translation_enabled:
         print(f"翻译未启用：source_lang == target_lang ({config.source_lang} == {config.target_lang})。")
-        print("编辑 ~/.local/share/flip/config.toml 设置不同的语言对后重试。")
+        print(f"编辑 {config.config_path} 设置不同的语言对后重试。")
         return 1
     data = store.load_tiku(deck)
     if data is None:

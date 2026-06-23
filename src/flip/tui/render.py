@@ -96,16 +96,46 @@ def print_wrapped(prefix, text, *, continuation_prefix=None, color=""):
 
 # ---- screen control ----
 
+# On Windows 10+ the console supports ANSI/Virtual-Terminal sequences, but
+# they're disabled by default. We flip the ENABLE_VIRTUAL_TERMINAL_PROCESSING
+# flag once, on the first screen-control call. On Unix (and on any Windows
+# build where the API is unavailable) this is a harmless no-op. Doing it here
+# — rather than at import time — means non-TUI commands (`flip list`, `flip
+# config`) that never emit escape codes don't poke the console at all.
+_vt_enabled = False
+
+
+def _enable_vt_if_needed():
+    global _vt_enabled
+    if _vt_enabled:
+        return
+    _vt_enabled = True
+    import sys
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        from ctypes import windll  # type: ignore[import-not-found]
+        # STD_OUTPUT_HANDLE = -11; ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x4
+        h = windll.kernel32.GetStdHandle(-11)
+        mode = windll.kernel32.GetConsoleMode(h)
+        windll.kernel32.SetConsoleMode(h, mode | 0x4)
+    except Exception:  # pragma: no cover - older Windows / no console
+        pass
+
+
 def clear_screen():
+    _enable_vt_if_needed()
     print("\033[H\033[J", end="", flush=True)
 
 
 def enter_alt_screen():
+    _enable_vt_if_needed()
     print("\033[?1049h\033[?25l", end="", flush=True)
     clear_screen()
 
 
 def exit_alt_screen():
+    _enable_vt_if_needed()
     print("\033[?25h\033[?1049l", end="", flush=True)
 
 

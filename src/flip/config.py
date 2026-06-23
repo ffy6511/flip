@@ -16,8 +16,37 @@ from pathlib import Path
 from ._toml import load_toml
 
 
-DEFAULT_HOME = Path.home() / ".local" / "share" / "flip"
 DEFAULT_CONFIG_NAME = "config.toml"
+
+
+def _default_home() -> Path:
+    """Platform-appropriate flip data directory (no env var honored here).
+
+    Unix-like systems keep the XDG-style ``~/.local/share/flip`` so existing
+    installs keep their data. Windows uses ``%APPDATA%\\flip`` (the standard
+    per-user app data location). Falls back to the XDG path when the OS
+    doesn't expose a better convention (e.g. headless servers, unknown OS).
+
+    ``$FLIP_HOME`` still wins over everything; callers honor it via the
+    ``home``/``env_home`` args of load_config rather than reading it here.
+    """
+    import sys
+    if sys.platform.startswith("win"):
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            return Path(appdata) / "flip"
+        # No APPDATA (edge case): fall through to the XDG-style default so
+        # flip still has a writable home under the user profile.
+        return Path.home() / "AppData" / "Roaming" / "flip"
+    # macOS and Linux: preserve the original location byte-for-byte.
+    return Path.home() / ".local" / "share" / "flip"
+
+
+# Materialized once at import time so existing call sites that read this
+# constant (and tests that compare against it) keep working. The underlying
+# _default_home() helper is what new code should call when it needs to
+# re-resolve after an env change.
+DEFAULT_HOME = _default_home()
 
 # Default command template matches the legacy hardcoded codex invocation.
 # Kept here (not in deck.py) so users editing config see what's available.

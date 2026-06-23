@@ -19,27 +19,38 @@
 
 ## 安装
 
-**从源码安装(pipx):**
+**pipx(所有平台推荐):**
 
 ```bash
-# 还没有 pipx 的话先装
-brew install pipx
+# macOS / Linux:先装 pipx(若已有可跳过)
+brew install pipx                 # macOS/Linux
+# Windows:用 PowerShell 装 pipx(若已有可跳过)
+python -m pip install --user pipx # 需先装 Python 3.9+
+python -m pipx ensurepath         # 让 pipx 注入的命令进入 PATH,之后重开终端生效
+
 pipx install git+https://github.com/ffy6511/flip.git
 ```
 
-
-**Homebrew:**
+**Homebrew(仅 macOS / Linux):**
 
 ```bash
 brew tap ffy6511/tap
 brew install flip
 ```
 
+**测试未发布的分支:**
+
+```bash
+# 直接安装指定分支(例如在 Windows 上验证 Windows 兼容分支):
+pipx install git+https://github.com/ffy6511/flip.git@feat/windows-compat
+pipx reinstall flip               # 分支有新提交后更新
+```
+
 **更新:**
 
 ```bash
-brew update && brew upgrade flip
-pipx upgrade flip
+brew update && brew upgrade flip  # macOS/Linux,Homebrew 安装
+pipx upgrade flip                 # 任意平台,pipx 安装
 ```
 
 **(可选)Cli 配套 Skills**
@@ -57,6 +68,19 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/flip --help
 ```
 
+
+## 支持的平台
+
+flip 是纯 Python,无编译依赖,在以下平台均可运行:
+
+| 平台 | 安装 | 数据目录 |
+|------|------|----------|
+| macOS / Linux | `brew install` 或 `pipx install` | `~/.local/share/flip/` |
+| Windows | `pipx install`(需先装 [pipx](https://pypa.github.io/pipx/)) | `%APPDATA%\flip\` |
+
+> 终端需支持 ANSI 转义序列。Windows 10 及以上默认支持(程序会在首次绘制时自动启用虚拟终端);旧版建议升级或在 Windows Terminal 中运行。
+
+`$FLIP_HOME` 环境变量可覆盖默认数据目录,所有平台一致。
 
 
 ## 快速开始
