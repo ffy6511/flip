@@ -19,25 +19,38 @@ A deck-agnostic terminal quiz trainer. Pick a **deck** (a subject like Software 
 
 ## Install
 
-**Homebrew:**
+**pipx (recommended, all platforms):**
+
+```bash
+# macOS / Linux: install pipx first (skip if you already have it)
+brew install pipx                 # macOS/Linux
+# Windows: install pipx via PowerShell (skip if you already have it)
+python -m pip install --user pipx # requires Python 3.9+
+python -m pipx ensurepath         # put pipx-injected commands on PATH, then reopen the terminal
+
+pipx install git+https://github.com/ffy6511/flip.git
+```
+
+**Homebrew (macOS / Linux only):**
 
 ```bash
 brew tap ffy6511/tap
 brew install flip
 ```
 
-**From source (pipx):**
+**Testing an unreleased branch:**
 
 ```bash
-brew install pipx          # if you don't have pipx yet
-pipx install git+https://github.com/ffy6511/flip.git
+# Install a specific branch directly (e.g. to validate the Windows-compat branch on Windows):
+pipx install git+https://github.com/ffy6511/flip.git@feat/windows-compat
+pipx reinstall flip               # update after new commits land on the branch
 ```
 
 **Upgrade an existing install:**
 
 ```bash
-brew update && brew upgrade flip
-pipx upgrade flip
+brew update && brew upgrade flip  # macOS/Linux, Homebrew install
+pipx upgrade flip                 # any platform, pipx install
 ```
 
 **(Optional) Companion skills for the CLI**
