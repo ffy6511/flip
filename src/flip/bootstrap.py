@@ -59,7 +59,7 @@ def updatable_bundled_decks(decks_dir: Path) -> list[dict]:
     return out
 
 
-def update_bundled(slug: str, decks_dir: Path):
+def update_bundled(slug: str, decks_dir: Path, *, overwrite_notes: bool = False):
     """In-place update of an installed bundled deck to the shipped content.
 
     Preserves per-question history (mark/note/ai_explanation/zh) and the
@@ -90,10 +90,11 @@ def update_bundled(slug: str, decks_dir: Path):
         bundled_tiku,
         spec.get("content_version", "0"),
         backup_op="update",
+        overwrite_notes=overwrite_notes,
     )
 
 
-def switch_bundled(slug: str, decks_dir: Path, backup_path) -> object:
+def switch_bundled(slug: str, decks_dir: Path, backup_path, *, overwrite_notes: bool = False) -> object:
     spec = _read_bundled_metadata(slug)
     decks_dir = Path(decks_dir)
     backup_path = Path(backup_path)
@@ -111,11 +112,13 @@ def switch_bundled(slug: str, decks_dir: Path, backup_path) -> object:
         backup_op="switch",
         deck_name=spec["name"],
         source_lang=spec["source_lang"],
+        overwrite_notes=overwrite_notes,
     )
 
 
 def _apply_incoming(slug: str, decks_dir: Path, incoming_tiku: dict, incoming_version: str,
-                    *, backup_op: str, deck_name: str | None = None, source_lang: str | None = None):
+                    *, backup_op: str, deck_name: str | None = None, source_lang: str | None = None,
+                    overwrite_notes: bool = False):
     from .merge import merge_tiku
 
     spec = _read_bundled_metadata(slug)
@@ -144,15 +147,12 @@ def _apply_incoming(slug: str, decks_dir: Path, incoming_tiku: dict, incoming_ve
     local_tiku = store.load_tiku(deck) or {}
     bundled_tiku = deepcopy(incoming_tiku)
 
-    # Update-policy note preservation: the bundled deck always ships a
-    # maintainer user_note (the explanation), so the default upsert rule
-    # ("incoming non-empty wins") would clobber the user's own notes on every
-    # update. We strip user_note from the incoming payload so merge falls into
-    # its "incoming empty -> preserve local" branch. zh (translation) is left
-    # intact so maintainer translation fixes still propagate.
-    for _, q in engine.iter_question_records(bundled_tiku):
-        if "user_note" in q:
-            q["user_note"] = ""
+    # Default policy preserves the learner's local note. A caller can opt into
+    # overwriting with the bundled/deck note for this one operation.
+    if not overwrite_notes:
+        for _, q in engine.iter_question_records(bundled_tiku):
+            if "user_note" in q:
+                q["user_note"] = ""
 
     # 1) Migrate legacy positional ids to bundled UUIDs (rewrites tiku + indexes).
     id_map, unmigrated = _migrate_legacy_ids(local_tiku, bundled_tiku, slug)

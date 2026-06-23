@@ -193,6 +193,35 @@ def test_update_bundled_preserves_mark_and_note_across_topic_edit(tmp_path, monk
     assert backup_meta["op"] == "update"
 
 
+def test_update_bundled_overwrites_note_when_requested(tmp_path, monkeypatch):
+    decks_dir = tmp_path / "decks"
+    q1 = {"topic": "old topic", "options": ["A. x", "B. y"], "answer": "A"}
+    slug = _install_fake_bundled(monkeypatch, decks_dir, questions=[q1], version="1")
+    deck = load_deck(decks_dir / slug)
+
+    tiku = store.load_tiku(deck)
+    q1_id = tiku["1"][0]["id"]
+    tiku["1"][0]["user_note"] = "MY NOTE"
+    store.save_tiku(deck, tiku)
+
+    monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
+                        lambda _slug: json.dumps({"1": [
+                            {"id": q1_id, "topic": "old topic", "options": ["A. x", "B. y"], "answer": "A", "user_note": "UPSTREAM"},
+                        ]}, ensure_ascii=False))
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": slug,
+        "name": "Demo",
+        "source_lang": "en",
+        "role": "demo",
+        "content_version": "2",
+    })
+
+    bootstrap.update_bundled(slug, decks_dir, overwrite_notes=True)
+
+    deck2 = load_deck(decks_dir / slug)
+    assert store.load_tiku(deck2)["1"][0]["user_note"] == "UPSTREAM"
+
+
 def test_update_bundled_migrates_legacy_positional_ids(tmp_path, monkeypatch):
     """A pre-UUID install (positional ids like demo-1-001) is bridged to UUIDs
     by content key, and wrong-index/marked keys are rewritten so history survives."""
@@ -385,3 +414,34 @@ def test_switch_bundled_restores_old_version_preserving_notes(tmp_path, monkeypa
     assert tiku2["1"][0]["topic"] == "old topic"
     assert tiku2["1"][0]["user_note"] == "MY NOTE"
     assert result.updated >= 1
+
+
+def test_switch_bundled_overwrites_note_when_requested(tmp_path, monkeypatch):
+    decks_dir = tmp_path / "decks"
+    slug = _install_fake_bundled(
+        monkeypatch,
+        decks_dir,
+        questions=[{"id": "q-1", "topic": "new topic", "options": ["A. x"], "answer": "A"}],
+        version="2",
+    )
+    deck = load_deck(decks_dir / slug)
+    local = store.load_tiku(deck)
+    local["1"][0]["user_note"] = "MY NOTE"
+    store.save_tiku(deck, local)
+
+    backup_dir = tmp_path / "backups" / "demo-update-20260623-120000"
+    backup_dir.mkdir(parents=True)
+    (backup_dir / "tiku.json").write_text(
+        json.dumps({"1": [{"id": "q-1", "topic": "old topic", "options": ["A. x"], "answer": "A", "user_note": "UPSTREAM"}]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    _write_min_manifest(backup_dir, slug="demo", version="1")
+    (backup_dir / "meta.json").write_text(
+        json.dumps({"slug": "demo", "content_version": "1", "op": "update", "timestamp": "20260623-120000"}),
+        encoding="utf-8",
+    )
+
+    bootstrap.switch_bundled("demo", decks_dir, backup_dir, overwrite_notes=True)
+
+    deck2 = load_deck(decks_dir / slug)
+    assert store.load_tiku(deck2)["1"][0]["user_note"] == "UPSTREAM"

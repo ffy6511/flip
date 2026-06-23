@@ -101,6 +101,37 @@ def test_deck_update_runs_merge_and_preserves_history(tmp_path, monkeypatch):
     assert tiku2["1"][0]["user_note"] == "MINE"
 
 
+def test_deck_update_overwrites_note_when_flag_enabled(tmp_path, monkeypatch):
+    home = tmp_path / "flip_home"
+    decks_dir = home / "decks"
+    monkeypatch.setenv("FLIP_HOME", str(home))
+
+    q1 = {"topic": "t1", "options": ["A. x", "B. y"], "answer": "A"}
+    _patch_demo_bundled(monkeypatch, version="1")
+    monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
+                        lambda _slug: json.dumps({"1": [q1]}, ensure_ascii=False))
+    bootstrap.install_bundled("demo", decks_dir)
+
+    from flip.deck import load_deck
+    deck = load_deck(decks_dir / "demo")
+    tiku = store.load_tiku(deck)
+    qid = tiku["1"][0]["id"]
+    tiku["1"][0]["user_note"] = "MINE"
+    store.save_tiku(deck, tiku)
+
+    monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
+                        lambda _slug: json.dumps({"1": [
+                            {"id": qid, "topic": "t1 [fixed]", "options": ["A. x", "B. y"], "answer": "A", "user_note": "UPSTREAM"},
+                        ]}, ensure_ascii=False))
+    _patch_demo_bundled(monkeypatch, version="2")
+
+    result = CliRunner().invoke(app, ["deck", "update", "demo", "--overwrite-notes"])
+
+    assert result.exit_code == 0, result.output
+    deck2 = load_deck(decks_dir / "demo")
+    assert store.load_tiku(deck2)["1"][0]["user_note"] == "UPSTREAM"
+
+
 def test_deck_update_already_current_is_noop(deck):
     # example is not a bundled deck -> update reports it's not bundled, exit 1.
     result = CliRunner().invoke(app, ["deck", "update", "example"])
@@ -169,3 +200,47 @@ def test_deck_versions_cli_switches(tmp_path, monkeypatch):
     deck2 = load_deck(decks_dir / "demo")
     assert deck2.content_version == "1"
     assert store.load_tiku(deck2)["1"][0]["user_note"] == "MINE"
+
+
+def test_deck_versions_cli_overwrites_note_when_flag_enabled(tmp_path, monkeypatch):
+    home = tmp_path / "flip_home"
+    decks_dir = home / "decks"
+    monkeypatch.setenv("FLIP_HOME", str(home))
+
+    _patch_demo_bundled(monkeypatch, version="2")
+    monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
+                        lambda _slug: json.dumps({"1": [
+                            {"id": "q-1", "topic": "new topic", "options": ["A. x"], "answer": "A"},
+                        ]}, ensure_ascii=False))
+    bootstrap.install_bundled("demo", decks_dir)
+
+    backup_dir = home / "backups" / "demo-update-20260623-120000"
+    backup_dir.mkdir(parents=True)
+    (backup_dir / "tiku.json").write_text(
+        json.dumps({"1": [
+            {"id": "q-1", "topic": "old topic", "options": ["A. x"], "answer": "A", "user_note": "UPSTREAM"},
+        ]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (backup_dir / "manifest.toml").write_text(
+        '[deck]\nname = "Demo"\nslug = "demo"\nsource_lang = "en"\n'
+        'answer_alphabet = "ABCD"\nmax_display_options = 4\n'
+        'content_version = "1"\n\n[explain]\nrole = "demo"\nmax_chars = 200\n',
+        encoding="utf-8",
+    )
+    (backup_dir / "meta.json").write_text(
+        json.dumps({"slug": "demo", "content_version": "1", "op": "update", "timestamp": "20260623-120000"}),
+        encoding="utf-8",
+    )
+
+    from flip.deck import load_deck
+    deck = load_deck(decks_dir / "demo")
+    tiku = store.load_tiku(deck)
+    tiku["1"][0]["user_note"] = "MINE"
+    store.save_tiku(deck, tiku)
+
+    result = CliRunner().invoke(app, ["deck", "versions", "demo", "--overwrite-notes"], input="1\n")
+
+    assert result.exit_code == 0, result.output
+    deck2 = load_deck(decks_dir / "demo")
+    assert store.load_tiku(deck2)["1"][0]["user_note"] == "UPSTREAM"

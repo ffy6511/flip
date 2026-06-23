@@ -401,6 +401,7 @@ def deck_assign_ids(
 @deck_app.command("update")
 def deck_update(
     slug: str = typer.Argument(..., help="Bundled deck slug to update."),
+    overwrite_notes: bool = typer.Option(False, "--overwrite-notes", help="Allow bundled user_note to overwrite local notes for this update."),
 ):
     """Update an installed bundled deck to the shipped content version.
 
@@ -422,7 +423,7 @@ def deck_update(
         _status_echo(f"{slug} is already up to date (content_version={deck.content_version})")
         raise typer.Exit(0)
 
-    result = bootstrap.update_bundled(slug, config.decks_dir)
+    result = bootstrap.update_bundled(slug, config.decks_dir, overwrite_notes=overwrite_notes)
     typer.echo(f"backup: {result.backup_dir}")
     _status_echo(
         "update preview: "
@@ -511,6 +512,7 @@ def deck_prune(
 @deck_app.command("versions")
 def deck_versions(
     slug: str = typer.Argument(..., help="Bundled deck slug."),
+    overwrite_notes: bool = typer.Option(False, "--overwrite-notes", help="Allow backup/bundled user_note to overwrite local notes for this switch."),
 ):
     """List historical versions from backups and switch to one."""
     from . import bootstrap
@@ -536,7 +538,12 @@ def deck_versions(
         _status_echo("invalid backup selection", ok=False, err=True)
         raise typer.Exit(1)
 
-    result = bootstrap.switch_bundled(slug, config.decks_dir, backups[choice - 1]["path"])
+    result = bootstrap.switch_bundled(
+        slug,
+        config.decks_dir,
+        backups[choice - 1]["path"],
+        overwrite_notes=overwrite_notes,
+    )
     typer.echo(f"backup: {result.backup_dir}")
     _status_echo(
         "switch preview: "

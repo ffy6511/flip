@@ -375,9 +375,8 @@ def test_bootstrap_tab_enter_confirms_then_installs(capsys, monkeypatch, tmp_pat
     assert (deck_dir / "tiku.json").is_file()
 
     out = capsys.readouterr().out
-    # After install the Bootstrap list shows "all installed".
-    assert "所有内置 deck 已是最新" in out
     assert "已安装 1 个 deck" in out
+    assert "reinstall" in out
 
 
 def test_bootstrap_tab_second_enter_without_selection_is_noop(capsys, monkeypatch, tmp_path):
@@ -421,8 +420,21 @@ def test_bootstrap_tab_shows_updateable_deck(capsys, monkeypatch, tmp_path):
 
     out = capsys.readouterr().out
     assert "软件工程模板" in out
-    assert "有更新" in out
-    assert "v1→v2" in out
+    assert "update v1→v2" in out
+
+
+def test_bootstrap_tab_shows_installed_deck_as_reinstall(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    assert "软件工程模板" in out
+    assert "reinstall" in out
 
 
 def test_bootstrap_tab_enter_updates_and_refreshes(capsys, monkeypatch, tmp_path):
@@ -465,7 +477,79 @@ def test_bootstrap_tab_enter_updates_and_refreshes(capsys, monkeypatch, tmp_path
     out = capsys.readouterr().out
     assert "已更新 1 个 deck" in out
     assert "updated=1" in out
-    assert "所有内置 deck 已是最新" in out
+    assert "reinstall" in out
+
+
+def test_bootstrap_tab_u_toggles_note_overwrite_and_applies_update(capsys, monkeypatch, tmp_path):
+    from flip import bootstrap, store
+    from flip.deck import load_deck
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(
+        monkeypatch,
+        ["\x1b[C", "u", " ", "\r", "\r", "\x1b", "q"],
+    )
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+    deck = load_deck(config.decks_dir / "se-template")
+    tiku = store.load_tiku(deck)
+    qid = tiku["1"][0]["id"]
+    tiku["1"][0]["user_note"] = "MINE"
+    store.save_tiku(deck, tiku)
+
+    monkeypatch.setattr(
+        bootstrap,
+        "_read_bundled_tiku_text",
+        lambda _slug: (
+            '{"1":[{"id":"%s","topic":"old topic [fixed]","options":["A. x","B. y"],"answer":"A","user_note":"UPSTREAM"}]}'
+            % qid
+        ),
+    )
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "se-template",
+        "name": "软件工程模板",
+        "source_lang": "en",
+        "role": "软件工程助教",
+        "content_version": "2",
+    })
+
+    engine_loop.deck_picker(config)
+
+    deck2 = load_deck(config.decks_dir / "se-template")
+    assert store.load_tiku(deck2)["1"][0]["user_note"] == "UPSTREAM"
+    out = capsys.readouterr().out
+    assert "覆盖 bundled note" in out
+
+
+def test_bootstrap_tab_enter_reinstalls_installed_deck(capsys, monkeypatch, tmp_path):
+    from flip import bootstrap, store
+    from flip.deck import load_deck
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", " ", "\r", "\r", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+    deck = load_deck(config.decks_dir / "se-template")
+    qid = store.load_tiku(deck)["1"][0]["id"]
+
+    monkeypatch.setattr(
+        bootstrap,
+        "_read_bundled_tiku_text",
+        lambda _slug: (
+            '{"1":[{"id":"%s","topic":"old topic [reinstalled]","options":["A. x","B. y"],"answer":"A"}]}'
+            % qid
+        ),
+    )
+
+    engine_loop.deck_picker(config)
+
+    deck2 = load_deck(config.decks_dir / "se-template")
+    assert store.load_tiku(deck2)["1"][0]["topic"] == "old topic [reinstalled]"
+    out = capsys.readouterr().out
+    assert "已重装 1 个 deck" in out
+    assert "reinstall" in out
 
 
 def test_bootstrap_tab_c_key_shows_changelog(capsys, monkeypatch, tmp_path):

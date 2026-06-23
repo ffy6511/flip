@@ -960,23 +960,31 @@ TAB_LABELS = {"library": "Library", "bootstrap": "Bootstrap"}
 def _bootstrap_picker_items(config):
     from . import bootstrap
 
+    updatable_by_slug = {
+        item["slug"]: item for item in bootstrap.updatable_bundled_decks(config.decks_dir)
+    }
     items = []
-    for info in bootstrap.updatable_bundled_decks(config.decks_dir):
-        items.append({
-            "kind": "update",
-            "slug": info["slug"],
-            "name": info["name"],
-            "extra": f"有更新: v{info['current']}→v{info['latest']}",
-        })
-    for slug in bootstrap.available_bundled_slugs(config.decks_dir):
+    for slug in bootstrap._bundled_slugs():
         info = bootstrap.bundled_deck_summary(slug)
         src = info.get("source_lang", "?")
         tgt = config.target_lang or "?"
+        installed = (config.decks_dir / slug).is_dir()
+        update_info = updatable_by_slug.get(slug)
+        if update_info is not None:
+            kind = "update"
+            status = f"update v{update_info['current']}→v{update_info['latest']}"
+        elif installed:
+            kind = "reinstall"
+            status = "reinstall"
+        else:
+            kind = "install"
+            status = ""
         items.append({
-            "kind": "install",
+            "kind": kind,
             "slug": slug,
             "name": info.get("name", slug),
             "extra": f"{info.get('questions', 0)}题, {src}→{tgt}",
+            "status": status,
         })
     return items
 
@@ -984,11 +992,14 @@ def _bootstrap_picker_items(config):
 def _bootstrap_confirm_message(items, selected):
     install_count = sum(1 for item in items if item["slug"] in selected and item["kind"] == "install")
     update_count = sum(1 for item in items if item["slug"] in selected and item["kind"] == "update")
+    reinstall_count = sum(1 for item in items if item["slug"] in selected and item["kind"] == "reinstall")
     parts = []
     if install_count:
         parts.append(f"安装 {install_count} 个 deck")
     if update_count:
         parts.append(f"更新 {update_count} 个 deck")
+    if reinstall_count:
+        parts.append(f"重装 {reinstall_count} 个 deck")
     if not parts:
         return ""
     return "将" + "、".join(parts) + ",再次按 Enter 确认 / 其他键取消"
@@ -1041,6 +1052,7 @@ def deck_picker(config):
         boot_warning = ""
         boot_confirming = False  # True between "Enter on selection" and 2nd Enter
         boot_items: list[dict] = []
+        boot_overwrite_notes = False
 
         while True:
             # Refresh per-frame data so installs/removes done out-of-band show up.
@@ -1063,7 +1075,7 @@ def deck_picker(config):
                 if boot_index >= len(boot_items):
                     boot_index = max(0, len(boot_items) - 1)
                 _render_bootstrap_picker(
-                    boot_items, boot_index, boot_selected, boot_warning, boot_confirming,
+                    boot_items, boot_index, boot_selected, boot_warning, boot_confirming, boot_overwrite_notes,
                 )
 
             key = read_key()
@@ -1160,6 +1172,7 @@ def deck_picker(config):
                         selected_items = [item for item in boot_items if item["slug"] in boot_selected]
                         installed = 0
                         updated = 0
+                        reinstalled = 0
                         notices = []
                         for item in selected_items:
                             slug = item["slug"]
@@ -1168,11 +1181,18 @@ def deck_picker(config):
                                     bootstrap.install_bundled(slug, config.decks_dir)
                                     installed += 1
                                 else:
-                                    result = bootstrap.update_bundled(slug, config.decks_dir)
-                                    updated += 1
+                                    result = bootstrap.update_bundled(
+                                        slug,
+                                        config.decks_dir,
+                                        overwrite_notes=boot_overwrite_notes,
+                                    )
+                                    if item["kind"] == "update":
+                                        updated += 1
+                                    else:
+                                        reinstalled += 1
                                     notices.append(f"{item['name']}: {_bootstrap_result_summary(result)}")
                             except Exception as exc:  # pragma: no cover - defensive
-                                action = "安装" if item["kind"] == "install" else "更新"
+                                action = {"install": "安装", "update": "更新", "reinstall": "重装"}[item["kind"]]
                                 notices.append(f"{action} {slug} 失败: {exc}")
                         boot_selected = set()
                         boot_confirming = False
@@ -1181,6 +1201,8 @@ def deck_picker(config):
                             summary.append(f"已安装 {installed} 个 deck")
                         if updated:
                             summary.append(f"已更新 {updated} 个 deck")
+                        if reinstalled:
+                            summary.append(f"已重装 {reinstalled} 个 deck")
                         if notices:
                             summary.append("；".join(notices))
                         if summary:
@@ -1193,6 +1215,11 @@ def deck_picker(config):
                     slug = boot_items[boot_index]["slug"]
                     changelog_text = bootstrap.read_changelog(slug)
                     _view_changelog(slug, changelog_text)
+                    continue
+                if key in {'u', 'U'}:
+                    boot_overwrite_notes = not boot_overwrite_notes
+                    boot_confirming = False
+                    boot_warning = ""
                     continue
                 # Any other key cancels a pending confirm.
                 if boot_confirming:
@@ -1270,7 +1297,7 @@ def _render_deck_picker(rows, index, query, default_deck):
     print("  " + DIM_COLOR + "↑/↓ 选,←/→ 切 tab,Enter 进入,Esc 清空搜索/q 退出  (* = 上次使用)" + RESET_COLOR)
 
 
-def _render_bootstrap_picker(items, cursor, selected, warning, confirming):
+def _render_bootstrap_picker(items, cursor, selected, warning, confirming, overwrite_notes):
     """Multi-select list of bundled decks available to install or update.
 
     Mirrors _render_chapter_picker's structure (clear → header → list with
@@ -1292,28 +1319,25 @@ def _render_bootstrap_picker(items, cursor, selected, warning, confirming):
     else:
         print()
     if not items:
-        print("  " + DIM_COLOR + "(所有内置 deck 已是最新)" + RESET_COLOR)
+        print("  " + DIM_COLOR + "(暂无 bundled deck)" + RESET_COLOR)
     else:
         start, end = _window_bounds(len(items), cursor, _terminal_height() - 8)
         for i, item in enumerate(items[start:end], start=start):
             slug = item["slug"]
             name = item["name"]
             extra = item["extra"]
+            status = item.get("status", "")
             mark = "[x]" if slug in selected else "[ ]"
             line_color = SELECTED_COLOR if i == cursor else DIM_COLOR
-            prefix = f"  {mark} {name}  ("
-            suffix = ")"
-            if item["kind"] == "update" and i != cursor:
-                print(
-                    line_color + prefix + RESET_COLOR
-                    + SELECTED_COLOR + extra + RESET_COLOR
-                    + line_color + suffix + RESET_COLOR
-                )
-            else:
-                print(line_color + prefix + extra + suffix + RESET_COLOR)
+            base = f"  {mark} {name}  ({extra})"
+            if status:
+                pad = max(2, shutil.get_terminal_size((80, 24)).columns - store.display_width(base) - store.display_width(status) - 2)
+                base = base + (" " * pad) + status
+            print(line_color + base + RESET_COLOR)
     print()
-    hint = "↑/↓ 移动,空格 切换选中,Enter 执行,c 查看 changelog,Esc 取消选中/返回,← 回 Library"
+    hint = "↑/↓ 移动,空格 切换选中,Enter 执行,u 切换 note 覆盖,c 查看 changelog,Esc 取消选中/返回,← 回 Library"
     print("  " + DIM_COLOR + hint + RESET_COLOR)
+    print("  u", _opt_state(overwrite_notes), "覆盖 bundled note")
 
 
 def _style_inline_code(text):
