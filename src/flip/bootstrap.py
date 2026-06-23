@@ -9,7 +9,9 @@ available list because the criterion is "the deck directory doesn't exist".
 
 from __future__ import annotations
 
+import datetime
 import json
+import re
 from copy import deepcopy
 from importlib import resources
 from pathlib import Path
@@ -89,7 +91,6 @@ def update_bundled(slug: str, decks_dir: Path):
     Creates a full-deck backup under <home>/backups/<slug>-update-<stamp>/ via
     store.export_deck. Returns the MergeResult from the merge step.
     """
-    import datetime
     from .merge import merge_tiku
 
     spec = BUNDLED_DECK_SPECS[slug]
@@ -339,9 +340,187 @@ def bundled_deck_summary(slug: str) -> dict:
     }
 
 
+def _bundled_file_path(slug: str, filename: str) -> Path:
+    return Path(resources.files("flip").joinpath("bundled_decks", slug, filename))
+
+
+def _read_bundled_text(slug: str, filename: str) -> str:
+    return _bundled_file_path(slug, filename).read_text(encoding="utf-8")
+
+
 def _read_bundled_tiku_text(slug: str) -> str:
-    resource = resources.files("flip").joinpath("bundled_decks", slug, "tiku.json")
-    return resource.read_text(encoding="utf-8")
+    return _read_bundled_text(slug, "tiku.json")
+
+
+def _diff_tiku(before_data, after_data) -> list[dict]:
+    before_index = {}
+    after_index = {}
+    before_order = []
+    after_order = []
+
+    for chapter, q in engine.iter_question_records(before_data):
+        qid = engine.question_id(q)
+        if not qid:
+            continue
+        before_index[qid] = (str(chapter), q)
+        before_order.append(qid)
+    for chapter, q in engine.iter_question_records(after_data):
+        qid = engine.question_id(q)
+        if not qid:
+            continue
+        after_index[qid] = (str(chapter), q)
+        after_order.append(qid)
+
+    changes = []
+    for qid in after_order:
+        if qid not in before_index:
+            continue
+        before_chapter, before_q = before_index[qid]
+        after_chapter, after_q = after_index[qid]
+        if (
+            before_q.get("topic") == after_q.get("topic")
+            and before_q.get("options") == after_q.get("options")
+            and before_q.get("answer") == after_q.get("answer")
+            and before_q.get("zh") == after_q.get("zh")
+            and before_q.get("user_note") == after_q.get("user_note")
+        ):
+            continue
+        change = {
+            "id": qid,
+            "kind": "updated",
+            "chapter": after_chapter,
+            "topic": {"before": before_q.get("topic", ""), "after": after_q.get("topic", "")},
+            "options": {"before": before_q.get("options", []), "after": after_q.get("options", [])},
+            "answer": {"before": before_q.get("answer", ""), "after": after_q.get("answer", "")},
+        }
+        if before_q.get("zh") != after_q.get("zh"):
+            change["zh_changed"] = True
+        if before_q.get("user_note") != after_q.get("user_note"):
+            change["user_note_changed"] = True
+        changes.append(change)
+
+    for qid in before_order:
+        if qid in after_index:
+            continue
+        chapter, q = before_index[qid]
+        changes.append({
+            "id": qid,
+            "kind": "removed",
+            "chapter": chapter,
+            "topic": q.get("topic", ""),
+        })
+
+    for qid in after_order:
+        if qid in before_index:
+            continue
+        chapter, q = after_index[qid]
+        changes.append({
+            "id": qid,
+            "kind": "added",
+            "chapter": chapter,
+            "topic": q.get("topic", ""),
+        })
+    return changes
+
+
+def _change_summary_line(change: dict) -> str:
+    kind = change.get("kind")
+    qid = change.get("id", "-")
+    chapter = change.get("chapter", "?")
+    if kind == "added":
+        return f"新增 {qid} (ch{chapter}): {str(change.get('topic', ''))[:80]}"
+    if kind == "removed":
+        return f"删除 {qid} (ch{chapter}): {str(change.get('topic', ''))[:80]}"
+    parts = []
+    topic = change.get("topic", {})
+    answer = change.get("answer", {})
+    options = change.get("options", {})
+    if topic.get("before") != topic.get("after"):
+        parts.append("题干修订")
+    if answer.get("before") != answer.get("after"):
+        parts.append(f"答案 {answer.get('before', '')}→{answer.get('after', '')}")
+    if options.get("before") != options.get("after"):
+        parts.append("选项修订")
+    if change.get("zh_changed"):
+        parts.append("译文更新")
+    if change.get("user_note_changed"):
+        parts.append("说明更新")
+    summary = "、".join(parts) if parts else "内容修订"
+    return f"更新 {qid} (ch{chapter}): {summary}"
+
+
+def gen_changelog(slug: str) -> str:
+    before_data = json.loads(_read_bundled_text(slug, "prev_tiku.json"))
+    after_data = json.loads(_read_bundled_tiku_text(slug))
+    changes = _diff_tiku(before_data, after_data)
+    if not changes:
+        raise ValueError("prev_tiku.json 与 tiku.json 相同,无法生成 diff;请确认 prev 是上一版发布时的快照")
+
+    version = str(BUNDLED_DECK_SPECS[slug].get("content_version", "0"))
+    today = datetime.date.today().isoformat()
+    updated = sum(1 for item in changes if item["kind"] == "updated")
+    added = sum(1 for item in changes if item["kind"] == "added")
+    removed = sum(1 for item in changes if item["kind"] == "removed")
+    lines = [
+        f"## [{version}] - {today}",
+        "",
+        f"更新 {updated} 题、新增 {added} 题、删除 {removed} 题。",
+        "",
+    ]
+    for change in changes:
+        lines.append(f"- {_change_summary_line(change)}")
+    payload = {
+        "version": version,
+        "date": today,
+        "changes": changes,
+    }
+    lines.extend([
+        "",
+        "```json",
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        "```",
+    ])
+    entry_text = "\n".join(lines)
+
+    changelog_path = _bundled_file_path(slug, "CHANGELOG.md")
+    original = changelog_path.read_text(encoding="utf-8")
+    if original.startswith("# "):
+        first_line, _, remainder = original.partition("\n")
+        remainder = remainder.lstrip("\n")
+        new_text = first_line + "\n\n" + entry_text + ("\n\n" + remainder if remainder else "\n")
+    else:
+        new_text = entry_text + "\n\n" + original.lstrip("\n")
+    changelog_path.write_text(new_text.rstrip() + "\n", encoding="utf-8")
+    return entry_text
+
+
+def read_changelog(slug: str, version=None) -> list[dict]:
+    text = _read_bundled_text(slug, "CHANGELOG.md")
+    pattern = re.compile(
+        r"^## \[(?P<version>[^\]]+)\] - (?P<date>\d{4}-\d{2}-\d{2})\n(?P<body>.*?)(?=^## \[|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    entries = []
+    for match in pattern.finditer(text):
+        entry_version = match.group("version").strip()
+        if version is not None and str(version) != entry_version:
+            continue
+        body = match.group("body").strip()
+        diff = None
+        text_body = body
+        json_match = re.search(r"```json\n(.*?)\n```", body, re.DOTALL)
+        if json_match:
+            diff_payload = json.loads(json_match.group(1))
+            diff = diff_payload.get("changes")
+            text_body = body[:json_match.start()].rstrip()
+        section_text = f"## [{entry_version}] - {match.group('date')}\n\n{text_body}".rstrip()
+        entries.append({
+            "version": entry_version,
+            "date": match.group("date"),
+            "text": section_text,
+            "diff": diff,
+        })
+    return entries
 
 
 def _detect_alphabet_from_tiku(data):

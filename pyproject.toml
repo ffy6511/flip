@@ -39,7 +39,11 @@ flip = "flip.cli:app"
 where = ["src"]
 
 [tool.setuptools.package-data]
-flip = ["bundled_decks/se-template/tiku.json"]
+flip = [
+    "bundled_decks/se-template/tiku.json",
+    "bundled_decks/se-template/prev_tiku.json",
+    "bundled_decks/se-template/CHANGELOG.md",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

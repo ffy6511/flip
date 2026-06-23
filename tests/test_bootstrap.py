@@ -8,6 +8,8 @@ first-run auto-install:
 No TUI loops here — those live in tests/test_engine_loop.py.
 """
 
+import json
+
 import shutil
 
 from flip import bootstrap, store
@@ -240,3 +242,97 @@ def test_update_bundled_reports_unmigrated_when_content_changed(tmp_path, monkey
     assert len(result.unmigrated) == 1
     assert result.unmigrated[0][1] == "demo-1-001"  # the orphaned legacy id
 
+
+def test_diff_tiku_classifies_updated_added_removed():
+    before = {"1": [
+        {"id": "q-1", "topic": "old", "options": ["A. x"], "answer": "A"},
+        {"id": "q-2", "topic": "gone", "options": ["A. y"], "answer": "A"},
+    ]}
+    after = {"1": [
+        {"id": "q-1", "topic": "new", "options": ["A. x", "B. y"], "answer": "B"},
+        {"id": "q-3", "topic": "added", "options": ["A. z"], "answer": "A"},
+    ]}
+
+    changes = bootstrap._diff_tiku(before, after)
+
+    assert [item["kind"] for item in changes] == ["updated", "removed", "added"]
+    assert changes[0]["id"] == "q-1"
+    assert changes[0]["topic"] == {"before": "old", "after": "new"}
+    assert changes[0]["options"] == {"before": ["A. x"], "after": ["A. x", "B. y"]}
+    assert changes[0]["answer"] == {"before": "A", "after": "B"}
+    assert changes[1]["id"] == "q-2"
+    assert changes[2]["id"] == "q-3"
+
+
+def test_diff_tiku_skips_unchanged():
+    same = {"1": [
+        {"id": "q-1", "topic": "same", "options": ["A. x"], "answer": "A"},
+    ]}
+
+    assert bootstrap._diff_tiku(same, same) == []
+
+
+def test_gen_changelog_renders_human_and_json(tmp_path, monkeypatch):
+    root = tmp_path / "flip"
+    slug_dir = root / "bundled_decks" / "demo"
+    slug_dir.mkdir(parents=True)
+    current = {"1": [{"id": "q-1", "topic": "new", "options": ["A. x"], "answer": "A"}]}
+    prev = {"1": [{"id": "q-1", "topic": "old", "options": ["A. x"], "answer": "A"}]}
+    (slug_dir / "tiku.json").write_text(json.dumps(current, ensure_ascii=False), encoding="utf-8")
+    (slug_dir / "prev_tiku.json").write_text(json.dumps(prev, ensure_ascii=False), encoding="utf-8")
+    (slug_dir / "CHANGELOG.md").write_text("# Changelog — Demo\n\n", encoding="utf-8")
+    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
+        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "2",
+    })
+    monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
+
+    text = bootstrap.gen_changelog("demo")
+    written = (slug_dir / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert "## [2] -" in text
+    assert "更新 1 题" in text
+    assert "```json" in written
+    payload = json.loads(written.split("```json", 1)[1].split("```", 1)[0])
+    assert payload["version"] == "2"
+    assert payload["changes"][0]["id"] == "q-1"
+
+
+def test_gen_changelog_raises_when_prev_equals_current(tmp_path, monkeypatch):
+    root = tmp_path / "flip"
+    slug_dir = root / "bundled_decks" / "demo"
+    slug_dir.mkdir(parents=True)
+    same = {"1": [{"id": "q-1", "topic": "same", "options": ["A. x"], "answer": "A"}]}
+    text = json.dumps(same, ensure_ascii=False)
+    (slug_dir / "tiku.json").write_text(text, encoding="utf-8")
+    (slug_dir / "prev_tiku.json").write_text(text, encoding="utf-8")
+    (slug_dir / "CHANGELOG.md").write_text("# Changelog — Demo\n\n", encoding="utf-8")
+    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
+        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "2",
+    })
+    monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
+
+    import pytest
+
+    with pytest.raises(ValueError, match="prev_tiku.json 与 tiku.json 相同"):
+        bootstrap.gen_changelog("demo")
+
+
+def test_read_changelog_parses_versions(tmp_path, monkeypatch):
+    root = tmp_path / "flip"
+    slug_dir = root / "bundled_decks" / "demo"
+    slug_dir.mkdir(parents=True)
+    (slug_dir / "CHANGELOG.md").write_text(
+        "# Changelog — Demo\n\n"
+        "## [2] - 2026-06-23\n\n更新 1 题。\n\n```json\n"
+        "{\"version\":\"2\",\"date\":\"2026-06-23\",\"changes\":[{\"id\":\"q-1\",\"kind\":\"updated\"}]}\n"
+        "```\n\n"
+        "## [1] - 2026-06-22\n\n初始版本。\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
+
+    entries = bootstrap.read_changelog("demo")
+
+    assert [entry["version"] for entry in entries] == ["2", "1"]
+    assert entries[0]["diff"][0]["id"] == "q-1"
+    assert entries[1]["diff"] is None

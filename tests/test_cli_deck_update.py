@@ -116,3 +116,24 @@ def test_deck_prune_no_orphans_is_noop(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert "no orphaned questions" in result.output
+
+
+def test_deck_gen_changelog_appends_entry(tmp_path, monkeypatch):
+    root = tmp_path / "flip"
+    slug_dir = root / "bundled_decks" / "demo"
+    slug_dir.mkdir(parents=True)
+    current = {"1": [{"id": "q-1", "topic": "new", "options": ["A. x"], "answer": "A"}]}
+    prev = {"1": [{"id": "q-1", "topic": "old", "options": ["A. x"], "answer": "A"}]}
+    (slug_dir / "tiku.json").write_text(json.dumps(current, ensure_ascii=False), encoding="utf-8")
+    (slug_dir / "prev_tiku.json").write_text(json.dumps(prev, ensure_ascii=False), encoding="utf-8")
+    (slug_dir / "CHANGELOG.md").write_text("# Changelog — Demo\n\n", encoding="utf-8")
+    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
+        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "2",
+    })
+    monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
+
+    result = CliRunner().invoke(app, ["deck", "gen-changelog", "demo"])
+
+    assert result.exit_code == 0, result.output
+    assert "## [2] -" in result.output
+    assert "appended changelog entry for demo" in result.output

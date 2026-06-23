@@ -1188,6 +1188,14 @@ def deck_picker(config):
                         boot_confirming = True
                         boot_warning = _bootstrap_confirm_message(boot_items, boot_selected)
                     continue
+                if key in {'c', 'C'} and boot_items:
+                    slug = boot_items[boot_index]["slug"]
+                    entries = bootstrap.read_changelog(slug)
+                    _render_changelog_view(slug, entries)
+                    wait_key = read_key()
+                    if wait_key == '\x03':
+                        raise KeyboardInterrupt
+                    continue
                 # Any other key cancels a pending confirm.
                 if boot_confirming:
                     boot_confirming = False
@@ -1306,8 +1314,31 @@ def _render_bootstrap_picker(items, cursor, selected, warning, confirming):
             else:
                 print(line_color + prefix + extra + suffix + RESET_COLOR)
     print()
-    hint = "↑/↓ 移动,空格 切换选中,Enter 执行,Esc 取消选中/返回,← 回 Library"
+    hint = "↑/↓ 移动,空格 切换选中,Enter 执行,c 查看 changelog,Esc 取消选中/返回,← 回 Library"
     print("  " + DIM_COLOR + hint + RESET_COLOR)
+
+
+def _render_changelog_view(slug, entries):
+    from .tui.render import DIM_COLOR, RESET_COLOR
+
+    clear_screen()
+    print("@ flip — Bootstrap Changelog")
+    _render_tabs("bootstrap")
+    print()
+    print(f"  {slug}")
+    print()
+    if not entries:
+        print("  " + DIM_COLOR + "(暂无 changelog)" + RESET_COLOR)
+    else:
+        for i, entry in enumerate(entries):
+            if i:
+                print()
+                print(DIM_COLOR + "  " + "─" * 40 + RESET_COLOR)
+                print()
+            for line in entry["text"].splitlines():
+                print("  " + line if line else "")
+    print()
+    print("  " + DIM_COLOR + "按任意键返回 Bootstrap" + RESET_COLOR)
 
 
 def _table_widths(rows):

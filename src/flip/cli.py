@@ -494,6 +494,32 @@ def deck_prune(
     _status_echo(f"pruned {len(orphaned)} question(s) from {slug}")
 
 
+@deck_app.command("gen-changelog")
+def deck_gen_changelog(
+    slug: str = typer.Argument(..., help="Bundled deck slug."),
+):
+    """Generate a changelog entry by diffing tiku.json against prev_tiku.json.
+
+    Maintainer flow:
+      1. cp tiku.json prev_tiku.json
+      2. edit tiku.json to the new version
+      3. bump BUNDLED_DECK_SPECS[slug]['content_version']
+      4. flip deck gen-changelog <slug>
+    """
+    from . import bootstrap
+
+    if slug not in bootstrap.BUNDLED_DECK_SPECS:
+        _status_echo(f"{slug!r} is not a bundled deck", ok=False, err=True)
+        raise typer.Exit(1)
+    try:
+        text = bootstrap.gen_changelog(slug)
+    except ValueError as exc:
+        _status_echo(str(exc), ok=False, err=True)
+        raise typer.Exit(1)
+    typer.echo(text)
+    _status_echo(f"appended changelog entry for {slug}")
+
+
 @deck_app.command("repair")
 def deck_repair(
     slug: str = typer.Argument(..., help="Deck slug."),

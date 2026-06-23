@@ -449,6 +449,33 @@ def test_bootstrap_tab_enter_updates_and_refreshes(capsys, monkeypatch, tmp_path
     assert "所有内置 deck 已是最新" in out
 
 
+def test_bootstrap_tab_c_key_shows_changelog(capsys, monkeypatch, tmp_path):
+    from flip import bootstrap
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", "c", "\x1b", "q", "q"])
+    monkeypatch.setattr(
+        bootstrap,
+        "read_changelog",
+        lambda slug, version=None: [{
+            "version": "2",
+            "date": "2026-06-23",
+            "text": "## [2] - 2026-06-23\n\n更新 1 题。",
+            "diff": [{"id": "q-1", "kind": "updated"}],
+        }],
+    )
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS["se-template"], "content_version", "2")
+
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    assert "Changelog" in out
+    assert "更新 1 题" in out
+
+
 def test_render_stats_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch, deck, config):
     monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
     monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 14, raising=False)
