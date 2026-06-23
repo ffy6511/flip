@@ -14,6 +14,7 @@ import datetime
 import json
 import random
 import re
+import uuid
 
 from . import store
 from . import translate
@@ -74,19 +75,27 @@ def question_keys(chapter, q):
     return keys
 
 
-def _id_part(value):
-    value = str(value).strip().lower()
-    value = re.sub(r"[^a-z0-9]+", "-", value).strip("-")
-    return value or "x"
+def generate_question_id():
+    """Return a new content-independent question id.
 
-
-def _generated_question_id(prefix, chapter, index):
-    base = _id_part(prefix) if prefix else "q"
-    return f"{base}-{_id_part(chapter)}-{index:03d}"
+    Format: `q-` + 12 hex chars from uuid4. The id is decoupled from the
+    question's topic/options/answer/chapter/position on purpose: editing content
+    or reordering never changes it, so marks/notes/wrong-history/ai_explanation
+    stay attached across any edit. Assign once, never reassign (deleted ids must
+    not be reused) — see docs/schema.md.
+    """
+    return "q-" + uuid.uuid4().hex[:12]
 
 
 def ensure_question_ids(data, *, prefix=None):
-    """Fill missing question `id` fields in-place and return how many were added."""
+    """Fill missing question `id` fields in-place and return how many were added.
+
+    Questions already carrying an `id` are left untouched (ids are stable). Any
+    question without an id gets a fresh content-independent UUID via
+    `generate_question_id`. The `prefix` arg is accepted for backward-compat
+    with older callers but no longer affects the generated id — UUIDs are
+    globally unique, so chapter/positional prefixing is unnecessary.
+    """
     if not isinstance(data, dict):
         return 0
     used = set()
@@ -96,17 +105,12 @@ def ensure_question_ids(data, *, prefix=None):
             used.add(qid)
 
     added = 0
-    counters = {}
     for chapter, q in iter_question_records(data):
         if question_id(q):
             continue
-        counters[chapter] = counters.get(chapter, 0) + 1
-        index = counters[chapter]
-        candidate = _generated_question_id(prefix, chapter, index)
-        while candidate in used:
-            index += 1
-            candidate = _generated_question_id(prefix, chapter, index)
-        counters[chapter] = index
+        candidate = generate_question_id()
+        while candidate in used:  # guard against the ~zero collision chance
+            candidate = generate_question_id()
         q["id"] = candidate
         used.add(candidate)
         added += 1

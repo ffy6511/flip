@@ -149,11 +149,11 @@ def _ensure_one_id(q, used_ids, prefix, chapter):
     if qid:
         used_ids.add(qid)
         return 0
-    index = 1
-    qid = engine._generated_question_id(prefix, chapter, index)
+    # Content-independent UUID, matching ensure_question_ids. `prefix`/`chapter`
+    # are accepted for signature compat but don't shape the id.
+    qid = engine.generate_question_id()
     while qid in used_ids:
-        index += 1
-        qid = engine._generated_question_id(prefix, chapter, index)
+        qid = engine.generate_question_id()
     q["id"] = qid
     used_ids.add(qid)
     return 1

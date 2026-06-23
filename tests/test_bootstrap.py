@@ -62,15 +62,19 @@ def test_install_bundled_creates_valid_deck(tmp_path):
     assert "软件工程助教" in manifest
 
 
-def test_install_bundled_assigns_prefixed_ids(tmp_path):
-    # The prefix arg to ensure_question_ids makes ids deterministic and
-    # namespaced by slug, so two bundled decks can't collide.
+def test_install_bundled_assigns_uuid_ids(tmp_path):
+    # Since the UUID switch, install_bundled assigns content-independent `q-<hex>`
+    # ids (via ensure_question_ids), not slug-prefixed positional ids. The
+    # bundled source itself carries UUIDs, so installed ids are those exact
+    # values; if a question lacked one it would get a fresh UUID here.
+    import re
     decks_dir = tmp_path / "decks"
     bootstrap.install_bundled("se-template", decks_dir)
     tiku = store.read_json(decks_dir / "se-template" / "tiku.json")
     ids = [q["id"] for _, q in bootstrap.engine.iter_question_records(tiku)]
     assert ids, "expected at least one question id"
-    assert all(i.startswith("se-template") for i in ids)
+    assert len(ids) == len(set(ids))  # all unique
+    assert all(re.fullmatch(r"q-[0-9a-f]{12}", i) for i in ids)
 
 
 def test_bundled_deck_summary_has_question_count():

@@ -1,7 +1,10 @@
+import re
+
 from flip.engine import (
     build_tiku_index,
     content_question_key,
     ensure_question_ids,
+    generate_question_id,
     question_key,
     question_keys,
 )
@@ -57,25 +60,47 @@ class TestQuestionKey:
         assert isinstance(question_key("1", _make()), str)
 
 
+class TestGenerateQuestionId:
+    def test_format_is_q_prefix_plus_12_hex(self):
+        assert re.fullmatch(r"q-[0-9a-f]{12}", generate_question_id())
+
+    def test_consecutive_calls_are_unique(self):
+        ids = {generate_question_id() for _ in range(1000)}
+        assert len(ids) == 1000  # no collision across 1000 draws
+
+
 class TestEnsureQuestionIds:
-    def test_fills_missing_ids_in_place(self):
+    def test_fills_missing_ids_with_uuid_format(self):
+        # Since the UUID switch, generated ids are content-independent `q-<hex>`,
+        # not positional `prefix-chapter-NNN`. We assert the format and
+        # uniqueness rather than an exact value.
         data = {
             "1": [_make(topic="a"), _make(topic="b")],
             "2": [_make(topic="c")],
         }
         assert ensure_question_ids(data, prefix="demo") == 3
-        assert [q["id"] for q in data["1"]] == ["demo-1-001", "demo-1-002"]
-        assert data["2"][0]["id"] == "demo-2-001"
+        ids = [q["id"] for q in data["1"]] + [data["2"][0]["id"]]
+        assert len(ids) == 3 and len(set(ids)) == 3  # all unique
+        assert all(re.fullmatch(r"q-[0-9a-f]{12}", i) for i in ids)
+
+    def test_prefix_arg_does_not_shape_uuid(self):
+        # The legacy `prefix` arg is accepted for call-site compat but must not
+        # leak into the generated id.
+        data = {"1": [_make(topic="a")]}
+        ensure_question_ids(data, prefix="anything")
+        assert re.fullmatch(r"q-[0-9a-f]{12}", data["1"][0]["id"])
 
     def test_preserves_existing_ids_and_avoids_collisions(self):
         data = {
             "1": [
-                dict(_make(topic="a"), id="demo-1-001"),
+                dict(_make(topic="a"), id="existing-stable-id"),
                 _make(topic="b"),
             ],
         }
         assert ensure_question_ids(data, prefix="demo") == 1
-        assert data["1"][1]["id"] == "demo-1-002"
+        # Existing id preserved verbatim; new one is a fresh UUID.
+        assert data["1"][0]["id"] == "existing-stable-id"
+        assert re.fullmatch(r"q-[0-9a-f]{12}", data["1"][1]["id"])
 
     def test_build_index_resolves_legacy_key_after_id_added(self, deck):
         data = store.load_tiku(deck)
