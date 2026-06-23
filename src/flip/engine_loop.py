@@ -25,6 +25,7 @@ from .tui import (
     has_translation, has_agent_said, has_user_note,
     translated_question, default_detail_view, normalize_detail_view,
     render_question, render_result, render_review_question,
+    render_review_search, render_review_jump,
     render_session_summary, render_session_item_list,
     render_ai_waiting, render_ai_prompt_input, render_note_input,
 )
@@ -197,6 +198,25 @@ def _edit_current_detail(deck, config, chapter, q, detail_view, render_current):
             return ("note" if has_user_note(q) else default_detail_view(q)), ""
         return detail_view, ""
     return detail_view, "当前没有可编辑的底部内容；按 x 生成 Agent Said 或 n 新建笔记。"
+
+
+def _browse_search_text(q):
+    parts = [str(q.get("topic", ""))]
+    zh = q.get("zh")
+    if isinstance(zh, dict):
+        parts.append(str(zh.get("topic", "")))
+    return "\n".join(parts).casefold()
+
+
+def _browse_search_results(questions, query):
+    text = str(query or "").strip().casefold()
+    if not text:
+        return []
+    results = []
+    for index, (chapter, q) in enumerate(questions):
+        if text in _browse_search_text(q):
+            results.append({"index": index, "chapter": chapter, "question": q})
+    return results
 
 
 # ---- shared per-question key handling ----
@@ -766,6 +786,10 @@ def review_questions(deck, config, selected_set, *, start_index=0, on_progress=N
     detail_view = default_detail_view(questions[0][1])
     warning = ""
     confirm_remove = False
+    mode = "browse"
+    search_query = ""
+    search_cursor = 0
+    jump_buffer = ""
     model_name = deck.explain.resolve_model()
     old_settings = save_tty()
     try:
@@ -777,6 +801,89 @@ def review_questions(deck, config, selected_set, *, start_index=0, on_progress=N
             detail_view = normalize_detail_view(q, detail_view)
             translation = _translated_options(q, options) if (translation_enabled and show_translation) else None
             marked = engine.is_marked(deck, chapter, q)
+            if mode == "search":
+                results = _browse_search_results(questions, search_query)
+                if results:
+                    search_cursor = max(0, min(search_cursor, len(results) - 1))
+                else:
+                    search_cursor = 0
+                render_review_search(search_query, results, search_cursor, warning=warning)
+                key = read_key()
+                if key == RESIZE_KEY:
+                    continue
+                if key == '\x03':
+                    raise KeyboardInterrupt
+                if key == '\x1b':
+                    mode = "browse"
+                    warning = ""
+                    continue
+                if key in {'\x7f', '\b'}:
+                    search_query = search_query[:-1]
+                    search_cursor = 0
+                    warning = ""
+                    continue
+                if key == '\x1b[A' and results:
+                    search_cursor = (search_cursor - 1) % len(results)
+                    warning = ""
+                    continue
+                if key == '\x1b[B' and results:
+                    search_cursor = (search_cursor + 1) % len(results)
+                    warning = ""
+                    continue
+                if key in {'\r', '\n'}:
+                    if not search_query:
+                        warning = "请先输入关键词。"
+                        continue
+                    if not results:
+                        warning = "没有匹配结果。"
+                        continue
+                    index = results[search_cursor]["index"]
+                    detail_view = default_detail_view(questions[index][1])
+                    mode = "browse"
+                    warning = ""
+                    if on_progress is not None:
+                        on_progress(index, selected_set)
+                    continue
+                if len(key) == 1 and key.isprintable():
+                    search_query += key
+                    search_cursor = 0
+                    warning = ""
+                continue
+            if mode == "jump":
+                render_review_jump(index, len(questions), q, jump_buffer, warning=warning)
+                key = read_key()
+                if key == RESIZE_KEY:
+                    continue
+                if key == '\x03':
+                    raise KeyboardInterrupt
+                if key == '\x1b':
+                    mode = "browse"
+                    warning = ""
+                    continue
+                if key in {'\x7f', '\b'}:
+                    jump_buffer = jump_buffer[:-1]
+                    warning = ""
+                    continue
+                if key in {'\r', '\n'}:
+                    if not jump_buffer:
+                        warning = "请先输入题号。"
+                        continue
+                    target = int(jump_buffer)
+                    if 1 <= target <= len(questions):
+                        index = target - 1
+                        detail_view = default_detail_view(questions[index][1])
+                        jump_buffer = ""
+                        mode = "browse"
+                        warning = ""
+                        if on_progress is not None:
+                            on_progress(index, selected_set)
+                        continue
+                    warning = f"题号 {target} 超出范围。"
+                    continue
+                if len(key) == 1 and key.isdigit():
+                    jump_buffer += key
+                    warning = ""
+                continue
             render_review_question(
                 index, len(questions), chapter, q,
                 options=options, show_translation=show_translation, translation=translation,
@@ -813,6 +920,17 @@ def review_questions(deck, config, selected_set, *, start_index=0, on_progress=N
                         on_progress(index, selected_set)
                 else:
                     warning = "已经是第一题。"
+                continue
+            if key in {'s', 'S'}:
+                mode = "search"
+                search_query = ""
+                search_cursor = 0
+                warning = ""
+                continue
+            if key in {'j', 'J'}:
+                mode = "jump"
+                jump_buffer = ""
+                warning = ""
                 continue
             if translation_enabled and key in {'t', 'T'}:
                 warning = ""

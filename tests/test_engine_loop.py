@@ -1073,6 +1073,76 @@ def test_review_questions_r_removes_wrong_index_only_with_explicit_warning(deck,
     assert any(item.get("id") == q.get("id") for item in store.load_tiku(deck)["1"])
 
 
+def test_review_questions_s_opens_empty_search_then_esc_returns_to_browse(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q)], input_is_index=False)
+    search_renders = []
+    _patch_tty(monkeypatch, ["s", "\x1b", "q"])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "render_review_question", lambda *a, **k: None)
+    monkeypatch.setattr(
+        engine_loop,
+        "render_review_search",
+        lambda *args, **kwargs: search_renders.append(
+            {
+                "query": kwargs.get("query", ""),
+                "results": list(kwargs.get("results", [])),
+            }
+        ),
+        raising=False,
+    )
+
+    status, _browse_items = engine_loop.review_questions(deck, config, selected)
+
+    assert status == "quit"
+    assert search_renders[0]["query"] == ""
+    assert search_renders[0]["results"] == []
+
+
+def test_review_questions_search_matches_zh_topic_and_enter_jumps(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    q2["zh"] = {
+        "topic": "中文搜索目标",
+        "options": ["A. 一", "B. 二", "C. 三", "D. 四"],
+    }
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    renders = []
+    _patch_tty(monkeypatch, ["s", "中", "文", "\r", "q"])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(
+        engine_loop,
+        "render_review_question",
+        lambda index, *args, **kwargs: renders.append(index),
+    )
+    monkeypatch.setattr(engine_loop, "render_review_search", lambda *a, **k: None, raising=False)
+
+    status, _browse_items = engine_loop.review_questions(deck, config, selected)
+
+    assert status == "quit"
+    assert renders[:2] == [0, 1]
+
+
+def test_review_questions_j_digits_enter_jumps_to_1_based_index(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    renders = []
+    _patch_tty(monkeypatch, ["j", "2", "\r", "q"])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(
+        engine_loop,
+        "render_review_question",
+        lambda index, *args, **kwargs: renders.append(index),
+    )
+
+    status, _browse_items = engine_loop.review_questions(deck, config, selected)
+
+    assert status == "quit"
+    assert renders[:2] == [0, 1]
+
+
 def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypatch):
     q1, q2 = store.load_tiku(deck)["1"][:2]
     selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
