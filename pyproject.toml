@@ -10,6 +10,18 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "flip" }]
+# No os name here: the package has no compiled deps, so a plain `pip install
+# flip` works on macOS, Linux, and Windows. Platform support is documented via
+# the classifiers below.
+classifiers = [
+    "Environment :: Console",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: MIT License",
+]
 dependencies = [
     "typer>=0.12.0",
     "tomli>=2.0; python_version < '3.11'",

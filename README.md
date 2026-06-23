@@ -58,6 +58,19 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ```
 
 
+## 支持的平台
+
+flip 是纯 Python,无编译依赖,在以下平台均可运行:
+
+| 平台 | 安装 | 数据目录 |
+|------|------|----------|
+| macOS / Linux | `brew install` 或 `pipx install` | `~/.local/share/flip/` |
+| Windows | `pipx install`(需先装 [pipx](https://pypa.github.io/pipx/)) | `%APPDATA%\flip\` |
+
+> 终端需支持 ANSI 转义序列。Windows 10 及以上默认支持(程序会在首次绘制时自动启用虚拟终端);旧版建议升级或在 Windows Terminal 中运行。
+
+`$FLIP_HOME` 环境变量可覆盖默认数据目录,所有平台一致。
+
 
 ## 快速开始
 

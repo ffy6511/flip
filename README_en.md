@@ -56,6 +56,19 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ```
 
 
+## Supported platforms
+
+flip is pure Python with no compiled dependencies and runs on:
+
+| Platform | Install | Data directory |
+|----------|---------|----------------|
+| macOS / Linux | `brew install` or `pipx install` | `~/.local/share/flip/` |
+| Windows | `pipx install` (install [pipx](https://pypa.github.io/pipx/) first) | `%APPDATA%\flip\` |
+
+> The terminal must support ANSI escape sequences. Windows 10+ supports them out of the box (flip enables Virtual Terminal processing on first draw); on older builds, upgrade or run inside Windows Terminal.
+
+The `$FLIP_HOME` environment variable overrides the default data directory on every platform.
+
 
 ## Getting started
 
