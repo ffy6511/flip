@@ -18,7 +18,8 @@
           "C. 为什么开发一款软件的成本这么高？",
           "D. 为什么在交付前无法彻底消除软件错误？"
         ]
-      }
+      },
+      "id": "q-6f605d6fcc46"
     },
     {
       "topic": "2. Software is a product and can be manufactured using the same technologies used for other engineering artifacts",
@@ -34,7 +35,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b866ae77cd13"
     },
     {
       "topic": "3. Software deteriorates rather than wears out because",
@@ -54,7 +56,8 @@
           "C. 多次变更请求会在组件交互中引入错误",
           "D. 软件的备件变得更难订购"
         ]
-      }
+      },
+      "id": "q-361b2727bfd8"
     },
     {
       "topic": "4. WebApps are a mixture of print publishing and software development, making their development outside the realm of software engineering practice.",
@@ -70,7 +73,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-e7053a855666"
     },
     {
       "topic": "5. There are no real differences between creating WebApps and MobileApps.",
@@ -86,7 +90,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-3127e46bfd48"
     },
     {
       "topic": "6. In its simplest form an external computing device may access cloud data services using a web browser.",
@@ -102,7 +107,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-4bed8f5d1d8e"
     },
     {
       "topic": "7. Product line software development depends the reuse of existing software components to provide software engineering leverage.",
@@ -118,7 +124,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-270e82ee0076"
     }
   ],
   "2": [
@@ -140,7 +147,8 @@
           "C. 方法",
           "D. 工具"
         ]
-      }
+      },
+      "id": "q-c90c2bb2c024"
     },
     {
       "topic": "2. Software engineering umbrella activities are only applied during the initial phases of software development projects.",
@@ -156,7 +164,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-e8034e103ea2"
     },
     {
       "topic": "3. Which of these are the 5 generic software engineering framework activities?",
@@ -176,7 +185,8 @@
           "C. 分析、设计、编程、调试、维护",
           "D. 分析、计划、设计、编程、测试"
         ]
-      }
+      },
+      "id": "q-1118360b09a3"
     },
     {
       "topic": "4. Planning ahead for software reuse reduces the cost and increases the value of the systems into which they are incorporated.",
@@ -192,7 +202,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-e4f6c430b5a7"
     },
     {
       "topic": "5. The essence of software engineering practice might be described as understand the problem, plan a solution, carry out the plan, and examine the result for accuracy.",
@@ -208,7 +219,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-fe1e0cb70888"
     },
     {
       "topic": "6. In agile process models the only deliverable work product is the working program.",
@@ -224,7 +236,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-bf6a489e0032"
     },
     {
       "topic": "7. A most software development projects are initiated to try to meet some business need.",
@@ -240,7 +253,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-3b68d62491b0"
     },
     {
       "topic": "8. In general software only succeeds if its behavior is consistent with the objectives of its designers.",
@@ -256,7 +270,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-077177044c52"
     }
   ],
   "3": [
@@ -280,7 +295,8 @@
           "D. 螺旋过程流程",
           "E. a 和 c 都"
         ]
-      }
+      },
+      "id": "q-67d8556e3d4e"
     },
     {
       "topic": "2. The communication activity is best handled for small projects using six distinct actions (inception, elicitation, elaboration, negotiation, specification, validation).",
@@ -296,7 +312,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ba2175236c94"
     },
     {
       "topic": "3. A good software development team always uses the same task set for every project to insure high quality work products",
@@ -312,7 +329,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-08e2747b2880"
     },
     {
       "topic": "4. Software processes can be constructed out of pre-existing software patterns to best meet the needs of a software project.",
@@ -328,7 +346,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-131a46de28cc"
     },
     {
       "topic": "5. Which of these are standards for assessing software processes?",
@@ -350,7 +369,8 @@
           "D. ISO 9001",
           "E. b 和 d"
         ]
-      }
+      },
+      "id": "q-b967cfc8d799"
     }
   ],
   "4": [
@@ -372,7 +392,8 @@
           "C. 适用于拥有大型开发团队项目的最佳方法。",
           "D. 一种过时且很少再被使用的模型。"
         ]
-      }
+      },
+      "id": "q-58bdac4a15e7"
     },
     {
       "topic": "2. The incremental model of software development is",
@@ -392,7 +413,8 @@
           "C. 适用于拥有大型开发团队项目的最佳方法。",
           "D. 一种革命性的模型,但不用于商业产品。"
         ]
-      }
+      },
+      "id": "q-4d5ee6f1a490"
     },
     {
       "topic": "3. Evolutionary software process models",
@@ -412,7 +434,8 @@
           "C. 通常不会产生一次性系统。",
           "D. 以上都是。"
         ]
-      }
+      },
+      "id": "q-a34b964ae630"
     },
     {
       "topic": "4. The prototyping model of software development is",
@@ -432,7 +455,8 @@
           "C. 适用于拥有大型开发团队项目的最佳方法。",
           "D. 一种很少产生有意义产品的高风险模型。"
         ]
-      }
+      },
+      "id": "q-6ea0eb270788"
     },
     {
       "topic": "5. The spiral model of software development",
@@ -452,7 +476,8 @@
           "C. 在每一次迭代中都包含项目风险评估。",
           "D. 以上都是。"
         ]
-      }
+      },
+      "id": "q-d68dba2e07b0"
     },
     {
       "topic": "6. The concurrent development model is",
@@ -474,7 +499,8 @@
           "D. 在预期有大量变更请求时使用。",
           "E. a 和 b 都"
         ]
-      }
+      },
+      "id": "q-1503b3785839"
     },
     {
       "topic": "7. The component-based development model is",
@@ -494,7 +520,8 @@
           "C. 依赖于面向对象技术的支持。",
           "D. 根据已知的可量化软件度量标准来看并不具有成本效益。"
         ]
-      }
+      },
+      "id": "q-53f787592edc"
     },
     {
       "topic": "8. The formal methods model of software development makes use of mathematical methods to",
@@ -514,7 +541,8 @@
           "C. 验证基于计算机系统的正确性。",
           "D. 以上所有。"
         ]
-      }
+      },
+      "id": "q-b84ba23225d2"
     },
     {
       "topic": "9. Which of these is not one of the phase names defined by the Unified Process model for software development?",
@@ -534,7 +562,8 @@
           "C. 构建阶段",
           "D. 验证阶段"
         ]
-      }
+      },
+      "id": "q-1d99da09e894"
     },
     {
       "topic": "10. Which of these is not a characteristic of Personal Software Process?",
@@ -554,7 +583,8 @@
           "C. 个人实践者负责估算和进度安排。",
           "D. 实践者有权控制软件工作产品的质量。"
         ]
-      }
+      },
+      "id": "q-97ce4b76cef4"
     },
     {
       "topic": "11. Which of these are objectives of Team Software Process?",
@@ -576,7 +606,8 @@
           "D. 向管理者展示如何降低成本并保持质量",
           "E. b 和 c 都"
         ]
-      }
+      },
+      "id": "q-af4a9ea63238"
     },
     {
       "topic": "12. Process technology tools allow software organizations to compress schedules by skipping unimportant activities.",
@@ -592,7 +623,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ca840164cf56"
     },
     {
       "topic": "13. It is generally accepted that one cannot have weak software processes and create high quality end products.",
@@ -608,7 +640,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5b47ab9c53af"
     }
   ],
   "5": [
@@ -626,7 +659,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-494782b28fec"
     },
     {
       "topic": "2. Which of the following is not necessary to apply agility to a software process?",
@@ -646,7 +680,8 @@
           "C. 过程允许团队简化任务",
           "D. 采用增量式产品交付策略"
         ]
-      }
+      },
+      "id": "q-26b790ab8da7"
     },
     {
       "topic": "3. How do you create agile processes to manage unpredictability?",
@@ -668,7 +703,8 @@
           "D. 软件过程必须逐步适应变化",
           "E. c 和 d 都"
         ]
-      }
+      },
+      "id": "q-bb17746c3451"
     },
     {
       "topic": "4. In agile software processes the highest priorities is to satisfy the customer through early and continuous delivery of valuable software.",
@@ -684,7 +720,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0642fdc6474d"
     },
     {
       "topic": "5. In agile development it is more important to build software that meets the customers' needs today than worry about features that might be needed in the future.",
@@ -700,7 +737,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-801fe85d7476"
     },
     {
       "topic": "6. What are the four framework activities found in the Extreme Programming (XP) process model?",
@@ -720,7 +758,8 @@
           "C. 计划、分析、编码、测试",
           "D. 计划、设计、编码、测试"
         ]
-      }
+      },
+      "id": "q-c76c5d4abfbf"
     },
     {
       "topic": "7. All agile process models conform to a greater or lesser degree to the principles stated in the \"Manifesto for Agile Software Development\".",
@@ -736,7 +775,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-918a8ac556f5"
     },
     {
       "topic": "8. Which is not one of the key questions that is answered by each team member at each daily Scrum meeting?",
@@ -756,7 +796,8 @@
           "C. 你遇到了哪些障碍？",
           "D. 你计划在下次团队会议前完成什么？"
         ]
-      }
+      },
+      "id": "q-76c99e22d260"
     },
     {
       "topic": "9. The Dynamic Systems Development Method (DSDM) suggests a philosophy that is based on the Pareto principle (80% of the application can be delivered in 20% of the time required to build the complete application).",
@@ -772,7 +813,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-97f828fb8acc"
     },
     {
       "topic": "10. Agile Modeling (AM) provides guidance to practitioner during which of these software tasks?",
@@ -794,7 +836,8 @@
           "D. 测试",
           "E. a 和 b 都"
         ]
-      }
+      },
+      "id": "q-3088fcf3b6ab"
     },
     {
       "topic": "11. Agile Unified Process uses the classic UP phased activities (inception, elaboration, construction, transition) to help the team visualize the overall process flow.",
@@ -810,7 +853,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f35a2b3ce82f"
     }
   ],
   "6": [
@@ -828,7 +872,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-99e644c76c52"
     },
     {
       "topic": "2. Which of the following is not an important trait of an effective software engineer?",
@@ -848,7 +893,8 @@
           "C. 死板地遵循流程规则",
           "D. 在压力下有韧性"
         ]
-      }
+      },
+      "id": "q-60732fdcc4a7"
     },
     {
       "topic": "3. Group communication and collaboration are as important as the technical skills of an individual team member to the success of a team.",
@@ -864,7 +910,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b738730a76d5"
     },
     {
       "topic": "4. Teams with diversity in the individual team member skill sets tend to be more effective than teams without this diversity.",
@@ -880,7 +927,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-573670f1a46b"
     },
     {
       "topic": "5. Which of the following can contribute to team toxicity?",
@@ -902,7 +950,8 @@
           "D. 团队角色定义不清",
           "E. 甲、乙、丁"
         ]
-      }
+      },
+      "id": "q-d78227832efd"
     },
     {
       "topic": "6. Software engineering team structure is independent of problem complexity and size of the expected software products.",
@@ -918,7 +967,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-bbbfe5603ffe"
     },
     {
       "topic": "7. Agile teams are allowed to self-organize and make their own technical decisions.",
@@ -934,7 +984,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a81b8fd1d6a1"
     },
     {
       "topic": "8. In XP a metaphor is used as a device to facilitate communications among customers, team members, and managers?",
@@ -950,7 +1001,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a43e75faf6f8"
     },
     {
       "topic": "9. Using an established social media platform negates the need to be concerned about privacy or security.",
@@ -966,7 +1018,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-8fe7ab0764a7"
     },
     {
       "topic": "10. Use of cloud services can speed up information sharing among software team members?",
@@ -982,7 +1035,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5ebe69d68d25"
     },
     {
       "topic": "11. In collaborative development environments, metrics are used to reward and punish team members.",
@@ -998,7 +1052,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d109836bfe91"
     },
     {
       "topic": "12. Which of these factors complicate decision-making by global software teams",
@@ -1020,7 +1075,8 @@
           "D. 与决策相关的风险",
           "E. 上述所有的。"
         ]
-      }
+      },
+      "id": "q-f0ac6a6ea5a1"
     }
   ],
   "7": [
@@ -1038,7 +1094,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-e7f2282a4ac0"
     },
     {
       "topic": "2. Which of the following is not one of core principles of software engineering practice?",
@@ -1058,7 +1115,8 @@
           "C. 帕累托原则(任何产品的20%需要80%的努力)。",
           "D. 记住你所产出的将被他人使用。"
         ]
-      }
+      },
+      "id": "q-dc730c521582"
     },
     {
       "topic": "3. Every communication activity should have a facilitator to make sure that the customer is not allowed to dominate the proceedings.",
@@ -1074,7 +1132,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0667f844d95f"
     },
     {
       "topic": "4. The agile view of iterative customer communication and collaboration is applicable to all software engineering practice.",
@@ -1090,7 +1149,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-28d30dfb1415"
     },
     {
       "topic": "5. One reason to involve everyone on the software team in the planning activity is to",
@@ -1110,7 +1170,8 @@
           "C. 让所有团队成员都\"认同\"该计划",
           "D. 理解问题范围"
         ]
-      }
+      },
+      "id": "q-44f671b112cd"
     },
     {
       "topic": "6. Project plans should not be changed once they are adopted by a team.",
@@ -1126,7 +1187,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1a240dd00739"
     },
     {
       "topic": "7. Requirements models depict software in which three domains?",
@@ -1146,7 +1208,8 @@
           "C. 信息、功能、行为",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-107e5a57d1be"
     },
     {
       "topic": "8. The design model should be traceable to the requirements model?",
@@ -1162,7 +1225,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d18057cd4903"
     },
     {
       "topic": "9. Teams using agile software practices do not generally create models.",
@@ -1178,7 +1242,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-169131eef0ba"
     },
     {
       "topic": "10. Which of the following is not one of the principles of good coding?",
@@ -1198,7 +1263,8 @@
           "C. 在完成第一次编码后重构代码",
           "D. 编写自说明代码,而不是编写程序文档"
         ]
-      }
+      },
+      "id": "q-b9f8cdb2699b"
     },
     {
       "topic": "11. A successful test I ones that discovers at least one as-yet undiscovered error.",
@@ -1214,7 +1280,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1e5d69f38728"
     },
     {
       "topic": "12. Which of the following are valid reasons for collecting customer feedback concerning delivered software?",
@@ -1234,7 +1301,8 @@
           "C. 开发人员可以确定需要在下一个增量中纳入的更改",
           "D. 以上都是"
         ]
-      }
+      },
+      "id": "q-d7677ca84f3b"
     },
     {
       "topic": "13. Larger programming teams are always more productive than smaller teams.",
@@ -1250,7 +1318,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-baeb69cd609e"
     }
   ],
   "8": [
@@ -1268,7 +1337,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-930b80952a84"
     },
     {
       "topic": "2. During project inception the intent of the of the tasks are to determine",
@@ -1290,7 +1360,8 @@
           "D. 以上都不是",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-68acb33528bd"
     },
     {
       "topic": "3. Three things that make requirements elicitation difficult are problems of",
@@ -1312,7 +1383,8 @@
           "D. 易变性",
           "E. 乙、丙、丁"
         ]
-      }
+      },
+      "id": "q-30e8c981f481"
     },
     {
       "topic": "4. A stakeholder is anyone who will purchase the completed software system under development.",
@@ -1328,7 +1400,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-30f98b1f9bdc"
     },
     {
       "topic": "5. It is relatively common for different customers to propose conflicting requirements, each arguing that his or her version is the right one.",
@@ -1344,7 +1417,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-7e72c1ec170e"
     },
     {
       "topic": "6. Which of the following is not one of the context-free questions that would be used during project inception?",
@@ -1364,7 +1438,8 @@
           "C. 谁将为这项工作买单？",
           "D. 谁将使用该解决方案？"
         ]
-      }
+      },
+      "id": "q-a89d351845f5"
     },
     {
       "topic": "7. Non-functional requirements can be safely ignored in modern software development projects.",
@@ -1380,7 +1455,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-40a15b4e42b6"
     },
     {
       "topic": "8. In collaborative requirements gathering the facilitator",
@@ -1400,7 +1476,8 @@
           "C. 控制会议",
           "D. 必须是外部人员"
         ]
-      }
+      },
+      "id": "q-0072abf7948d"
     },
     {
       "topic": "9. Which of the following is not one of the requirement classifications used in Quality Function Deployment (QFD)?",
@@ -1420,7 +1497,8 @@
           "C. 强制性的",
           "D. 正常的"
         ]
-      }
+      },
+      "id": "q-94e07881f058"
     },
     {
       "topic": "10. The work products produced during requirement elicitation will vary depending on the",
@@ -1442,7 +1520,8 @@
           "D. 相关方的需求。",
           "E. a 和 b 都"
         ]
-      }
+      },
+      "id": "q-fdc1fe6b492b"
     },
     {
       "topic": "11. User stories are complete descriptions the user needs and include the non-functional requirements for a software increment.",
@@ -1458,7 +1537,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b2ceca5184aa"
     },
     {
       "topic": "12. Developers and customers create use-cases to help the software team understand how different classes of end-users will use functions.",
@@ -1474,7 +1554,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0ff74b230d19"
     },
     {
       "topic": "13. Use-case actors are always people, never system devices.",
@@ -1490,7 +1571,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-c17c0b87f2b2"
     },
     {
       "topic": "14. The result of the requirements engineering task is an analysis model that defines which of the following problem domain(s)?",
@@ -1510,7 +1592,8 @@
           "C. 行为域",
           "D. 以上所有"
         ]
-      }
+      },
+      "id": "q-e3a58090a528"
     },
     {
       "topic": "15. Analysis patterns facilitate the transformation of the analysis model into a design model by suggesting reliable solutions to common problems.",
@@ -1526,7 +1609,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-edceb5c3fa92"
     },
     {
       "topic": "16. In agile process models requirements engineering and design activities are interleaved.",
@@ -1542,7 +1626,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-cdcaccfd8bcc"
     },
     {
       "topic": "17. In win-win negotiation, the customer's needs are met even though the developer's need may not be.",
@@ -1558,7 +1643,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2c2bdf51385f"
     },
     {
       "topic": "18. In requirements validation the requirements model is reviewed to ensure its technical feasibility.",
@@ -1574,7 +1660,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-abb82d0cfebb"
     },
     {
       "topic": "19. The most common reason for software project failure is lack of functionality.",
@@ -1590,7 +1677,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f272710fbb90"
     }
   ],
   "9": [
@@ -1612,7 +1700,8 @@
           "C. 数据元素",
           "D. 基于场景的元素"
         ]
-      }
+      },
+      "id": "q-c95b887c17e1"
     },
     {
       "topic": "2. Which of the following is not an objective for building a requirements model?",
@@ -1632,7 +1721,8 @@
           "C. 为问题开发一个简化的解决方案",
           "D. 为软件设计建立基础"
         ]
-      }
+      },
+      "id": "q-85bfe29a3963"
     },
     {
       "topic": "3. Object-oriented domain analysis is concerned with the identification and specification of reusable capabilities within an application domain.",
@@ -1648,7 +1738,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-8368a0a3fb0e"
     },
     {
       "topic": "4. In structured analysis models focus on the structure of the classes defined for a system along with their interactions.",
@@ -1664,7 +1755,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5afa8e0d6e9b"
     },
     {
       "topic": "5. Creation and refinement of use cases if an important part of scenario-based modeling.",
@@ -1680,7 +1772,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a7b447228af6"
     },
     {
       "topic": "6. It is important to consider alternative actor interactions when creating a preliminary use case.",
@@ -1696,7 +1789,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a02e8cb5d36d"
     },
     {
       "topic": "7. Brainstorming is one technique that may be used to derive a complete set of use case exceptions.",
@@ -1712,7 +1806,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a15c21e818a9"
     },
     {
       "topic": "8. In many cases there is no need to create a graphical representation of a usage scenario.",
@@ -1728,7 +1823,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a5cbb7247cd0"
     },
     {
       "topic": "9. UML activity diagrams are useful in representing which analysis model elements?",
@@ -1748,7 +1844,8 @@
           "C. 基于流程的元素",
           "D. 基于场景的元素"
         ]
-      }
+      },
+      "id": "q-12fa986354c9"
     },
     {
       "topic": "10. UML swimnlane diagrams allow you to represent the flow of activities by showing the actors having responsibility for creating each data element.",
@@ -1764,7 +1861,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6c6da5d8e3cf"
     }
   ],
   "10": [
@@ -1786,7 +1884,8 @@
           "C. 结构",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-34b70c75e73e"
     },
     {
       "topic": "2. In the grammatical parse of a processing narrative the nouns become object candidates in the analysis model.",
@@ -1802,7 +1901,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-314cd11aaca5"
     },
     {
       "topic": "3. Attributes are chosen for an object by examining the problem statement and identifying the entities that appear to be related.",
@@ -1818,7 +1918,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-126d7f2d442e"
     },
     {
       "topic": "4. Which of the following is not one of the broad categories used to classify operations?",
@@ -1838,7 +1939,8 @@
           "C. 事件监控器",
           "D. 转换器"
         ]
-      }
+      },
+      "id": "q-eda094dafc71"
     },
     {
       "topic": "5. Collaborators in CRC modeling are those classes needed to fulfill a responsibility on another card.",
@@ -1854,7 +1956,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-e96d29f8d1ee"
     },
     {
       "topic": "6. Which of the following items does not appear on a CRC card?",
@@ -1874,7 +1977,8 @@
           "C. 类的可靠性",
           "D. 类的职责"
         ]
-      }
+      },
+      "id": "q-8edca9d4e1e7"
     },
     {
       "topic": "7. Class responsibilities are defined by",
@@ -1894,7 +1998,8 @@
           "C. 仅由其操作",
           "D. 由其属性和操作"
         ]
-      }
+      },
+      "id": "q-c1cd2f208db1"
     },
     {
       "topic": "8. A stereotype is the basis for class reuse in UML modeling.",
@@ -1910,7 +2015,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-338fd3468bfb"
     },
     {
       "topic": "9. An analysis package involves the categorization of analysis model elements into useful groupings.",
@@ -1926,7 +2032,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2530db0c8621"
     }
   ],
   "11": [
@@ -1944,7 +2051,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ff2a6ec60d20"
     },
     {
       "topic": "2. For purposes of behavior modeling an event occurs whenever",
@@ -1964,7 +2072,8 @@
           "C. 两个参与者交换信息。",
           "D. 两个对象交换信息。"
         ]
-      }
+      },
+      "id": "q-3066144e4c1d"
     },
     {
       "topic": "3. For purposes of behavior modeling a state is any",
@@ -1984,7 +2093,8 @@
           "C. 可观察到的行为模式。",
           "D. 明确定义的过程。"
         ]
-      }
+      },
+      "id": "q-415bf32791dd"
     },
     {
       "topic": "4. The state transition diagram",
@@ -2004,7 +2114,8 @@
           "C. 表示数据如何被系统转换",
           "D. 表示系统对外部事件的反应"
         ]
-      }
+      },
+      "id": "q-110acbc8e3fc"
     },
     {
       "topic": "5. The UML sequence diagram shows the order in which system events are processed.",
@@ -2020,7 +2131,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-bae9540c8ff9"
     },
     {
       "topic": "6. Analysis patterns are discovered, they are not explicitly created.",
@@ -2036,7 +2148,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-02cdb2452c2f"
     },
     {
       "topic": "7. It is not possible to justify the time required for mobile app requirements analysis.",
@@ -2052,7 +2165,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d26d1cafbfd1"
     },
     {
       "topic": "8. Which is not one of the analysis activities that is used to create a complete analysis model?",
@@ -2072,7 +2186,8 @@
           "C. 功能分析",
           "D. 市场分析"
         ]
-      }
+      },
+      "id": "q-fbd459825438"
     },
     {
       "topic": "9. Content objects are extracted from use cases by examining the scenario description for direct or indirect content references.",
@@ -2088,7 +2203,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-559632d3a81c"
     },
     {
       "topic": "10. What are the elements of a WebApp interaction model?",
@@ -2108,7 +2224,8 @@
           "C. 用例、顺序图、状态图、界面原型",
           "D. 用例、顺序图、状态图、顺序图"
         ]
-      }
+      },
+      "id": "q-b72b7c9b6a19"
     },
     {
       "topic": "11. UML activity diagrams can be used to represent the user observable functionality delivered by the WebApp as well as the operations contained in each analysis class.",
@@ -2124,7 +2241,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-3ab41a660359"
     },
     {
       "topic": "12. Configuration analysis focuses on the architecture of the user's web browsing environment.",
@@ -2140,7 +2258,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-c79154a11fbb"
     }
   ],
   "12": [
@@ -2164,7 +2283,8 @@
           "D. 项目范围",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-f8adf15df54b"
     },
     {
       "topic": "2. The importance of software design can be summarized in a single word",
@@ -2184,7 +2304,8 @@
           "C. 效率",
           "D. 质量"
         ]
-      }
+      },
+      "id": "q-41464a65a51f"
     },
     {
       "topic": "3. Which of these are characteristics of a good design?",
@@ -2206,7 +2327,8 @@
           "D. 提供了软件的完整图景",
           "E. 乙和丁"
         ]
-      }
+      },
+      "id": "q-73f750e63edf"
     },
     {
       "topic": "4. Which of the following is not a characteristic common to all design methods?",
@@ -2226,7 +2348,8 @@
           "C. 质量评估指南",
           "D. 细化启发式"
         ]
-      }
+      },
+      "id": "q-fa2f0b1d501c"
     },
     {
       "topic": "5. What types of abstraction are used in software design?",
@@ -2248,7 +2371,8 @@
           "D. 过程抽象",
           "E. 甲、乙、丁"
         ]
-      }
+      },
+      "id": "q-6d0f41858cc5"
     },
     {
       "topic": "6. Which of the following can be used to represent the architectural design of a piece of software?",
@@ -2268,7 +2392,8 @@
           "C. 结构模型",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-b2a8ae919358"
     },
     {
       "topic": "7. Design patterns are not applicable to the design of object-oriented software?",
@@ -2284,7 +2409,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-eef43ff69e33"
     },
     {
       "topic": "8. Since modularity is an important design goal it is not possible to have too many modules in a proposed design.",
@@ -2300,7 +2426,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-bf93e30459a5"
     },
     {
       "topic": "9. Information hiding makes program maintenance easier by hiding data and procedure from unaffected parts of the program.",
@@ -2316,7 +2443,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-fd848f208230"
     },
     {
       "topic": "10. Cohesion is a qualitative indication of the degree to which a module",
@@ -2336,7 +2464,8 @@
           "C. 是否能够及时完成其功能。",
           "D. 是否与其他模块和外部世界相连接。"
         ]
-      }
+      },
+      "id": "q-12bd121114a1"
     },
     {
       "topic": "11. Coupling is a qualitative indication of the degree to which a module",
@@ -2356,7 +2485,8 @@
           "C. 是否能够及时完成其功能。",
           "D. 与其他模块及外部世界的连接程度。"
         ]
-      }
+      },
+      "id": "q-59ee7cdef931"
     },
     {
       "topic": "12. When using structured design methodologies the process of stepwise refinement is unnecessary.",
@@ -2372,7 +2502,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-9aaef1dad3b5"
     },
     {
       "topic": "13. Software designs are refactored to allow the creation of software that is easier to integrate, easier to test, and easier to maintain.",
@@ -2388,7 +2519,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-517450b22ac3"
     },
     {
       "topic": "14. Which of the following is not one of the five design class types",
@@ -2408,7 +2540,8 @@
           "C. 过程类",
           "D. 用户界面类"
         ]
-      }
+      },
+      "id": "q-1bee08f68283"
     },
     {
       "topic": "15. Which design model elements are used to depict a model of information represented from the user's view?",
@@ -2428,7 +2561,8 @@
           "C. 数据设计要素",
           "D. 界面设计要素"
         ]
-      }
+      },
+      "id": "q-bda8399e4361"
     },
     {
       "topic": "16. Which design is equivalent to the floor plan of a house?",
@@ -2448,7 +2582,8 @@
           "C. 数据设计",
           "D. 接口设计"
         ]
-      }
+      },
+      "id": "q-160fff5c20f5"
     },
     {
       "topic": "17. Which design model is equivalent to the detailed drawings of the access points and external utilities for a house?",
@@ -2468,7 +2603,8 @@
           "C. 数据设计",
           "D. 接口设计"
         ]
-      }
+      },
+      "id": "q-a920f8223045"
     },
     {
       "topic": "18. Which design model is equivalent to a set of detailed drawings for each room in a house?",
@@ -2488,7 +2624,8 @@
           "C. 数据设计",
           "D. 接口设计"
         ]
-      }
+      },
+      "id": "q-e61a1bbd0fe3"
     },
     {
       "topic": "19. The deployment design elements specify the build order for the software components.",
@@ -2504,7 +2641,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-c0ff255d4f1b"
     }
   ],
   "13": [
@@ -2522,7 +2660,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-fdd9452372db"
     },
     {
       "topic": "2. The architectural representations can be an enabler for communication among project stakeholders.",
@@ -2538,7 +2677,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-73fdc6391c32"
     },
     {
       "topic": "3. An architectural description is often documented using an architecture template.",
@@ -2554,7 +2694,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-03e95869f5be"
     },
     {
       "topic": "4. An architectural decision is often documented using an architecture decision description template.",
@@ -2570,7 +2711,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-8aac49ec77be"
     },
     {
       "topic": "5. An architectural genre will often dictate the architectural approach that may used for the structure to be built.",
@@ -2586,7 +2728,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6515b48c3549"
     },
     {
       "topic": "6. An architectural style encompasses which of the following elements?",
@@ -2608,7 +2751,8 @@
           "D. 句法模型",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-d17e7fe8d33a"
     },
     {
       "topic": "7. To determine the architectural style or combination of styles that best fits the proposed system, requirements engineering is used to uncover",
@@ -2628,7 +2772,8 @@
           "C. 控制和数据",
           "D. 设计模式"
         ]
-      }
+      },
+      "id": "q-98f82d528f6e"
     },
     {
       "topic": "8. Before an architectural pattern can be chosen for use in a specific system it must have a code implementation to facilitate its reuse.",
@@ -2644,7 +2789,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a154ad5c86fc"
     },
     {
       "topic": "9. The criteria used to assess the quality of an architectural design should be based on system",
@@ -2666,7 +2812,8 @@
           "D. 实现",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-3f8f58738902"
     },
     {
       "topic": "10. Software architectural considerations often interact with each other and moderate each other.",
@@ -2682,7 +2829,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-df6d85e5c14f"
     },
     {
       "topic": "11. Developer notes are not a reliable means of documenting architectural decisions",
@@ -2698,7 +2846,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-7f9ce2456caa"
     },
     {
       "topic": "12. During process of modeling the system in context, systems that interact with the target system are represented as",
@@ -2720,7 +2869,8 @@
           "D. 工作系统",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-2ad7118df0af"
     },
     {
       "topic": "13. Once selected, archetypes always need to be refined further as architectural design proceeds.",
@@ -2736,7 +2886,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a9a6ae8e8092"
     },
     {
       "topic": "14. Which of the following is not an example of infrastructure components that may need to be integrated into the software architecture?",
@@ -2756,7 +2907,8 @@
           "C. 接口组件",
           "D. 内存管理组件"
         ]
-      }
+      },
+      "id": "q-a0a3d8759f6d"
     },
     {
       "topic": "15. In the architecture trade-off analysis method the architectural style should be described using the",
@@ -2778,7 +2930,8 @@
           "D. 用户视图",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-457959a1e203"
     },
     {
       "topic": "16. A useful technique for evaluating the overall complexity of a proposed architecture is to look at the component",
@@ -2800,7 +2953,8 @@
           "D. 规模",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-06ca1b5b3dbc"
     },
     {
       "topic": "17. Software architects need to create consensus among software team members and other stakeholders.",
@@ -2816,7 +2970,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2738070c9c49"
     },
     {
       "topic": "18. Pattern-based architectural reviews can be useful for project with short build cycles and volatile requirements.",
@@ -2832,7 +2987,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b6aabd59ef58"
     },
     {
       "topic": "19. Static architectural conformance checking assesses whether or not the source code matches the user visible requirements.",
@@ -2848,7 +3004,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-458fcc34035f"
     },
     {
       "topic": "20. Architectural design has no role in agile software process models.",
@@ -2864,7 +3021,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f7fb144f5de5"
     }
   ],
   "14": [
@@ -2882,7 +3040,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-34c06b4a5ca3"
     },
     {
       "topic": "2. In the context of object-oriented software engineering a component contains",
@@ -2902,7 +3061,8 @@
           "C. 每个参与者(设备或用户)的角色",
           "D. 一组协作的类"
         ]
-      }
+      },
+      "id": "q-d5f0fd1c7c5c"
     },
     {
       "topic": "3. In traditional software engineering modules must serve in which of the following roles?",
@@ -2922,7 +3082,8 @@
           "C. 问题域组件",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-ae8de91fadb9"
     },
     {
       "topic": "4. Software engineers always need to cerate components from scratch in order to meet customer expectations fully.",
@@ -2938,7 +3099,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1938e97681d1"
     },
     {
       "topic": "5. Which of the following is not one of the four principles used to guide component-level design?",
@@ -2958,7 +3120,8 @@
           "C. 开闭原则",
           "D. 简约复杂性原则"
         ]
-      }
+      },
+      "id": "q-ae629f6f6247"
     },
     {
       "topic": "6. The use of stereotypes can help identify the nature of components at the detailed design level.",
@@ -2974,7 +3137,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-17618242025e"
     },
     {
       "topic": "7. Classes and components that exhibit functional, layer, or communicational cohesion are relatively easy to implement, test, and maintain.",
@@ -2990,7 +3154,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2a7d36e17c0e"
     },
     {
       "topic": "8. Software coupling is a sign of poor architectural design and can always be avoided in every system.",
@@ -3006,7 +3171,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b61cd1ea4058"
     },
     {
       "topic": "9. In component design elaboration requires which of the following elements to be describe in detail?",
@@ -3028,7 +3194,8 @@
           "D. 操作",
           "E. 乙、丙、丁"
         ]
-      }
+      },
+      "id": "q-b788269f4b06"
     },
     {
       "topic": "10. In component-level design persistent data sources refer to",
@@ -3050,7 +3217,8 @@
           "D. 以上所有",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-b8314711d84a"
     },
     {
       "topic": "11. WebApp content design at the component level focuses on content objects and the manner in which they interact.",
@@ -3066,7 +3234,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-018b81e810db"
     },
     {
       "topic": "12. A WebApp functional architecture describes the key functional components and how they interact with each other.",
@@ -3082,7 +3251,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-27cac95d5d61"
     },
     {
       "topic": "13. Component-level design for mobile apps is not any different from component-based design for Web apps.",
@@ -3098,7 +3268,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-3da0d27295d5"
     },
     {
       "topic": "14. Which of these constructs is used in structured programming?",
@@ -3120,7 +3291,8 @@
           "D. 顺序",
           "E. 乙、丙、丁"
         ]
-      }
+      },
+      "id": "q-880b84917871"
     },
     {
       "topic": "15. In component-based software engineering, the development team examines the requirements to see which are amenable to composition, rather than construction, before beginning detailed design tasks.",
@@ -3136,7 +3308,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6115ac395bc3"
     },
     {
       "topic": "16. Which of the following is not one of the major activities of domain engineering?",
@@ -3156,7 +3329,8 @@
           "C. 传播",
           "D. 验证"
         ]
-      }
+      },
+      "id": "q-3b541ad5d024"
     },
     {
       "topic": "17. Which of the following factors would not be considered during component qualification?",
@@ -3176,7 +3350,8 @@
           "C. 异常处理",
           "D. 所需的测试设备"
         ]
-      }
+      },
+      "id": "q-b8df8c749fb4"
     },
     {
       "topic": "18. Which is the following is a technique used for component wrapping?",
@@ -3196,7 +3371,8 @@
           "C. 灰盒封装",
           "D. 白盒封装"
         ]
-      }
+      },
+      "id": "q-7ecd4a20c742"
     },
     {
       "topic": "19. Which of the following is not one of the issues that form a basis for design for reuse?",
@@ -3216,7 +3392,8 @@
           "C. 标准数据",
           "D. 标准接口协议"
         ]
-      }
+      },
+      "id": "q-0e93da481088"
     },
     {
       "topic": "20. In a reuse environment, library queries are often characterized using the ________ element of the 3C Model.",
@@ -3236,7 +3413,8 @@
           "C. 上下文",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-fe913b129e43"
     }
   ],
   "15": [
@@ -3258,7 +3436,8 @@
           "C. 对普通用户隐藏技术细节",
           "D. 只提供一种严格定义的方法来完成任务"
         ]
-      }
+      },
+      "id": "q-3ac73ed3d747"
     },
     {
       "topic": "2. Which of the following interface design principles reduce the user's memory load?",
@@ -3280,7 +3459,8 @@
           "D. 提供在线教程",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-44d4f9d68d94"
     },
     {
       "topic": "3. The reason for reducing the user's memory load is make his or her interaction with the computer quicker to complete.",
@@ -3296,7 +3476,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1063f702408c"
     },
     {
       "topic": "4. Interface consistency implies that",
@@ -3318,7 +3499,8 @@
           "D. 视觉信息按照设计标准进行组织",
           "E. 乙和丁"
         ]
-      }
+      },
+      "id": "q-ab316b446d17"
     },
     {
       "topic": "5. If past interactive models have created certain user expectations it is not generally good to make changes to the model.",
@@ -3334,7 +3516,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b8d5467da287"
     },
     {
       "topic": "6. Which model depicts the profile of the end users of a computer system?",
@@ -3354,7 +3537,8 @@
           "C. 用户模型",
           "D. 用户的模型"
         ]
-      }
+      },
+      "id": "q-ec7aa37863c9"
     },
     {
       "topic": "7. Which model depicts the image of a system that an end user creates in his or her head?",
@@ -3374,7 +3558,8 @@
           "C. 系统模型",
           "D. 系统感知"
         ]
-      }
+      },
+      "id": "q-247db76b56dc"
     },
     {
       "topic": "8. Which model depicts the look and feel of the user interface along with all supporting information?",
@@ -3394,7 +3579,8 @@
           "C. 用户的模型",
           "D. 系统感知"
         ]
-      }
+      },
+      "id": "q-eee441e48c46"
     },
     {
       "topic": "9. Which of these framework activities is not normally associated with the user interface design processes?",
@@ -3414,7 +3600,8 @@
           "C. 界面验证",
           "D. 用户与任务分析"
         ]
-      }
+      },
+      "id": "q-f7b71c7eff72"
     },
     {
       "topic": "10. Which approach(es) to user task analysis can be useful in user interface design?",
@@ -3436,7 +3623,8 @@
           "D. 观察用户手工执行任务",
           "E. c和d"
         ]
-      }
+      },
+      "id": "q-df54687acf1f"
     },
     {
       "topic": "11. Object-oriented analysis techniques can be used to identify and refine user task objects and actions without any need to refer to the user voice.",
@@ -3452,7 +3640,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-41c05d3e7c20"
     },
     {
       "topic": "12. The computer's display capabilities are the primary determinant of the order in which user interface design activities are completed.",
@@ -3468,7 +3657,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-25ad16078ea8"
     },
     {
       "topic": "13. It is sometimes possible that the interface designer is constrained by environmental factors that mitigate against ease of use for many users.",
@@ -3484,7 +3674,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-60e56ea4f6c4"
     },
     {
       "topic": "14. One means of defining user interface objects and actions is to conduct a grammatical parse of the user scenario.",
@@ -3500,7 +3691,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-33a2d9537816"
     },
     {
       "topic": "15. Interface design patterns typically include a complete component-level design (design classes, attributes, operations, and interfaces).",
@@ -3516,7 +3708,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d29a4c2e41c9"
     },
     {
       "topic": "16. Several common design issues surface for almost every user interface including",
@@ -3538,7 +3731,8 @@
           "D. 系统响应时间",
           "E. 乙和丁"
         ]
-      }
+      },
+      "id": "q-4a92449fbc78"
     },
     {
       "topic": "17. It is more important to capture the user's attention with flashy features than ergonomically sound screen layouts when building a WebApp.",
@@ -3554,7 +3748,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-564939c0eaa6"
     },
     {
       "topic": "18. Several usability measures can be collected while observing users interacting with a computer system including",
@@ -3576,7 +3771,8 @@
           "D. 用户查阅帮助材料所花的时间",
           "E. 乙和丁"
         ]
-      }
+      },
+      "id": "q-84872ed466d8"
     }
   ],
   "16": [
@@ -3598,7 +3794,8 @@
           "C. 问题",
           "D. 解决方案"
         ]
-      }
+      },
+      "id": "q-f2013d2f8798"
     },
     {
       "topic": "2. RubberNecking is an example of a classic generative pattern.",
@@ -3614,7 +3811,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6c64dd019fa4"
     },
     {
       "topic": "3. A frame work is a reusable mini-architecture that serves as a foundation which other design patterns can be applied?",
@@ -3630,7 +3828,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-350fe07b2dc9"
     },
     {
       "topic": "4. Finding patterns built by others that address design problems is often more difficult that recognizing patterns in the application to be built.",
@@ -3646,7 +3845,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-04bafaeeeb53"
     },
     {
       "topic": "5. A pattern language",
@@ -3666,7 +3866,8 @@
           "C. 类似于自然语言的结构",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-acf6f73c230d"
     },
     {
       "topic": "6. The concepts and techniques discussed for ___________ can be used in the conjunction with a pattern-based approach.",
@@ -3686,7 +3887,8 @@
           "C. 用户界面设计",
           "D. 以上所有"
         ]
-      }
+      },
+      "id": "q-9a2d176b8f11"
     },
     {
       "topic": "7. It is important to reduce the coupling among design patterns so that they can be treated as independent entities.",
@@ -3702,7 +3904,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-db9e9b4d41a9"
     },
     {
       "topic": "8. Real life design solutions may not always lend themselves to a top-down approach.",
@@ -3718,7 +3921,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-44dbfc88da78"
     },
     {
       "topic": "9. Which of the following problem types are used to label columns in a pattern organizing table?",
@@ -3740,7 +3944,8 @@
           "D. 基础设施",
           "E. c和d"
         ]
-      }
+      },
+      "id": "q-689e3eb6961f"
     },
     {
       "topic": "10. Most mistakes in pattern-based design can be avoided by judicious use of review techniques.",
@@ -3756,7 +3961,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-476690fba111"
     },
     {
       "topic": "11. Before choosing an architectural design pattern it must be assessed for its appropriateness to the application and overall architectural style.",
@@ -3772,7 +3978,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-c73f41414543"
     },
     {
       "topic": "12. Unlike architectural patterns, component-level design patterns may be applied to solve subproblems without regard to system context.",
@@ -3788,7 +3995,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2805f94fc516"
     },
     {
       "topic": "13. Most user interface design patterns fall with in one of ____ categories of patterns.",
@@ -3808,7 +4016,8 @@
           "C. ",
           "D. "
         ]
-      }
+      },
+      "id": "q-23c0a5b64f26"
     },
     {
       "topic": "14. WebApp design patterns can be classified by considering which of the dimensions listed below?",
@@ -3830,7 +4039,8 @@
           "D. 可用性",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-7f758ffb38d4"
     },
     {
       "topic": "15. Which of the following are levels of design focus that can be used to categorize WebApp patterns?",
@@ -3852,7 +4062,8 @@
           "D. 导航模式",
           "E. 乙和丁"
         ]
-      }
+      },
+      "id": "q-98fbbf1c50b0"
     },
     {
       "topic": "16. Which of the levels of granularity that can be used to describe WebApp patterns?",
@@ -3874,7 +4085,8 @@
           "D. 交互模式",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-d115e914e17e"
     },
     {
       "topic": "17. Mobile app user interface patterns can be represented as a collection of best of breed screen images.",
@@ -3890,7 +4102,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-90acd0f2b50f"
     }
   ],
   "17": [
@@ -3912,7 +4125,8 @@
           "C. 可维护性",
           "D. 可用性"
         ]
-      }
+      },
+      "id": "q-350e29e38184"
     },
     {
       "topic": "2. Which of the following are design goals for every WebApp?",
@@ -3934,7 +4148,8 @@
           "D. 视觉吸引力",
           "E. 上述所有的。"
         ]
-      }
+      },
+      "id": "q-cda29ccf0336"
     },
     {
       "topic": "3. Which of the following not part of the design pyramid for WebE design?",
@@ -3954,7 +4169,8 @@
           "C. 内容设计",
           "D. 导航设计"
         ]
-      }
+      },
+      "id": "q-a88e4adc9daa"
     },
     {
       "topic": "4. With WebApps content is everything, a poorly defined user interface will be quickly overlooked by frequent users.",
@@ -3970,7 +4186,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0eae48d4691b"
     },
     {
       "topic": "5. Which of these are WebApp interaction mechanisms?",
@@ -3990,7 +4207,8 @@
           "C. 导航菜单",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-421c1d4a53a9"
     },
     {
       "topic": "6. Screen layout design has several widely accepted standards based on human factors research.",
@@ -4006,7 +4224,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-9b4f190abcec"
     },
     {
       "topic": "7. Graphic design considers every aspect of the look and feel of a WebApp.",
@@ -4022,7 +4241,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-8a3816c827b9"
     },
     {
       "topic": "8. Content design is conducted by",
@@ -4042,7 +4262,8 @@
           "C. a 和 b 都是",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-73da498b8339"
     },
     {
       "topic": "9. Content objects have both information attributes defined during analysis and implementation specific attributes specified during design.",
@@ -4058,7 +4279,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-697d5a97a364"
     },
     {
       "topic": "10. Content objects are not normally chunked into Web pages until the implementation activities begin.",
@@ -4074,7 +4296,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-63f5b412a7c7"
     },
     {
       "topic": "11. Content architecture and WebApp architecture are pretty much the same thing for many WebApps?",
@@ -4090,7 +4313,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2bb213529968"
     },
     {
       "topic": "12. Which of the following is not one of the content architectural structures used by web engineers?",
@@ -4110,7 +4334,8 @@
           "C. 层次结构",
           "D. 并行"
         ]
-      }
+      },
+      "id": "q-fddea97795f3"
     },
     {
       "topic": "13. MVC is a three layer architecture that contains a",
@@ -4130,7 +4355,8 @@
           "C. 模型、视图、控制器",
           "D. 机器、视图、控制器"
         ]
-      }
+      },
+      "id": "q-150daa9ca779"
     },
     {
       "topic": "14. Web navigational design involves creating a semantic navigational unit for each goal associated with each defined user role.",
@@ -4146,7 +4372,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-69ffcdd8c707"
     },
     {
       "topic": "15. To allow the user to feel in control of a WebApp, it is a good idea to mix both horizontal and vertical navigation mechanisms on the same page.",
@@ -4162,7 +4389,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-39ee86efd8ca"
     },
     {
       "topic": "16. Component level design for WebApps is very similar to component level design for other software delivery environments.",
@@ -4178,7 +4406,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-fc5debf49f2d"
     },
     {
       "topic": "17. Which of these is not one of the design activities associated with object-oriented hypermedia design?",
@@ -4198,7 +4427,8 @@
           "C. 内容设计",
           "D. 导航设计"
         ]
-      }
+      },
+      "id": "q-9f1e3e6bf092"
     },
     {
       "topic": "18. UML does not have any representation schemas that are useful in building WebApp design models.",
@@ -4214,7 +4444,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ab0142b3f89e"
     }
   ],
   "18": [
@@ -4232,7 +4463,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-9bb17672d1a4"
     },
     {
       "topic": "2. Modern electronics allow developers to ignore the power demands made by a MobileApp.",
@@ -4248,7 +4480,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f143cf032a62"
     },
     {
       "topic": "3. A MobileApp is assessed for usability and accessibility before beginning the next increment begins.",
@@ -4264,7 +4497,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-034fa9ece98b"
     },
     {
       "topic": "4. Which of the following characteristics should not be used to assess the quality of a MobileApp?",
@@ -4284,7 +4518,8 @@
           "C. 可维护性",
           "D. 可用性"
         ]
-      }
+      },
+      "id": "q-ecd0b19db6ac"
     },
     {
       "topic": "5. Quality function deployment is not necessary when implementing MobileApp user stories?",
@@ -4300,7 +4535,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b067131008b7"
     },
     {
       "topic": "6. Using highly adaptive contextual interfaces is a good way to deal with device limitations like screen size.",
@@ -4316,7 +4552,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2b2f470d5849"
     },
     {
       "topic": "7. Which of the following are common MobileApp design mistakes.",
@@ -4338,7 +4575,8 @@
           "D. 过度设计",
           "E. a 和 d"
         ]
-      }
+      },
+      "id": "q-cd41b7d7634c"
     },
     {
       "topic": "8. It is better to multiple short pages than long scrolling forms when implementing mobile device user interfaces.",
@@ -4354,7 +4592,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5a5ffe112d38"
     },
     {
       "topic": "9. Java is the best programming language to use when you want to create portable MobileApps.",
@@ -4370,7 +4609,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b95e97603c77"
     },
     {
       "topic": "10. Service computing allows you to avoid the need to integrate service source code into the mobile device client.",
@@ -4386,7 +4626,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b5553e21e53a"
     },
     {
       "topic": "11. The most important MobileApp architecture decision whether to build a thin or fat mobile client.",
@@ -4402,7 +4643,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5aaa0a6246c7"
     }
   ],
   "19": [
@@ -4420,7 +4662,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-722c741db2d6"
     },
     {
       "topic": "2. Which of the following is not one of the attributes of software quality?",
@@ -4440,7 +4683,8 @@
           "C. 消除对性能问题的考虑需求",
           "D. 有用的产品满足相关方需求"
         ]
-      }
+      },
+      "id": "q-fab689e98989"
     },
     {
       "topic": "3. Product quality can only be assessed by measuring hard quality factors.",
@@ -4456,7 +4700,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2264c872bb7f"
     },
     {
       "topic": "4. Many software metrics can only be measured indirectly.",
@@ -4472,7 +4717,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-42c629f9c33b"
     },
     {
       "topic": "5. Which of the following are ISO 9126 software quality factors?",
@@ -4494,7 +4740,8 @@
           "D. 视觉吸引力",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-aa6fb0dc41bd"
     },
     {
       "topic": "6. Developers need to create a collection of targeted questions to asses each quality factor.",
@@ -4510,7 +4757,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-4c19e658b75b"
     },
     {
       "topic": "7. Software metrics represent direct measures of some manifestation of quality.",
@@ -4526,7 +4774,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-81714ff83a07"
     },
     {
       "topic": "8. The quality dilemma might be summarized as choosing between building things quickly or building things correctly.",
@@ -4542,7 +4791,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-866cb7cfc2bc"
     },
     {
       "topic": "9. Good enough software delivers high quality software functions along with specialized functions that contain known bugs.",
@@ -4558,7 +4808,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ddb5316fd849"
     },
     {
       "topic": "10. Which of the following is likely to be the most expensive cost of quality?",
@@ -4578,7 +4829,8 @@
           "C. 内部故障成本",
           "D. 预防成本"
         ]
-      }
+      },
+      "id": "q-985a368d37f4"
     },
     {
       "topic": "11. Poor quality leads to software risks that can become serious?",
@@ -4594,7 +4846,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a8de1d96edb2"
     },
     {
       "topic": "12. When a system fails to deliver required functions it is because the customer changes requirements?",
@@ -4610,7 +4863,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f18a689e556f"
     },
     {
       "topic": "13. Developers must start focusing on quality during the design phase in order to build secure systems.",
@@ -4626,7 +4880,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-c27523af0aab"
     },
     {
       "topic": "14. Which of the following management decisions have the potential to impact software quality?",
@@ -4646,7 +4901,8 @@
           "C. 进度安排决策",
           "D. 以上所有"
         ]
-      }
+      },
+      "id": "q-e822c3ddc70e"
     },
     {
       "topic": "15. The project plan should include explicit techniques for _______ and _______ management?",
@@ -4668,7 +4924,8 @@
           "D. 质量",
           "E. a 和 d"
         ]
-      }
+      },
+      "id": "q-ce23001eb567"
     },
     {
       "topic": "16. Quality control encompasses a set of software engineering actions that help to ensure that each work product meets its quality goals.",
@@ -4684,7 +4941,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-aa3df37e76ab"
     },
     {
       "topic": "17. The goal of quality assurance to insure that a software project is error free.",
@@ -4700,7 +4958,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-43ebb455c5a7"
     }
   ],
   "20": [
@@ -4718,7 +4977,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-488ba42198f4"
     },
     {
       "topic": "2. In general the earlier a software defect is discovered and corrected the less costly to the overall project budget.",
@@ -4734,7 +4994,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-32b1a34774d9"
     },
     {
       "topic": "3. Defect amplification models can be used to illustrate the costs associated with using software from its initial deployment to its retirement.",
@@ -4750,7 +5011,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a236d5fb0541"
     },
     {
       "topic": "4. Review metrics can be used to assess the efficacy of each review activity.",
@@ -4766,7 +5028,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-4318d474c00d"
     },
     {
       "topic": "5. Defect density can be estimated for any software engineering work product.",
@@ -4782,7 +5045,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-8f742fc3659a"
     },
     {
       "topic": "6. Agile software developers are aware that software reviews always take time without saving any.",
@@ -4798,7 +5062,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-9197fe6657dd"
     },
     {
       "topic": "7. The level of review formality is determined by which of the following?",
@@ -4820,7 +5085,8 @@
           "D. 审查的结构",
           "E. 甲、乙、丁"
         ]
-      }
+      },
+      "id": "q-216918cb6f58"
     },
     {
       "topic": "8. An informal review may consist of which of the following?",
@@ -4842,7 +5108,8 @@
           "D. 结对编程",
           "E. a 和 b"
         ]
-      }
+      },
+      "id": "q-67868cd675bc"
     },
     {
       "topic": "9. Which of the following are objectives for formal technical reviews?",
@@ -4862,7 +5129,8 @@
           "C. 确定是谁在程序中引入了错误",
           "D. 发现软件工作产品中的错误"
         ]
-      }
+      },
+      "id": "q-e0ab8855031a"
     },
     {
       "topic": "10. At the end of a formal technical review all attendees can decide to",
@@ -4884,7 +5152,8 @@
           "D. 因严重错误而拒绝该产品",
           "E. a 和 d"
         ]
-      }
+      },
+      "id": "q-695a362af351"
     },
     {
       "topic": "11. A review summary report answers which three questions?",
@@ -4904,7 +5173,8 @@
           "C. 评审了什么、谁进行了评审、评审结果是什么",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-aef127b76093"
     },
     {
       "topic": "12. In any type of technical review, the focus of the review is on the product and not the producer.",
@@ -4920,7 +5190,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5872656ce44c"
     },
     {
       "topic": "13. Sample driven reviews only make sense for very small software development projects.",
@@ -4936,7 +5207,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f0924c71c4d1"
     }
   ],
   "21": [
@@ -4954,7 +5226,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-14381be12139"
     },
     {
       "topic": "2. People who perform software quality assurance must look at the software from the customer's perspective.",
@@ -4970,7 +5243,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-82ea60f8a796"
     },
     {
       "topic": "3. The elements of software quality assurance consist of reviews, audits, and testing.",
@@ -4986,7 +5260,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-90f3b1b2c25f"
     },
     {
       "topic": "4. Which of these activities is not one of the activities recommended to be performed by an independent SQA group?",
@@ -5006,7 +5281,8 @@
           "C. 向高级管理层报告任何不合规的证据",
           "D. 作为所开发软件的唯一测试团队"
         ]
-      }
+      },
+      "id": "q-5cb9172b787f"
     },
     {
       "topic": "5. Metrics can be used to indicate the relative strength of a software quality attribute.",
@@ -5022,7 +5298,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1d93c3fb66e3"
     },
     {
       "topic": "6. Attempts to apply mathematical proof to demonstrate that a program conforms to its specifications are doomed to failure.",
@@ -5038,7 +5315,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a76a2df8127d"
     },
     {
       "topic": "7. Statistical quality assurance involves",
@@ -5058,7 +5336,8 @@
           "C. 追踪每个缺陷的根本原因,找出\"关键少数\"原因,并采取措施加以纠正",
           "D. 追踪每个缺陷的根本原因,并利用帕累托原则纠正发现的每个问题"
         ]
-      }
+      },
+      "id": "q-31cc634184f3"
     },
     {
       "topic": "8. Six Sigma methodology defines three core steps.",
@@ -5078,7 +5357,8 @@
           "C. 定义、测量、分析",
           "D. 定义、测量、控制"
         ]
-      }
+      },
+      "id": "q-65b1160a7f92"
     },
     {
       "topic": "9. Software reliability problems can almost always be traced to",
@@ -5100,7 +5380,8 @@
           "D. 操作错误",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-bc357b580f3c"
     },
     {
       "topic": "10. Software safety is a quality assurance activity that focuses on hazards that",
@@ -5120,7 +5401,8 @@
           "C. 可能由用户输入错误引起的危害",
           "D. 阻碍最终产品盈利性营销的危害"
         ]
-      }
+      },
+      "id": "q-7818ceeb4420"
     },
     {
       "topic": "11. The ISO quality assurance standard that applies to software engineering is",
@@ -5140,7 +5422,8 @@
           "C. ISO 9002",
           "D. ISO 9003"
         ]
-      }
+      },
+      "id": "q-960e0fb3f1dc"
     },
     {
       "topic": "12. Which of the following is not a section in the standard for SQA plans recommended by IEEE?",
@@ -5160,7 +5443,8 @@
           "C. 评审与审计",
           "D. 测试"
         ]
-      }
+      },
+      "id": "q-40a6b3463de5"
     }
   ],
   "22": [
@@ -5178,7 +5462,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5aef859498c1"
     },
     {
       "topic": "2. The best reason for using Independent software test teams is that",
@@ -5198,7 +5483,8 @@
           "C. 测试人员直到测试开始才参与项目",
           "D. 减少了开发人员和测试人员之间的利益冲突"
         ]
-      }
+      },
+      "id": "q-252a552503e8"
     },
     {
       "topic": "3. What is the normal order of activities in which traditional software testing is organized?",
@@ -5218,7 +5504,8 @@
           "C. 单元测试,集成测试,确认测试,系统测试。",
           "D. 确认测试,系统测试,集成测试,单元测试。"
         ]
-      }
+      },
+      "id": "q-3fb72d923e23"
     },
     {
       "topic": "4. By collecting software metrics and making use of existing software reliability models it is possible to develop meaningful guidelines for determining when software testing is done.",
@@ -5234,7 +5521,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b40376fbf771"
     },
     {
       "topic": "5. Which of the following strategic issues needs to be addressed in a successful software testing process?",
@@ -5256,7 +5544,8 @@
           "D. 等到代码编写完成后再编写测试计划",
           "E. a 和 b"
         ]
-      }
+      },
+      "id": "q-318506d52605"
     },
     {
       "topic": "6. Which of the following need to be assessed during unit testing?",
@@ -5278,7 +5567,8 @@
           "D. 执行路径",
           "E. c和d"
         ]
-      }
+      },
+      "id": "q-64a54828abef"
     },
     {
       "topic": "7. Units and stubs are not needed for unit testing because the modules are tested independently of one another.",
@@ -5294,7 +5584,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d2475e4a52cb"
     },
     {
       "topic": "8. Top-down integration testing has as it's major advantage(s) that",
@@ -5316,7 +5607,8 @@
           "D. 无需编写桩程序",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-e43acefb7e5b"
     },
     {
       "topic": "9. Bottom-up integration testing has as it's major advantage(s) that",
@@ -5336,7 +5628,8 @@
           "C. 不需要编写桩程序",
           "D. 不需要回归测试"
         ]
-      }
+      },
+      "id": "q-9d887eb16403"
     },
     {
       "topic": "10. Regression testing should be a normal part of integration testing because as a new module is added to the system new",
@@ -5358,7 +5651,8 @@
           "D. 以上所有",
           "E. a 和 b"
         ]
-      }
+      },
+      "id": "q-cc7b45a61d40"
     },
     {
       "topic": "11. Smoke testing might best be described as",
@@ -5378,7 +5672,8 @@
           "C. 隐藏实现错误的测试",
           "D. 对小型程序进行单元测试"
         ]
-      }
+      },
+      "id": "q-a3004aea1ea8"
     },
     {
       "topic": "12. When testing object-oriented software it is important to test each class operation separately as part of the unit testing process.",
@@ -5394,7 +5689,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1fb9a5e3a018"
     },
     {
       "topic": "13. The OO testing integration strategy involves testing",
@@ -5414,7 +5710,8 @@
           "C. 从用例场景中派生的操作程序",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-26bc3de5f109"
     },
     {
       "topic": "14. Since many WebApps evolve continuously, the testing process must be ongoing as well.",
@@ -5430,7 +5727,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6f96bdb9b425"
     },
     {
       "topic": "15. Testing MobileApps is not different than testing WebApps.",
@@ -5446,7 +5744,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-be67dd02cba5"
     },
     {
       "topic": "16. The focus of validation testing is to uncover places that s user will be able to observe failure of the software to conform to its requirements.",
@@ -5462,7 +5761,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f563249862cc"
     },
     {
       "topic": "17. Software validation is achieved through a series of tests performed by the user once the software is deployed in his or her work environment.",
@@ -5478,7 +5778,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-81ee2c311fcb"
     },
     {
       "topic": "18. Configuration reviews are not needed if regression testing has been rigorously applied during software integration.",
@@ -5494,7 +5795,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1a7d009034a5"
     },
     {
       "topic": "19. Acceptance tests are normally conducted by the",
@@ -5514,7 +5816,8 @@
           "C. 测试团队",
           "D. 系统工程师"
         ]
-      }
+      },
+      "id": "q-7c1c2be25e68"
     },
     {
       "topic": "20. Recovery testing is a system test that forces the software to fail in a variety of ways and verifies that software is able to continue execution without interruption.",
@@ -5530,7 +5833,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-19af4a01e62a"
     },
     {
       "topic": "21. Security testing attempts to verify that protection mechanisms built into a system protect it from improper penetration.",
@@ -5546,7 +5850,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6fd22f442ec8"
     },
     {
       "topic": "22. Stress testing examines the pressures placed on the user during system use in extreme environments.",
@@ -5562,7 +5867,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0e476168ad43"
     },
     {
       "topic": "23. Performance testing is only important for real-time or embedded systems.",
@@ -5578,7 +5884,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ef383e5bc65c"
     },
     {
       "topic": "24. Debugging is not testing, but always occurs as a consequence of testing.",
@@ -5594,7 +5901,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-3df88620221b"
     },
     {
       "topic": "25. Which of the following is an approach to debugging?",
@@ -5616,7 +5924,8 @@
           "D. 代码重构",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-ad20014a7a02"
     }
   ],
   "23": [
@@ -5634,7 +5943,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ebbb984f2dac"
     },
     {
       "topic": "2. Which of the following are characteristics of testable software?",
@@ -5654,7 +5964,8 @@
           "C. 稳定性",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-7bc8778f8325"
     },
     {
       "topic": "3. The testing technique that requires devising test cases to demonstrate that each program function is operational is called",
@@ -5674,7 +5985,8 @@
           "C. 灰盒测试",
           "D. 白盒测试"
         ]
-      }
+      },
+      "id": "q-4a10da9debc0"
     },
     {
       "topic": "4. The testing technique that requires devising test cases to exercise the internal logic of a software module is called",
@@ -5694,7 +6006,8 @@
           "C. 灰盒测试",
           "D. 白盒测试"
         ]
-      }
+      },
+      "id": "q-1e8a94f1a6b2"
     },
     {
       "topic": "5. What types of errors are missed by black-box testing and can be uncovered by white-box testing?",
@@ -5716,7 +6029,8 @@
           "D. 拼写错误",
           "E. 乙和丁"
         ]
-      }
+      },
+      "id": "q-716501094b91"
     },
     {
       "topic": "6. Program flow graphs are identical to program flowcharts.",
@@ -5732,7 +6046,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5a041dfdd296"
     },
     {
       "topic": "7. The cyclomatic complexity metric provides the designer with information regarding the number of",
@@ -5752,7 +6067,8 @@
           "C. 程序中独立逻辑路径的数量",
           "D. 程序中的语句数"
         ]
-      }
+      },
+      "id": "q-af7803cb1fc6"
     },
     {
       "topic": "8. The cyclomatic complexity of a program can be computed directly from a PDL representation of an algorithm without drawing a program flow graph.",
@@ -5768,7 +6084,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b473b2ec4314"
     },
     {
       "topic": "9. Condition testing is a control structure testing technique where the criteria used to design test cases is that they",
@@ -5788,7 +6105,8 @@
           "C. 根据变量的位置和用途选择测试路径",
           "D. 侧重于测试循环结构的有效性"
         ]
-      }
+      },
+      "id": "q-1421b5990e62"
     },
     {
       "topic": "10. Data flow testing is a control structure testing technique where the criteria used to design test cases is that they",
@@ -5808,7 +6126,8 @@
           "C. 根据变量的位置和使用情况选择测试路径",
           "D. 侧重于测试循环结构的有效性"
         ]
-      }
+      },
+      "id": "q-d0b97119438f"
     },
     {
       "topic": "11. Loop testing is a control structure testing technique where the criteria used to design test cases is that they",
@@ -5828,7 +6147,8 @@
           "C. 根据变量的位置和用途选择测试路径",
           "D. 侧重于测试循环结构的有效性"
         ]
-      }
+      },
+      "id": "q-40f5070e8c95"
     },
     {
       "topic": "12. Black-box testing attempts to find errors in which of the following categories",
@@ -5850,7 +6170,8 @@
           "D. 以上都不是",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-cc8cc14f90f3"
     },
     {
       "topic": "13. Graph-based testing methods can only be used for object-oriented systems",
@@ -5866,7 +6187,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d0f11be4b8c4"
     },
     {
       "topic": "14. Equivalence testing divides the input domain into classes of data from which test cases can be derived to reduce the total number of test cases that must be developed.",
@@ -5882,7 +6204,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-08a769794ad0"
     },
     {
       "topic": "15. Boundary value analysis can only be used to do white-box testing.",
@@ -5898,7 +6221,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0e9a1d1e9f91"
     },
     {
       "topic": "16. Orthogonal array testing enables the test designer to maximize the coverage of the test cases devised for relatively small input domains.",
@@ -5914,7 +6238,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-e7f6f1455f68"
     },
     {
       "topic": "17. Test derived from behavioral class models should be based on the",
@@ -5934,7 +6259,8 @@
           "C. 状态转换图",
           "D. 用例图"
         ]
-      }
+      },
+      "id": "q-d0a512af7542"
     },
     {
       "topic": "18. Documentation does not need to be tested.",
@@ -5950,7 +6276,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-3b68c758839c"
     },
     {
       "topic": "19. Real-time applications add a new and potentially difficult element to the testing mix",
@@ -5970,7 +6297,8 @@
           "C. 安全性",
           "D. 时间"
         ]
-      }
+      },
+      "id": "q-ec32fc660943"
     }
   ],
   "24": [
@@ -5988,7 +6316,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2ea3c8faf0cf"
     },
     {
       "topic": "2. The correctness of the OOA and OOD model is accomplished using formal technical reviews by the software quality assurance team.",
@@ -6004,7 +6333,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-e5fd9ea5d581"
     },
     {
       "topic": "3. The consistency of object-oriented models may be judged by reviewing the CRC card model.",
@@ -6020,7 +6350,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ccc673f1fa47"
     },
     {
       "topic": "4. Test case design for OO software is driven by the algorithmic detail of the individual operations.",
@@ -6036,7 +6367,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0552df335186"
     },
     {
       "topic": "5. Integration testing of object-oriented software can be accomplished by which of the following testing strategies?",
@@ -6058,7 +6390,8 @@
           "D. 基于使用的测试",
           "E. 甲、丙、丁"
         ]
-      }
+      },
+      "id": "q-4d275d3a6d59"
     },
     {
       "topic": "6. Validation of object-oriented software focuses on user visible actions and outputs from the system.",
@@ -6074,7 +6407,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d55d49910ab9"
     },
     {
       "topic": "7. Encapsulation of attributes and operations inside objects makes it easy to obtain object state information during testing.",
@@ -6090,7 +6424,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-cc758c005fce"
     },
     {
       "topic": "8. Use-cases can provide useful input into the design of black-box and state-based tests of OO software.",
@@ -6106,7 +6441,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6b341c35baad"
     },
     {
       "topic": "9. Fault-based testing is best reserved for",
@@ -6126,7 +6462,8 @@
           "C. 用例验证",
           "D. 操作员算法的白盒测试"
         ]
-      }
+      },
+      "id": "q-e5cbe7c9db9e"
     },
     {
       "topic": "10. Scenario-based testing",
@@ -6146,7 +6483,8 @@
           "C. 遗漏子系统交互中的错误",
           "D. a 和 b 都是"
         ]
-      }
+      },
+      "id": "q-f6f1989d5755"
     },
     {
       "topic": "11. Random order tests are conducted to exercise different class instance life histories.",
@@ -6162,7 +6500,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-120928e0d3b6"
     },
     {
       "topic": "12. Which of these techniques is not useful for partition testing at the class level",
@@ -6182,7 +6521,8 @@
           "C. 等价类划分",
           "D. 基于状态的划分"
         ]
-      }
+      },
+      "id": "q-4d1ccdf1c0f0"
     },
     {
       "topic": "13. Multiple class testing is too complex to be tested using random test cases.",
@@ -6198,7 +6538,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5ff9756b6183"
     },
     {
       "topic": "14. The state model can be used to derive test cases based on the dynamic behavior of an object-oriented system.",
@@ -6214,7 +6555,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-9a8fc49bc65d"
     }
   ],
   "25": [
@@ -6236,7 +6578,8 @@
           "C. 可导航性",
           "D. 可用性"
         ]
-      }
+      },
+      "id": "q-d47de3d90059"
     },
     {
       "topic": "2. WebApps require special testing methodologies because WebApp errors have several unique characteristics.",
@@ -6252,7 +6595,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2a5820535f75"
     },
     {
       "topic": "3. Since WebnApps evolve continuously, the testing process is an on-going activity, conducted by the Web support staff using regression tests.",
@@ -6268,7 +6612,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a67a77c25a14"
     },
     {
       "topic": "4. Test planning is not used in WebApp testing.",
@@ -6284,7 +6629,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d33baeeda7b3"
     },
     {
       "topic": "5. As the WebApp architecture is constructed which types of testing are used as integration tests?",
@@ -6306,7 +6652,8 @@
           "D. 可用性测试",
           "E. a 和 c 都"
         ]
-      }
+      },
+      "id": "q-c1554872eb32"
     },
     {
       "topic": "6. Which of the following is not one of the objectives of WebApp content testing?",
@@ -6326,7 +6673,8 @@
           "C. 发现语义错误",
           "D. 发现语法错误"
         ]
-      }
+      },
+      "id": "q-6b8c0188bc81"
     },
     {
       "topic": "7. Database testing is very rarely a part of WebApp content testing.",
@@ -6342,7 +6690,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6b4341e82fb3"
     },
     {
       "topic": "8. The overall strategy for interface testing is to uncover errors",
@@ -6362,7 +6711,8 @@
           "C. 与特定界面机制相关",
           "D. a 和 c 都是"
         ]
-      }
+      },
+      "id": "q-0af84091dc0d"
     },
     {
       "topic": "9. Which of the following is not a WebApp interface mechanism?",
@@ -6372,8 +6722,8 @@
         "C. Forms",
         "D. Links"
       ],
-      "answer": "C",
-      "user_note": "本题考查Web应用(WebApp)的接口机制.WebApp接口机制是用户与Web应用交互的方法或工具.\nA. Browser(浏览器)是用户访问和操作WebApp的基本工具,属于接口机制.\nB. Cookies(Cookie)是 WebApp用于存储和管理用户信息的机制,也属于接口机制.\nC. Forms(表单)是用户输入信息的页面元素,不是接口机制,而是界面组件.\nD. Links(链接)用于网页间导航,也属于接口机制.C选项\"Forms\"不是WebApp的接口机制,而是页面的组成部分.",
+      "answer": "A",
+      "user_note": "本题更合理的答案是 A。WebApp interface mechanism 通常指 links、forms、cookies 等用户交互或导航机制；browser 更接近运行和承载 WebApp 的客户端环境，而不是 WebApp 自身提供的 interface mechanism。现有题库里把 C 设为答案不太成立。",
       "zh": {
         "topic": "9. 以下哪一项不是Web应用的界面机制？",
         "options": [
@@ -6382,7 +6732,8 @@
           "C. 表单",
           "D. 链接"
         ]
-      }
+      },
+      "id": "q-0ba7f96f6b02"
     },
     {
       "topic": "10. When testing WebApp interface semantics, each use-case is used as input for the design of a testing sequence.",
@@ -6398,7 +6749,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-745b4218aedd"
     },
     {
       "topic": "11. Usability tests should be designed and executed by intended users for a given WebApp.",
@@ -6414,7 +6766,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-67ccf89b4b69"
     },
     {
       "topic": "12. WebApp compatibility testing is conducted to be sure that the user model for usage scenario matched the user category assigned to a given user.",
@@ -6430,7 +6783,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-131bb8376354"
     },
     {
       "topic": "13. Which test case design technique(s) are appropriate for WebApp component-level testing?",
@@ -6450,7 +6804,8 @@
           "C. 路径测试",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-89b34cf58ac9"
     },
     {
       "topic": "14. The purpose of WebApp navigation syntactic testing is to ensure the correct appearance of each navigation mechanism.",
@@ -6466,7 +6821,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-7c53aab21d3a"
     },
     {
       "topic": "15. Both Web engineers and non-technical users conduct navigation semantics testing for WebApps.",
@@ -6482,7 +6838,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-7b396566ed1a"
     },
     {
       "topic": "16. Which of following is not one of the elements that need to be considered when constructing WebApp server-side configuration tests?",
@@ -6502,7 +6859,8 @@
           "C. 操作系统兼容性",
           "D. 系统安全措施"
         ]
-      }
+      },
+      "id": "q-83fcc07bb898"
     },
     {
       "topic": "17. To design client-side configuration tests each user category is assessed to reduce the number of configuration variables to a manageable number.",
@@ -6518,7 +6876,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d9d4b7ad6c98"
     },
     {
       "topic": "18. Which of the following is not a testable WebApp security element?",
@@ -6538,7 +6897,8 @@
           "C. 防火墙",
           "D. 渗透"
         ]
-      }
+      },
+      "id": "q-3a581a16e09b"
     },
     {
       "topic": "19. WebApp performance tests are designed to",
@@ -6558,7 +6918,8 @@
           "C. 模拟真实世界的加载情况",
           "D. 测试网络连接性"
         ]
-      }
+      },
+      "id": "q-70a7b1d4b5b7"
     },
     {
       "topic": "20. Load testing involves determining the input of which 3 variables?",
@@ -6578,7 +6939,8 @@
           "C. T、D、P",
           "D. N、D、P"
         ]
-      }
+      },
+      "id": "q-ea951d07fde9"
     },
     {
       "topic": "21. WebApp stress testing is a continuation load testing.",
@@ -6594,7 +6956,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0265b3cf0bcb"
     }
   ],
   "26": [
@@ -6612,7 +6975,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-4f91b858fdb0"
     },
     {
       "topic": "2. Since MobileApp users are attracted to new technologies they are very tolerant of errors and testing effort can be reduced.",
@@ -6628,7 +6992,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-c16f993bbf7c"
     },
     {
       "topic": "3. Designing test cases directly from user stories increase the likelihood of developing effective test cases in a timely manner.",
@@ -6644,7 +7009,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-fe029f06af97"
     },
     {
       "topic": "4. Automated testing tools eliminate the need to do regression testing for MobileApps.",
@@ -6660,7 +7026,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-72298b3fed4c"
     },
     {
       "topic": "5. A weighted device platform matrix helps to prioritize test cases.",
@@ -6676,7 +7043,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-df60e6b88033"
     },
     {
       "topic": "6. Part of the reason for stress testing is to ensure that the MobileApp exhibits graceful degradation on failure.",
@@ -6692,7 +7060,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0698740a85e1"
     },
     {
       "topic": "7. Which of the following are reasons for testing in the wild?",
@@ -6714,7 +7083,8 @@
           "D. 测试用户设备上性能的变化",
           "E. a 和 d"
         ]
-      }
+      },
+      "id": "q-42ebbc6a3e39"
     },
     {
       "topic": "8. When testing the quality of user interaction the focus should be on user visible interaction mechanisms.",
@@ -6730,7 +7100,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6a24a20a393d"
     },
     {
       "topic": "9. Which of that following add to the difficulty of testing MobileApp gestures?",
@@ -6752,7 +7123,8 @@
           "D. 使用纸质原型",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-3d25a4e58106"
     },
     {
       "topic": "10. Continuous speech recognition techniques have eliminated the need for key entry in MobileApps.",
@@ -6768,7 +7140,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-7857770b58cf"
     },
     {
       "topic": "11. Predictive technologies are often used to help speed up virtual keyboard inpu on mobile devices.",
@@ -6784,7 +7157,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f14e99532308"
     },
     {
       "topic": "12. The ability of a MobileApp to handle alerts without disrupting user workflow must be tested in the production environment?",
@@ -6800,7 +7174,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a33fb301daac"
     },
     {
       "topic": "13. The Testing across borders is not necessary each MobileApp is developed for use in a specific country.",
@@ -6816,7 +7191,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-59d22b1cfca0"
     },
     {
       "topic": "14. Which of the following are issues that make real-time testing difficult?",
@@ -6836,7 +7212,8 @@
           "C. 独特的移动网络基础设施",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-dd8fb2e86e24"
     },
     {
       "topic": "15. Device emulators eliminate the need to test MobileApps on actual devices.",
@@ -6852,7 +7229,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-41de420642f4"
     }
   ],
   "27": [
@@ -6870,7 +7248,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d1f0561750fd"
     },
     {
       "topic": "2. It is possible to have a safe system that is not secure.",
@@ -6886,7 +7265,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b20f72540b2c"
     },
     {
       "topic": "3. Individuals rarely expose their personal information to others on social media networks.",
@@ -6902,7 +7282,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6017db64c1e1"
     },
     {
       "topic": "4. Wireless networks require the trust and cooperation between nodes that can be exploited by malicious programs?",
@@ -6918,7 +7299,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-90f4c13f55d6"
     },
     {
       "topic": "5. Cloud computing is has greater levels of security that other web data repositories.",
@@ -6934,7 +7316,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0ace1dc96b60"
     },
     {
       "topic": "6. The security concerns remain an obstacle to implementing the vision implied by the Internet of Things .",
@@ -6950,7 +7333,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-635acee598f4"
     },
     {
       "topic": "7. Security and usability requirements are often in conflict with each other.",
@@ -6966,7 +7350,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-4f19c3576c04"
     },
     {
       "topic": "8. Which of following is not one of the elements of a security model?",
@@ -6986,7 +7371,8 @@
           "C. 操作规则",
           "D. 安全策略目标"
         ]
-      }
+      },
+      "id": "q-b75c260f76d1"
     },
     {
       "topic": "9. Security metrics and measures need to assess which of these properties?",
@@ -7006,7 +7392,8 @@
           "C. 可信度",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-2abdf5b99262"
     },
     {
       "topic": "10. Security correctness checks should be included which of the following activities?",
@@ -7028,7 +7415,8 @@
           "D. 测试",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-4380483690dd"
     },
     {
       "topic": "11. Which is not one of the elements of a security case?",
@@ -7048,7 +7436,8 @@
           "C. 主张",
           "D. 证据"
         ]
-      }
+      },
+      "id": "q-39aeaa5f8b0e"
     },
     {
       "topic": "12. Security assurance and risk identification must be included in the schedule and budget if they are to be taken seriously.",
@@ -7064,7 +7453,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-e89f1b124daf"
     },
     {
       "topic": "13. Threat analysis is not needed for conventional software applications.",
@@ -7080,7 +7470,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-aa8843be82a0"
     },
     {
       "topic": "14. An incident response plan spells out the actions to be carried out by each stakeholder in response to specific attacks.",
@@ -7096,7 +7487,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-9ceee3c5e88c"
     }
   ],
   "28": [
@@ -7118,7 +7510,8 @@
           "C. 革命型",
           "D. 螺旋型"
         ]
-      }
+      },
+      "id": "q-c31576581f16"
     },
     {
       "topic": "2. The cleanroom strategy relies on",
@@ -7138,7 +7531,8 @@
           "C. 在软件实际使用时进行的测试",
           "D. 白盒测试策略"
         ]
-      }
+      },
+      "id": "q-d3033d9404f1"
     },
     {
       "topic": "3. Use of formal program correctness proofs as part of the cleanroom process eliminates the need do any testing for software defects.",
@@ -7154,7 +7548,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-79bed875c765"
     },
     {
       "topic": "4. In cleanroom software engineering a \"box\" encapsulates some system aspect at a particular level of detail.",
@@ -7170,7 +7565,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-e5435125a710"
     },
     {
       "topic": "5. This box specification describes an abstraction, stimuli, and response.",
@@ -7190,7 +7586,8 @@
           "C. 状态盒",
           "D. 白盒"
         ]
-      }
+      },
+      "id": "q-16ec7af32ea0"
     },
     {
       "topic": "6. This box specification describes the architectural design for some system component.",
@@ -7210,7 +7607,8 @@
           "C. 状态盒",
           "D. 白盒"
         ]
-      }
+      },
+      "id": "q-5003c6c991a2"
     },
     {
       "topic": "7. This box specification is closely aligned with procedural design and structured programming.",
@@ -7230,7 +7628,8 @@
           "C. 状态盒",
           "D. 白盒"
         ]
-      }
+      },
+      "id": "q-b9f78f150e69"
     },
     {
       "topic": "8. In cleanroom software engineering the structured programming approach is used to",
@@ -7250,7 +7649,8 @@
           "C. 细化使用测试用例",
           "D. a 和 b 都是"
         ]
-      }
+      },
+      "id": "q-bc0a5abb5583"
     },
     {
       "topic": "9. By using only structured programming constructs as you create a procedural design, you make the work of proving design correctness much easier.",
@@ -7266,7 +7666,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0902db6ea0d7"
     },
     {
       "topic": "10. Which of the following is not an advantage of using rigorous correctness verification of each refinement of the clear box design?",
@@ -7286,7 +7687,8 @@
           "C. 减少验证工作量",
           "D. 实现接近零缺陷水平"
         ]
-      }
+      },
+      "id": "q-f228b7e279e4"
     },
     {
       "topic": "11. Statistical use testing relies on probability distributions based on",
@@ -7306,7 +7708,8 @@
           "C. 软件实际被使用的方式",
           "D. 用户界面设计标准"
         ]
-      }
+      },
+      "id": "q-1d3874649188"
     },
     {
       "topic": "12. Certification of an increment is complete once it has passed the formal verification process.",
@@ -7322,7 +7725,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-070234ed732e"
     },
     {
       "topic": "13. Which of the following models is part of the cleanroom certification process?",
@@ -7342,7 +7746,8 @@
           "C. a 和 b 都是",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-96f2eea35139"
     },
     {
       "topic": "14. A data invariant is a set of conditions that are true during the execution of any function.",
@@ -7358,7 +7763,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-8de0cdfa4bb3"
     },
     {
       "topic": "15. In some formal languages, stored data that the system accesses and alters is called a(n)",
@@ -7378,7 +7784,8 @@
           "C. 状态",
           "D. 变量"
         ]
-      }
+      },
+      "id": "q-db5e4b11a2f4"
     },
     {
       "topic": "16. In formal methods work, an action that reads or writes data to a state is called a(n)",
@@ -7398,7 +7805,8 @@
           "C. 不变式",
           "D. 操作"
         ]
-      }
+      },
+      "id": "q-914924f8e6ed"
     },
     {
       "topic": "17. What defines the circumstances in which a particular operation is valid?",
@@ -7418,7 +7826,8 @@
           "C. 后置条件",
           "D. 状态"
         ]
-      }
+      },
+      "id": "q-2e7699124a05"
     },
     {
       "topic": "18. Using formal methods eliminates the need to write natural language commentary in the specification document.",
@@ -7434,7 +7843,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5fd1a5576787"
     }
   ],
   "29": [
@@ -7458,7 +7868,8 @@
           "D. 测试数据",
           "E. 上述所有的。"
         ]
-      }
+      },
+      "id": "q-aeb972fa984c"
     },
     {
       "topic": "2. Which of the following is not considered one of the four important elements that should exist when a configuration management system is developed?",
@@ -7478,7 +7889,8 @@
           "C. 过程要素",
           "D. 验证要素"
         ]
-      }
+      },
+      "id": "q-1449a9e667f1"
     },
     {
       "topic": "3. Once a software engineering work product becomes a baseline it cannot be changed again.",
@@ -7494,7 +7906,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-483dc4d74e99"
     },
     {
       "topic": "4. Which configuration objects would not typically be found in the project database?",
@@ -7516,7 +7929,8 @@
           "D. 测试计划",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-d0eb7f34d932"
     },
     {
       "topic": "5. Modern software engineering practices usually attempt to maintain SCI's in a project database or repository.",
@@ -7532,7 +7946,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f0c008b735c2"
     },
     {
       "topic": "6. A data repository meta model is used to determine how",
@@ -7552,7 +7967,8 @@
           "C. 现有模型能够多容易地扩展",
           "D. 以上所有"
         ]
-      }
+      },
+      "id": "q-65e4fc0f326a"
     },
     {
       "topic": "7. Many data repository requirements are the same as those for a typical database application.",
@@ -7568,7 +7984,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-582b1845da91"
     },
     {
       "topic": "8. The ability to track relationships and changes to configuration objects is one of the most important features of the SCM repository.",
@@ -7584,7 +8001,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b1c7cbf17bad"
     },
     {
       "topic": "9. Which of the following tasks is not part of software configuration management?",
@@ -7604,7 +8022,8 @@
           "C. 统计质量控制",
           "D. 版本控制"
         ]
-      }
+      },
+      "id": "q-1d8f830a0ad7"
     },
     {
       "topic": "10. A basic configuration object is a __________ created by a software engineer during some phase of the software development process.",
@@ -7624,7 +8043,8 @@
           "C. 信息单元",
           "D. 以上所有"
         ]
-      }
+      },
+      "id": "q-d2253a272b0e"
     },
     {
       "topic": "11. Version control systems establish a change set as part of their primary functionality.",
@@ -7640,7 +8060,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0fd7440baa23"
     },
     {
       "topic": "12. Change control is not necessary if a development group is making use of an automated project database tool.",
@@ -7656,7 +8077,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0dc9d1a557ff"
     },
     {
       "topic": "13. When software configuration management is a formal activity the software configuration audit is conducted by the",
@@ -7676,7 +8098,8 @@
           "C. 高级管理人员",
           "D. 测试专家"
         ]
-      }
+      },
+      "id": "q-077435cb018b"
     },
     {
       "topic": "14. The primary purpose of configuration status reporting is to",
@@ -7696,7 +8119,8 @@
           "C. 确保变更信息传达给所有受影响方",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-4b530f981524"
     },
     {
       "topic": "15. Configuration issues that need to be considered when developing Web and Mobile Apps include:",
@@ -7718,7 +8142,8 @@
           "D. 政策",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-5002a578ae59"
     },
     {
       "topic": "16. Web and Mobile App configuration objects can be managed in much the same way as conventional software configuration objects except for:",
@@ -7738,7 +8163,8 @@
           "C. 图形项",
           "D. 用户项"
         ]
-      }
+      },
+      "id": "q-a5c1a43e4759"
     },
     {
       "topic": "17. Content management establishes a process by which Web content is rendered on the user's display screen.",
@@ -7754,7 +8180,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ca79cd05bd04"
     },
     {
       "topic": "18. Change management for Web and Mobile Apps is best handled in agile manner.",
@@ -7770,7 +8197,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-4fb6ef70a949"
     },
     {
       "topic": "19. One reason that version control is difficult for WebApps is that in an uncontrolled environment, you can have multiple authors making changes to the same files from multiple locations without any realizing it.",
@@ -7786,7 +8214,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-55844cfb3648"
     },
     {
       "topic": "20. Requiring developers to check Web configuration items in and out and sending affected stakeholders e-mail messages automatically are good ways to deal with configuration auditing and reporting for WebApps.",
@@ -7802,7 +8231,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1e7721fec0f4"
     }
   ],
   "30": [
@@ -7820,7 +8250,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-de230988e649"
     },
     {
       "topic": "2. Which these are reasons for using technical product measures during software development?",
@@ -7840,7 +8271,8 @@
           "C. 它们允许所有软件质量信息都可以明确地用一个单一的数字表示",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-eb9bd23bb0fd"
     },
     {
       "topic": "3. Which measurement activity is missing from the list below?",
@@ -7860,7 +8292,8 @@
           "C. 度量",
           "D. 量化"
         ]
-      }
+      },
+      "id": "q-22d4b89e1a6a"
     },
     {
       "topic": "4. The Goal/Question/Metric (GQM) paradigm was developed as a technique for assigning blame for software failures.",
@@ -7876,7 +8309,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-abef7838226e"
     },
     {
       "topic": "5. One of the most important attributes for a software product metric is that it should be",
@@ -7896,7 +8330,8 @@
           "C. 随时间可靠",
           "D. 广泛适用"
         ]
-      }
+      },
+      "id": "q-a80ef93c659e"
     },
     {
       "topic": "6. In many cases metrics for one model may be used in later software engineering activities (e.g. design metrics may be used in test planning).",
@@ -7912,7 +8347,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-e72e94ffb617"
     },
     {
       "topic": "7. The function point metric is an example of metric that can be used to assist with technical decision-making based on the analysis model information, without making use of historical project data.",
@@ -7928,7 +8364,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-25cef850dd2b"
     },
     {
       "topic": "8. The specification metrics proposed by Davis address which two characteristics of the software requirements?",
@@ -7948,7 +8385,8 @@
           "C. 具体性和完整性",
           "D. 具体性和功能性"
         ]
-      }
+      },
+      "id": "q-5fe0f0c6e0c5"
     },
     {
       "topic": "9. Architectural design metrics focus on",
@@ -7970,7 +8408,8 @@
           "D. 模块有效性",
           "E. a 和 d"
         ]
-      }
+      },
+      "id": "q-393141fb79bb"
     },
     {
       "topic": "10. Which of the following is not a measurable characteristic of an object-oriented design?",
@@ -7990,7 +8429,8 @@
           "C. 规模",
           "D. 易变性"
         ]
-      }
+      },
+      "id": "q-a4f9f79e7a2f"
     },
     {
       "topic": "11. The depth of inheritance tree (DIT) metric can give an OO software designer a reading on the",
@@ -8000,8 +8440,8 @@
         "C. complexity of the class hierarchy",
         "D. level of object reusability achieved"
       ],
-      "answer": "B",
-      "user_note": "DIT(继承树深度)表示从继承树根节点到某个类的路径长度,反映类层次结构的复杂度.DIT越大,类层次越复杂.DIT能让设计者了解类继承结构的复杂程度.B(系统实现完成时间)和DIT没有直接关系.",
+      "answer": "C",
+      "user_note": "DIT(继承树深度)表示从继承树根节点到某个类的路径长度,首先反映的是类层次结构的复杂度。DIT 越大，继承体系通常越复杂。它不能直接衡量系统实现完成时间，因此更合理的答案是 C，而不是 B。",
       "zh": {
         "topic": "11. 继承树深度(DIT)度量可以为面向对象软件设计师提供关于以下哪方面的信息？",
         "options": [
@@ -8010,7 +8450,8 @@
           "C. 类层次结构的复杂性",
           "D. 实现的对象可重用性水平"
         ]
-      }
+      },
+      "id": "q-7879e356a5fa"
     },
     {
       "topic": "12. Because the class is the dominant unit in OO systems there is no call for the definition of class-oriented metrics.",
@@ -8026,7 +8467,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-414039cc482f"
     },
     {
       "topic": "13. If you encounter a class with a large responsibility (large class size or CS value) you should consider",
@@ -8046,7 +8488,8 @@
           "C. 对该类进行拆分",
           "D. 开始一个新的类层次结构"
         ]
-      }
+      },
+      "id": "q-55366ef3d7f4"
     },
     {
       "topic": "14. Component-level metrics include measures of",
@@ -8068,7 +8511,8 @@
           "D. 性能",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-44832a75bd0f"
     },
     {
       "topic": "15. Because the class is the dominant unit in OO systems very few metrics have been proposed for operations that reside within a class.",
@@ -8084,7 +8528,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-143d565d58d0"
     },
     {
       "topic": "16. Interface metrics are use to assess the complexity of the module's input and output relationships with external devices.",
@@ -8100,7 +8545,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-63b4bf735608"
     },
     {
       "topic": "17. Most WebApps can be easily characterized by judicious use of widely recognized suites of software metrics?",
@@ -8116,7 +8562,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-96b5260a9963"
     },
     {
       "topic": "18. Halstead's source code metrics are based on the number of",
@@ -8138,7 +8585,8 @@
           "D. 程序中的体积元素",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-3d82692c825b"
     },
     {
       "topic": "19. Software testing metrics fall into two broad categories",
@@ -8160,7 +8608,8 @@
           "D. 预测所需测试用例数量的度量",
           "E. 乙和丁"
         ]
-      }
+      },
+      "id": "q-486df0a0617d"
     },
     {
       "topic": "20. The IEEE software maturity index (SMI) is used to provide a measure of the",
@@ -8180,7 +8629,8 @@
           "C. 回归测试后软件产品的可靠性",
           "D. 软件产品在维护过程中被修改时的稳定性"
         ]
-      }
+      },
+      "id": "q-7c6f71b25961"
     }
   ],
   "31": [
@@ -8202,7 +8652,8 @@
           "C. 人员、产品、过程、项目",
           "D. 人员、过程、回报、产品"
         ]
-      }
+      },
+      "id": "q-8930f2279976"
     },
     {
       "topic": "2. Organizations that achieve high levels of maturity in people management have a higher likelihood of implementing effective software engineering processes.",
@@ -8218,7 +8669,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-03a98b5d1cab"
     },
     {
       "topic": "3. The first step in project planning is to",
@@ -8238,7 +8690,8 @@
           "C. 确定项目约束条件。",
           "D. 确立目标和范围。"
         ]
-      }
+      },
+      "id": "q-7a807070ac95"
     },
     {
       "topic": "4. Process framework activities are populated with",
@@ -8258,7 +8711,8 @@
           "C. 质量保证点",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-2c54391adcd5"
     },
     {
       "topic": "5. Project management is less important for modern software development since most projects are successful and completed on time.",
@@ -8274,7 +8728,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-7b5e3fa4cc8b"
     },
     {
       "topic": "6. Which of the following is not considered a stakeholder in the software process?",
@@ -8294,7 +8749,8 @@
           "C. 项目经理",
           "D. 销售人员"
         ]
-      }
+      },
+      "id": "q-98bf92a3e575"
     },
     {
       "topic": "7. The best person to hire as a project team leader is the most competent software engineering practitioner available.",
@@ -8310,7 +8766,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5848cbcc5ef9"
     },
     {
       "topic": "8. The best project team organizational model to use when tackling extremely complex problems is the",
@@ -8330,7 +8787,8 @@
           "C. 随机范式",
           "D. 同步范式"
         ]
-      }
+      },
+      "id": "q-544c90fb7444"
     },
     {
       "topic": "9. Which factors should be considered in choosing the organizational structure for a software team?",
@@ -8352,7 +8810,8 @@
           "D. 项目预算的规模",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-08ec3d0a89bb"
     },
     {
       "topic": "10. One of the best ways to avoid frustration during the software development process is to",
@@ -8372,7 +8831,8 @@
           "C. 在情况好转之前, 对项目团队成员隐瞒坏消息。",
           "D. 根据程序员的生产力给予奖励。"
         ]
-      }
+      },
+      "id": "q-82829c847965"
     },
     {
       "topic": "11. Small agile teams have no place in modern software development.",
@@ -8388,7 +8848,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d557deb3fe6f"
     },
     {
       "topic": "12. Which of these software characteristics is not a factor contributing to project coordination difficulties?",
@@ -8408,7 +8869,8 @@
           "C. 规模",
           "D. 不确定性"
         ]
-      }
+      },
+      "id": "q-2c176be30819"
     },
     {
       "topic": "13. Which of these software characteristics are used to determine the scope of a software project?",
@@ -8428,7 +8890,8 @@
           "C. 信息目标、功能、性能",
           "D. 通信需求、性能、信息目标"
         ]
-      }
+      },
+      "id": "q-d06aeac50132"
     },
     {
       "topic": "14. The major areas of problem decomposition during the project scoping activity are the",
@@ -8450,7 +8913,8 @@
           "D. 软件过程模型",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-7e5ab11dfb72"
     },
     {
       "topic": "15. Product and process decomposition occurs simultaneously as the project plan evolves.",
@@ -8466,7 +8930,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-abdb616f3fa5"
     },
     {
       "topic": "16. When can selected common process framework activities be omitted during process decomposition?",
@@ -8486,7 +8951,8 @@
           "C. 快速原型开发不需要使用它们",
           "D. 从不,这些活动是不可变的"
         ]
-      }
+      },
+      "id": "q-19e6ff0e5fa7"
     },
     {
       "topic": "17. How does a software project manager need to act to minimize the risk of software failure?",
@@ -8508,7 +8974,8 @@
           "D. 跟踪进度",
           "E. c和d"
         ]
-      }
+      },
+      "id": "q-b0d5a69934e6"
     },
     {
       "topic": "18. The W5HH principle contains which of the following questions?",
@@ -8530,7 +8997,8 @@
           "D. 每种资源需要多少？",
           "E. a、c d"
         ]
-      }
+      },
+      "id": "q-6dbf7e1dae8f"
     },
     {
       "topic": "19. Which of these are critical practices for performance-based project management?",
@@ -8552,7 +9020,8 @@
           "D. 正式的风险管理",
           "E. 乙、丙、丁"
         ]
-      }
+      },
+      "id": "q-d2d32dc9fded"
     }
   ],
   "32": [
@@ -8576,7 +9045,8 @@
           "D. 对其进行改进",
           "E. 甲、乙、丁"
         ]
-      }
+      },
+      "id": "q-110177d490ea"
     },
     {
       "topic": "2. Process indicators enable a software project manager to",
@@ -8586,7 +9056,7 @@
         "C. adjust work flow or tasks",
         "D. none of the above"
       ],
-      "answer": "D",
+      "answer": "ABC",
       "user_note": "过程指标(process indicators)用于衡量和分析软件开发过程的效率和效果,如进度和缺陷密度,帮助项目经理了解过程表现、发现问题并改进.选项A、B、C都属于过程指标的实际作用:A是评估项目状态,B是追踪风险,C是调整流程或任务.所以A、B、C都可以通过过程指标实现,答案D不正确.",
       "zh": {
         "topic": "2. 过程指标使软件项目经理能够",
@@ -8596,7 +9066,8 @@
           "C. 调整工作流程或任务",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-47c2808c0a9c"
     },
     {
       "topic": "3. Public metrics are used",
@@ -8618,7 +9089,8 @@
           "D. 用于在软件项目中进行战术性调整。",
           "E. c和d"
         ]
-      }
+      },
+      "id": "q-b493daa3ea5f"
     },
     {
       "topic": "4. Which of the following items are not measured by software project metrics?",
@@ -8638,7 +9110,8 @@
           "C. 输出",
           "D. 结果"
         ]
-      }
+      },
+      "id": "q-21038f909332"
     },
     {
       "topic": "5. Software quality and functionality must be measured indirectly.",
@@ -8654,7 +9127,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a2c522eb45ab"
     },
     {
       "topic": "6. Which of following are advantages of using LOC (lines of code) as a size-oriented metric?",
@@ -8674,7 +9148,8 @@
           "C. LOC 是一种独立于编程语言的度量。",
           "D. LOC 可以在设计完成之前计算。"
         ]
-      }
+      },
+      "id": "q-ebfa98caf0c3"
     },
     {
       "topic": "7. Which of the following are advantages of using function points (FP) as a measure of the functionality delivered by a software application?",
@@ -8696,7 +9171,8 @@
           "D. FP 可以在设计完成之前计算。",
           "E. c和d"
         ]
-      }
+      },
+      "id": "q-cd592e374756"
     },
     {
       "topic": "8. There is no need to reconcile LOC and FP measures since each in meaningful in its own right as a project measure.",
@@ -8712,7 +9188,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-bf55e8b4958f"
     },
     {
       "topic": "9. Object-Oriented project measures may be combined with historical project data to provide metrics that aid in project estimation.",
@@ -8728,7 +9205,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-49179f1dd137"
     },
     {
       "topic": "10. Use-Case oriented metrics are computed directly from UML diagrams they are often used as normalization measures.",
@@ -8744,7 +9222,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-21c378a59a0f"
     },
     {
       "topic": "11. Which of the following is not a measure that can be collected from a Web application project?",
@@ -8764,7 +9243,8 @@
           "C. 内部页面链接数量",
           "D. 静态网页数量"
         ]
-      }
+      },
+      "id": "q-ae32e6d20e04"
     },
     {
       "topic": "12. Which of the following software quality factors is most likely to be affected by radical changes to computing architectures?",
@@ -8774,8 +9254,8 @@
         "C. revision",
         "D. none of the above"
       ],
-      "answer": "D",
-      "user_note": "软件质量因素(如operation、transition、revision)都会受到计算机体系结构根本性变化的影响.体系结构的激烈变动会同时影响操作性 、可移植性、可维护性,而不是某一个单独的质量因素,因此没有哪一个质量因素最容易受到影响.",
+      "answer": "B",
+      "user_note": "本题更合理的答案是 B。这里考查的是 McCall 质量因素里的 transition。radical changes to computing architectures 首先影响软件迁移到新平台、新硬件或新运行环境的能力，而 transition 直接对应 portability / 适应其他环境，因此比 operation 或 revision 更贴切。",
       "zh": {
         "topic": "12. 下列哪项软件质量因素最有可能受到计算机体系结构根本性变化的影响？",
         "options": [
@@ -8784,7 +9264,8 @@
           "C. 可修改性",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-7c6440fc3cb2"
     },
     {
       "topic": "13. Which of the following provide useful measures of software quality?",
@@ -8804,7 +9285,8 @@
           "C. 正确性、可维护性、规模、满意度",
           "D. 正确性、可维护性、完整性、可用性"
         ]
-      }
+      },
+      "id": "q-ca35e6bd3609"
     },
     {
       "topic": "14. A software quality metric that can be used at both the process and project levels is defect removal efficiency (DRE).",
@@ -8820,7 +9302,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-fcfb10b3132a"
     },
     {
       "topic": "15. Why is it important to measure the process of software engineering and software it produces?",
@@ -8840,7 +9323,8 @@
           "C. 为了判断一个软件团队是否在改进。",
           "D. 为了让软件工程更像其他工程过程。"
         ]
-      }
+      },
+      "id": "q-3e17398e181d"
     },
     {
       "topic": "16. To be an effective aid in process improvement the baseline data used must be:",
@@ -8862,7 +9346,8 @@
           "D. 基于所有已完成的项目",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-1a5e896eb965"
     },
     {
       "topic": "17. Baseline data must be collected in an on-going manner and cannot be computed by formal study of historical project data.",
@@ -8878,7 +9363,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-7f6c35d11073"
     },
     {
       "topic": "18. Small software organizations are not likely to see any economic return from establishing software metrics program.",
@@ -8894,7 +9380,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-24177bcdf5a3"
     },
     {
       "topic": "19. The software metrics chosen by an organization are driven by the business or technical goals an organization wishes to accomplish.",
@@ -8910,7 +9397,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ce0ed5211e38"
     }
   ],
   "33": [
@@ -8928,7 +9416,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f13ca83bdc13"
     },
     {
       "topic": "2. The objective of software project planing is to",
@@ -8948,7 +9437,8 @@
           "C. 使管理者能够对成本和进度做出合理的估算。",
           "D. 在对项目进行投标前确定可能的利润率。"
         ]
-      }
+      },
+      "id": "q-9bb31fefaafc"
     },
     {
       "topic": "3. The project scope is defined as a means of bounding the system",
@@ -8970,7 +9460,8 @@
           "D. 进度安排",
           "E. a 和 b"
         ]
-      }
+      },
+      "id": "q-63f239af9a51"
     },
     {
       "topic": "4. Software feasibility is based on which of the following",
@@ -8990,7 +9481,8 @@
           "C. 技术、财务、时间、资源",
           "D. 开发者的技术能力"
         ]
-      }
+      },
+      "id": "q-8f1b38324fca"
     },
     {
       "topic": "5. The number of people required for a software project is determined",
@@ -9010,7 +9502,8 @@
           "C. 通过对系统技术复杂性的评估得出。",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-3b2af2ef2921"
     },
     {
       "topic": "6. Reusable software components must be",
@@ -9030,7 +9523,8 @@
           "C. 便于集成地验证。",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-bc1c70094521"
     },
     {
       "topic": "7. The software engineering environment (SEE) consists of which of the following?",
@@ -9052,7 +9546,8 @@
           "D. 软件工具",
           "E. c和d"
         ]
-      }
+      },
+      "id": "q-c9faf56651b8"
     },
     {
       "topic": "8. Software project estimation techniques can be broadly classified under which of the following headings?",
@@ -9074,7 +9569,8 @@
           "D. 回归模型",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-ccc41957be09"
     },
     {
       "topic": "9. The size estimate for a software product to be built must be based on a direct measure like LOC.",
@@ -9090,7 +9586,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-8283c5b7fdca"
     },
     {
       "topic": "10. Problem-based estimation is based on problem decomposition which focuses on",
@@ -9112,7 +9609,8 @@
           "D. 过程活动",
           "E. 一个和c"
         ]
-      }
+      },
+      "id": "q-453083fe3a18"
     },
     {
       "topic": "11. LOC-based estimation techniques require problem decomposition based on",
@@ -9132,7 +9630,8 @@
           "C. 软件功能",
           "D. 过程活动"
         ]
-      }
+      },
+      "id": "q-ff3868ee5e83"
     },
     {
       "topic": "12. FP-based estimation techniques require problem decomposition based on",
@@ -9152,7 +9651,8 @@
           "C. 软件功能",
           "D. 过程活动"
         ]
-      }
+      },
+      "id": "q-4f916a658f90"
     },
     {
       "topic": "13. Process-based estimation techniques require problem decomposition based on",
@@ -9174,7 +9674,8 @@
           "D. 过程活动",
           "E. c和d"
         ]
-      }
+      },
+      "id": "q-44fa1e9a61d7"
     },
     {
       "topic": "14. Unlike a LOC or function point each person's \"use-case\" is exactly the same size.",
@@ -9190,7 +9691,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-f3f376b719dd"
     },
     {
       "topic": "15. When agreement between estimates is poor the cause may often be traced to inadequately defined project scope or inappropriate productivity data.",
@@ -9206,7 +9708,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-7fb7fea58713"
     },
     {
       "topic": "16. Empirical estimation models are typically based on",
@@ -9226,7 +9729,8 @@
           "C. 从历史项目数据中得出的回归模型",
           "D. 通过反复试验确定参数和系数"
         ]
-      }
+      },
+      "id": "q-ce66be5306a9"
     },
     {
       "topic": "17. COCOMO II is an example of a suite of modern empirical estimation models that require sizing information expressed as:",
@@ -9246,7 +9750,8 @@
           "C. 对象点",
           "D. 以上任意一种"
         ]
-      }
+      },
+      "id": "q-0619b0a23e85"
     },
     {
       "topic": "18. Putnam's software equation is a dynamic empirical model that has two independent parameters: a size estimate and an indication of project duration in calendar months or years.",
@@ -9262,7 +9767,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-722ace52333c"
     },
     {
       "topic": "19. Function points are of no user in developing estimates for object-oriented software.",
@@ -9278,7 +9784,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-74e9e588354a"
     },
     {
       "topic": "20. In agile software development estimation techniques focus on the time required to complete each",
@@ -9298,7 +9805,8 @@
           "C. 任务",
           "D. 用例"
         ]
-      }
+      },
+      "id": "q-f06656203bff"
     },
     {
       "topic": "21. It is possible to use a modified function point technique to develop estimates for Web applications.",
@@ -9314,7 +9822,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-07433dca8d57"
     },
     {
       "topic": "22. Using a statistical technique like decision tree analysis can provide some assistance in sorting out the true costs associated with the make-buy decision.",
@@ -9330,7 +9839,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-fc08f4c6727a"
     },
     {
       "topic": "23. Outsourcing always provides a simple means of acquiring software at lower cost than onsite development of the same product.",
@@ -9346,7 +9856,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-0e7dacef8066"
     }
   ],
   "34": [
@@ -9364,7 +9875,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-4e442f5c3536"
     },
     {
       "topic": "2. It is unethical to undertake a project that you know in advance cannot be completed by the customer's deadline, unless you inform the customer of the risk and establish a project plan that can deliver the needed system incrementally.",
@@ -9380,7 +9892,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b8d2888e767e"
     },
     {
       "topic": "3. Which of the following is not one of the guiding principles of software project scheduling:",
@@ -9400,7 +9913,8 @@
           "C. 时间分配",
           "D. 工作量验证"
         ]
-      }
+      },
+      "id": "q-b7218240bace"
     },
     {
       "topic": "4. Doubling the size of your software project team is guaranteed to cut project completion time in half.",
@@ -9416,7 +9930,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-6c5c4b0b2842"
     },
     {
       "topic": "5. The software equation can be used to show that by extending the project deadline slightly",
@@ -9436,7 +9951,8 @@
           "C. 可以产出更多的代码行数",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-21f65948bb39"
     },
     {
       "topic": "6. The 40-20-40 rule suggests that the least of amount of development effort be spent on",
@@ -9456,7 +9972,8 @@
           "C. 编码",
           "D. 测试"
         ]
-      }
+      },
+      "id": "q-7ed68f661a16"
     },
     {
       "topic": "7. A task set is a collection of",
@@ -9476,7 +9993,8 @@
           "C. 里程碑、交付物、度量指标",
           "D. 职责、里程碑、文档"
         ]
-      }
+      },
+      "id": "q-56573bd83d53"
     },
     {
       "topic": "8. The task (activity) network is a useful mechanism for",
@@ -9498,7 +10016,8 @@
           "D. 向客户说明任务集",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-e3b71212c8a1"
     },
     {
       "topic": "9. Tasks that lie on the critical path in a task network may be completed in any order as long as the project is on schedule.",
@@ -9514,7 +10033,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-19a50b5df883"
     },
     {
       "topic": "10. Two tools for computing critical path and project completion times from activity networks are",
@@ -9536,7 +10056,8 @@
           "D. 计划评审技术(PERT)",
           "E. a 和 d"
         ]
-      }
+      },
+      "id": "q-3f58fa273099"
     },
     {
       "topic": "11. Timeline charts assist project managers in determining what tasks will be conducted at a given point in time.",
@@ -9552,7 +10073,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1736d92ed020"
     },
     {
       "topic": "12. The best indicator of progress on a software project is the completion",
@@ -9572,7 +10094,8 @@
           "C. 并成功评审一个已定义的软件工作产品",
           "D. 并被客户成功验收项目原型"
         ]
-      }
+      },
+      "id": "q-7ef7eac66d5e"
     },
     {
       "topic": "13. Since iterative process model work best for object-oriented projects it is impossible to determine whether an increment will be completed on time or not.",
@@ -9588,7 +10111,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-16388b00b098"
     },
     {
       "topic": "14. WebApp projects only require the creation of a macro schedule.",
@@ -9604,7 +10128,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-2832ac10713c"
     },
     {
       "topic": "15. The purpose of earned value analysis is to",
@@ -9624,7 +10149,8 @@
           "C. 为软件项目进展提供定性评估的方法",
           "D. 根据开发工作量为软件产品设定价格"
         ]
-      }
+      },
+      "id": "q-c47d19798ab4"
     },
     {
       "topic": "16. Earned value analysis is a technique that allows managers to take corrective action before a project crisis develops.",
@@ -9640,7 +10166,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-883f16ee5e59"
     }
   ],
   "35": [
@@ -9658,7 +10185,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a68389060f59"
     },
     {
       "topic": "2. Software risk always involves two characteristics",
@@ -9678,7 +10206,8 @@
           "C. 不确定性和损失",
           "D. 人员配备和预算"
         ]
-      }
+      },
+      "id": "q-9351dd207a2a"
     },
     {
       "topic": "3. Three categories of risks are",
@@ -9698,7 +10227,8 @@
           "C. 计划风险、技术风险、人员风险",
           "D. 管理风险、技术风险、设计风险"
         ]
-      }
+      },
+      "id": "q-07e34694d07f"
     },
     {
       "topic": "4. Generic risks require far more attention than product-specific risks.",
@@ -9714,7 +10244,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-d9c966243f2f"
     },
     {
       "topic": "5. A risk item checklist would contain known and predictable risks from which of these categories?",
@@ -9736,7 +10267,8 @@
           "D. 过程定义",
           "E. 上述所有的"
         ]
-      }
+      },
+      "id": "q-1c01718c8895"
     },
     {
       "topic": "6. Questions that should be asked to assess the overall project risk include:",
@@ -9758,7 +10290,8 @@
           "D. 拟定的预算中是否为市场营销分配了时间？",
           "E. 甲、乙、丙"
         ]
-      }
+      },
+      "id": "q-d587eddf77e9"
     },
     {
       "topic": "7. Software risk impact assessment should focus on consequences affecting",
@@ -9778,7 +10311,8 @@
           "C. 业务、技术、过程",
           "D. 性能、支持、成本、进度"
         ]
-      }
+      },
+      "id": "q-48cfe4563107"
     },
     {
       "topic": "8. Risk projection attempts to rate each risk in two ways",
@@ -9798,7 +10332,8 @@
           "C. 可能性和后果",
           "D. 可能性和暴露"
         ]
-      }
+      },
+      "id": "q-c7e30b9c5247"
     },
     {
       "topic": "9. Risk tables are sorted by",
@@ -9818,7 +10353,8 @@
           "C. 概率和后果",
           "D. 概率和暴露"
         ]
-      }
+      },
+      "id": "q-693f93f28734"
     },
     {
       "topic": "10. Individual team members can make their own estimate for a risk probability and then develop a consensus value.",
@@ -9834,7 +10370,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5c4cae916fca"
     },
     {
       "topic": "11. Which factors affect the probable consequences likely if a risk does occur?",
@@ -9856,7 +10393,8 @@
           "D. 风险资源",
           "E. 乙和丙"
         ]
-      }
+      },
+      "id": "q-048a373bebc0"
     },
     {
       "topic": "12. The reason for refining risks is to break them into smaller units having different consequences.",
@@ -9872,7 +10410,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-57a345011c40"
     },
     {
       "topic": "13. Effective risk management plan needs to address which of these issues?",
@@ -9892,7 +10431,8 @@
           "C. 应急计划",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-391536a891cb"
     },
     {
       "topic": "14. Risk monitoring involves watching the risk indicators defined for the project and not determining the effectiveness of the risk mitigation steps themselves.",
@@ -9908,7 +10448,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-566d2af46417"
     },
     {
       "topic": "15. Hazard analysis focuses on the identification and assessment of potential hazards that can cause",
@@ -9928,7 +10469,8 @@
           "C. 成本超支",
           "D. 整个系统失败"
         ]
-      }
+      },
+      "id": "q-a98fa43b0546"
     },
     {
       "topic": "16. Risk information sheets (RIS) are never an acceptable substitute for a full risk mitigation, monitoring, and management (RMMM) plan.",
@@ -9944,7 +10486,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ddf9084e7437"
     }
   ],
   "36": [
@@ -9966,7 +10509,8 @@
           "C. 60%",
           "D. 80%"
         ]
-      }
+      },
+      "id": "q-2556969e6b68"
     },
     {
       "topic": "2. Software supportability is not concerned with either the provision of hardware or infrastructure.",
@@ -9982,7 +10526,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-cbfb3582b1a6"
     },
     {
       "topic": "3. Business process reengineering is often accompanied by software reengineering.",
@@ -9998,7 +10543,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-b0aad8900c5a"
     },
     {
       "topic": "4. Which of the following is not an example of a business process?",
@@ -10018,7 +10564,8 @@
           "C. 采购服务",
           "D. 测试软件"
         ]
-      }
+      },
+      "id": "q-07ae8ac5f688"
     },
     {
       "topic": "5. Business process reengineering does not have a start or end, it is an evolutionary process.",
@@ -10034,7 +10581,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-cbf483bcdeb9"
     },
     {
       "topic": "6. Which of the following activities is not part of the software reengineering process model?",
@@ -10054,7 +10602,8 @@
           "C. 原型设计",
           "D. 逆向工程"
         ]
-      }
+      },
+      "id": "q-c9d16f937da1"
     },
     {
       "topic": "7. Software reengineering process model includes restructuring activities for which of the following work items?",
@@ -10074,7 +10623,8 @@
           "C. 数据",
           "D. 以上所有"
         ]
-      }
+      },
+      "id": "q-0da83fec44ea"
     },
     {
       "topic": "8. Which of the following is not an issue to consider when reverse engineering?",
@@ -10094,7 +10644,8 @@
           "C. 连通性",
           "D. 方向性"
         ]
-      }
+      },
+      "id": "q-255732a1e921"
     },
     {
       "topic": "9. Reverse engineering of data focuses on",
@@ -10114,7 +10665,8 @@
           "C. a 和 b 都是",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-b9572a1c4b44"
     },
     {
       "topic": "10. The first reverse engineering activity involves seeking to understand",
@@ -10134,7 +10686,8 @@
           "C. 用户界面",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-530a343f9456"
     },
     {
       "topic": "11. Reverse engineering should proceed the reengineering of any user interface.",
@@ -10150,7 +10703,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-7cd44494a0ee"
     },
     {
       "topic": "12. Which of these benefits can be achieved when software is restructured?",
@@ -10170,7 +10724,8 @@
           "C. 软件更易于测试",
           "D. 以上全部"
         ]
-      }
+      },
+      "id": "q-b373ad2f2571"
     },
     {
       "topic": "13. Code restructuring is a good example of software reengineering.",
@@ -10186,7 +10741,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-a57a49fc05ad"
     },
     {
       "topic": "14. Which of these is not an example of data restructuring?",
@@ -10206,7 +10762,8 @@
           "C. 数据记录标准化",
           "D. 以上都不是"
         ]
-      }
+      },
+      "id": "q-a29f50196282"
     },
     {
       "topic": "15. Forward engineering is not necessary if an existing software product is producing the correct output.",
@@ -10222,7 +10779,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-5e01c06fca40"
     },
     {
       "topic": "16. Reengineering client/server systems begins with a thorough analysis of the business environment that encompasses the existing computing system.",
@@ -10238,7 +10796,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1ca55cd59f84"
     },
     {
       "topic": "17. The only time reengineering enters into work with a legacy system is when it components will be implemented as objects.",
@@ -10254,7 +10813,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-1156a677a147"
     },
     {
       "topic": "18. The cost benefits derived from reengineering are realized largely due to decreased maintenance and support costs for the new software product.",
@@ -10270,7 +10830,8 @@
           "A. 正确",
           "B. 错误"
         ]
-      }
+      },
+      "id": "q-ce0e786eb29a"
     }
   ]
 }

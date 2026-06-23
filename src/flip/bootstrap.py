@@ -27,6 +27,9 @@ BUNDLED_DECK_SPECS = {
         "name": "软件工程模板",
         "source_lang": "en",
         "role": "软件工程助教",
+        # Monotonic content version of the bundled tiku data. Bump on every
+        # upstream change so already-installed decks show as updatable.
+        "content_version": "1",
     },
 }
 
@@ -71,6 +74,7 @@ def install_bundled(slug: str, decks_dir: Path) -> None:
         path=decks_dir / slug,
         source_lang=spec["source_lang"],
         answer_alphabet=answer_alphabet,
+        content_version=spec.get("content_version", "0"),
     )
     deck.path.mkdir(parents=True, exist_ok=True)
     store.save_tiku(deck, installed_tiku)
@@ -81,6 +85,7 @@ def install_bundled(slug: str, decks_dir: Path) -> None:
             source_lang=spec["source_lang"],
             answer_alphabet=answer_alphabet,
             role_text=spec["role"],
+            content_version=spec.get("content_version", "0"),
         ),
         encoding="utf-8",
     )
@@ -121,7 +126,7 @@ def _detect_alphabet_from_tiku(data):
     return "".join(valid) if valid else "ABCD"
 
 
-def _build_manifest_text(*, slug: str, display_name: str, source_lang: str, answer_alphabet: str, role_text: str) -> str:
+def _build_manifest_text(*, slug: str, display_name: str, source_lang: str, answer_alphabet: str, role_text: str, content_version: str = "0") -> str:
     return (
         "[deck]\n"
         f'name = "{display_name}"\n'
@@ -129,6 +134,7 @@ def _build_manifest_text(*, slug: str, display_name: str, source_lang: str, answ
         f'source_lang = "{source_lang}"\n'
         f'answer_alphabet = "{answer_alphabet}"\n'
         "max_display_options = 4\n"
+        f'content_version = "{content_version}"\n'
         "\n"
         "[explain]\n"
         f'role = "{role_text}"\n'
