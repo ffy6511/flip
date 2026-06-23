@@ -41,7 +41,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 flip = [
     "bundled_decks/se-template/tiku.json",
-    "bundled_decks/se-template/prev_tiku.json",
+    "bundled_decks/se-template/metadata.toml",
     "bundled_decks/se-template/CHANGELOG.md",
 ]
 

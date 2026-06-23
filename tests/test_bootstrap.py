@@ -100,9 +100,14 @@ def _install_fake_bundled(monkeypatch, decks_dir, *, questions, version="1",
     """Stand up a throwaway bundled deck so update tests don't touch real data."""
     import json
     tiku = {"1": list(questions)}
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, slug, {
-        "name": name, "source_lang": source_lang, "role": role,
+    monkeypatch.setattr(bootstrap, "_bundled_slugs", lambda: [slug])
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": slug,
+        "name": name,
+        "source_lang": source_lang,
+        "role": role,
         "content_version": version,
+        "changelog_file": "CHANGELOG.md",
     })
     monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
                         lambda _slug: json.dumps(tiku, ensure_ascii=False))
@@ -128,7 +133,14 @@ def test_updatable_bundled_decks_detects_version_diff(tmp_path, monkeypatch):
     # Same version -> not updatable.
     assert bootstrap.updatable_bundled_decks(decks_dir) == []
     # Bump shipped version -> updatable.
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS[slug], "content_version", "2")
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": slug,
+        "name": "Demo",
+        "source_lang": "en",
+        "role": "demo",
+        "content_version": "2",
+        "changelog_file": "CHANGELOG.md",
+    })
     upd = bootstrap.updatable_bundled_decks(decks_dir)
     assert len(upd) == 1
     assert upd[0]["slug"] == slug
@@ -158,7 +170,14 @@ def test_update_bundled_preserves_mark_and_note_across_topic_edit(tmp_path, monk
     new_q2 = {"id": tiku["1"][1]["id"], "topic": "unchanged", "options": ["A. x", "B. y"], "answer": "B"}
     monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
                         lambda _slug: json.dumps({"1": [new_q1, new_q2]}, ensure_ascii=False))
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS[slug], "content_version", "2")
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": slug,
+        "name": "Demo",
+        "source_lang": "en",
+        "role": "demo",
+        "content_version": "2",
+        "changelog_file": "CHANGELOG.md",
+    })
 
     result = bootstrap.update_bundled(slug, decks_dir)
 
@@ -196,8 +215,14 @@ def test_update_bundled_migrates_legacy_positional_ids(tmp_path, monkeypatch):
     # Bundled v1 ships the same question but with a UUID id.
     uuid = "q-deadbeef0001"
     import json
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
-        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "1",
+    monkeypatch.setattr(bootstrap, "_bundled_slugs", lambda: ["demo"])
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "demo",
+        "name": "Demo",
+        "source_lang": "en",
+        "role": "demo",
+        "content_version": "1",
+        "changelog_file": "CHANGELOG.md",
     })
     monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
                         lambda _slug: json.dumps({"1": [
@@ -232,8 +257,14 @@ def test_update_bundled_reports_unmigrated_when_content_changed(tmp_path, monkey
     deck = bootstrap.Deck(slug="demo", name="Demo", path=deck_dir, source_lang="en")
     store.save_tiku(deck, local_tiku)
 
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
-        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "1",
+    monkeypatch.setattr(bootstrap, "_bundled_slugs", lambda: ["demo"])
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "demo",
+        "name": "Demo",
+        "source_lang": "en",
+        "role": "demo",
+        "content_version": "1",
+        "changelog_file": "CHANGELOG.md",
     })
     # Bundled ships the same id-slot but DIFFERENT content -> no content-key match.
     monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
@@ -247,99 +278,50 @@ def test_update_bundled_reports_unmigrated_when_content_changed(tmp_path, monkey
     assert result.unmigrated[0][1] == "demo-1-001"  # the orphaned legacy id
 
 
-def test_diff_tiku_classifies_updated_added_removed():
-    before = {"1": [
-        {"id": "q-1", "topic": "old", "options": ["A. x"], "answer": "A"},
-        {"id": "q-2", "topic": "gone", "options": ["A. y"], "answer": "A"},
-    ]}
-    after = {"1": [
-        {"id": "q-1", "topic": "new", "options": ["A. x", "B. y"], "answer": "B"},
-        {"id": "q-3", "topic": "added", "options": ["A. z"], "answer": "A"},
-    ]}
-
-    changes = bootstrap._diff_tiku(before, after)
-
-    assert [item["kind"] for item in changes] == ["updated", "removed", "added"]
-    assert changes[0]["id"] == "q-1"
-    assert changes[0]["topic"] == {"before": "old", "after": "new"}
-    assert changes[0]["options"] == {"before": ["A. x"], "after": ["A. x", "B. y"]}
-    assert changes[0]["answer"] == {"before": "A", "after": "B"}
-    assert changes[1]["id"] == "q-2"
-    assert changes[2]["id"] == "q-3"
-
-
-def test_diff_tiku_skips_unchanged():
-    same = {"1": [
-        {"id": "q-1", "topic": "same", "options": ["A. x"], "answer": "A"},
-    ]}
-
-    assert bootstrap._diff_tiku(same, same) == []
-
-
-def test_gen_changelog_renders_human_and_json(tmp_path, monkeypatch):
+def test_read_bundled_metadata_reads_current_version_and_role(tmp_path, monkeypatch):
     root = tmp_path / "flip"
     slug_dir = root / "bundled_decks" / "demo"
     slug_dir.mkdir(parents=True)
-    current = {"1": [{"id": "q-1", "topic": "new", "options": ["A. x"], "answer": "A"}]}
-    prev = {"1": [{"id": "q-1", "topic": "old", "options": ["A. x"], "answer": "A"}]}
-    (slug_dir / "tiku.json").write_text(json.dumps(current, ensure_ascii=False), encoding="utf-8")
-    (slug_dir / "prev_tiku.json").write_text(json.dumps(prev, ensure_ascii=False), encoding="utf-8")
-    (slug_dir / "CHANGELOG.md").write_text("# Changelog — Demo\n\n", encoding="utf-8")
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
-        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "2",
-    })
-    monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
-
-    text = bootstrap.gen_changelog("demo")
-    written = (slug_dir / "CHANGELOG.md").read_text(encoding="utf-8")
-
-    assert "## [2] -" in text
-    assert "更新 1 题" in text
-    assert "```json" in written
-    payload = json.loads(written.split("```json", 1)[1].split("```", 1)[0])
-    assert payload["version"] == "2"
-    assert payload["changes"][0]["id"] == "q-1"
-
-
-def test_gen_changelog_raises_when_prev_equals_current(tmp_path, monkeypatch):
-    root = tmp_path / "flip"
-    slug_dir = root / "bundled_decks" / "demo"
-    slug_dir.mkdir(parents=True)
-    same = {"1": [{"id": "q-1", "topic": "same", "options": ["A. x"], "answer": "A"}]}
-    text = json.dumps(same, ensure_ascii=False)
-    (slug_dir / "tiku.json").write_text(text, encoding="utf-8")
-    (slug_dir / "prev_tiku.json").write_text(text, encoding="utf-8")
-    (slug_dir / "CHANGELOG.md").write_text("# Changelog — Demo\n\n", encoding="utf-8")
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
-        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "2",
-    })
-    monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
-
-    import pytest
-
-    with pytest.raises(ValueError, match="prev_tiku.json 与 tiku.json 相同"):
-        bootstrap.gen_changelog("demo")
-
-
-def test_read_changelog_parses_versions(tmp_path, monkeypatch):
-    root = tmp_path / "flip"
-    slug_dir = root / "bundled_decks" / "demo"
-    slug_dir.mkdir(parents=True)
-    (slug_dir / "CHANGELOG.md").write_text(
-        "# Changelog — Demo\n\n"
-        "## [2] - 2026-06-23\n\n更新 1 题。\n\n```json\n"
-        "{\"version\":\"2\",\"date\":\"2026-06-23\",\"changes\":[{\"id\":\"q-1\",\"kind\":\"updated\"}]}\n"
-        "```\n\n"
-        "## [1] - 2026-06-22\n\n初始版本。\n",
+    (slug_dir / "metadata.toml").write_text(
+        '[deck]\nname = "Demo"\nslug = "demo"\nsource_lang = "en"\ncontent_version = "v1.1"\n\n'
+        '[explain]\nrole = "demo"\n\n[changelog]\nfile = "CHANGELOG.md"\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
 
-    entries = bootstrap.read_changelog("demo")
+    meta = bootstrap._read_bundled_metadata("demo")
 
-    assert [entry["version"] for entry in entries] == ["2", "1"]
-    assert entries[0]["diff"][0]["id"] == "q-1"
-    assert entries[1]["diff"] is None
+    assert meta["slug"] == "demo"
+    assert meta["content_version"] == "v1.1"
+    assert meta["role"] == "demo"
+    assert meta["changelog_file"] == "CHANGELOG.md"
+
+
+def test_read_changelog_returns_manual_text(tmp_path, monkeypatch):
+    root = tmp_path / "flip"
+    slug_dir = root / "bundled_decks" / "demo"
+    slug_dir.mkdir(parents=True)
+    (slug_dir / "metadata.toml").write_text(
+        '[deck]\nname = "Demo"\nslug = "demo"\nsource_lang = "en"\ncontent_version = "v1.1"\n\n'
+        '[explain]\nrole = "demo"\n\n[changelog]\nfile = "CHANGELOG.md"\n',
+        encoding="utf-8",
+    )
+    (slug_dir / "CHANGELOG.md").write_text(
+        "# Changelog — Demo\n\n## v1.1\n\n修正 2 道题答案。\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
+
+    text = bootstrap.read_changelog("demo")
+
+    assert "## v1.1" in text
+    assert "修正 2 道题答案" in text
+
+
+def test_version_lt_supports_semver_like_strings():
+    assert bootstrap._version_lt("v1.1", "v1.2") is True
+    assert bootstrap._version_lt("v1.10", "v1.2") is False
+    assert bootstrap._version_lt("2", "v1.9") is False
 
 
 def test_list_backups_reads_meta_json(tmp_path):

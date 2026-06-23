@@ -413,7 +413,7 @@ def deck_update(
     from . import bootstrap
 
     config, deck = _resolve_deck(slug)
-    if slug not in bootstrap.BUNDLED_DECK_SPECS:
+    if slug not in bootstrap._bundled_slugs():
         _status_echo(f"{slug!r} is not a bundled deck; update only applies to bundled decks", ok=False, err=True)
         raise typer.Exit(1)
 
@@ -442,7 +442,7 @@ def deck_update(
         )
         for chapter, qid, topic in result.unmigrated[:20]:
             typer.echo(f"  chapter {chapter}: id={qid}, topic={topic!r}", err=True)
-    _status_echo(f"updated deck {slug} to content_version={bootstrap.BUNDLED_DECK_SPECS[slug]['content_version']}")
+    _status_echo(f"updated deck {slug} to content_version={bootstrap._read_bundled_metadata(slug)['content_version']}")
 
 
 @deck_app.command("prune")
@@ -459,7 +459,7 @@ def deck_prune(
     from . import bootstrap
 
     config, deck = _resolve_deck(slug)
-    if slug not in bootstrap.BUNDLED_DECK_SPECS:
+    if slug not in bootstrap._bundled_slugs():
         _status_echo(f"{slug!r} is not a bundled deck; prune only applies to bundled decks", ok=False, err=True)
         raise typer.Exit(1)
 
@@ -508,33 +508,6 @@ def deck_prune(
     _engine._sync_marked_from_tiku(deck)
     _status_echo(f"pruned {len(orphaned)} question(s) from {slug}")
 
-
-@deck_app.command("gen-changelog")
-def deck_gen_changelog(
-    slug: str = typer.Argument(..., help="Bundled deck slug."),
-):
-    """Generate a changelog entry by diffing tiku.json against prev_tiku.json.
-
-    Maintainer flow:
-      1. cp tiku.json prev_tiku.json
-      2. edit tiku.json to the new version
-      3. bump BUNDLED_DECK_SPECS[slug]['content_version']
-      4. flip deck gen-changelog <slug>
-    """
-    from . import bootstrap
-
-    if slug not in bootstrap.BUNDLED_DECK_SPECS:
-        _status_echo(f"{slug!r} is not a bundled deck", ok=False, err=True)
-        raise typer.Exit(1)
-    try:
-        text = bootstrap.gen_changelog(slug)
-    except ValueError as exc:
-        _status_echo(str(exc), ok=False, err=True)
-        raise typer.Exit(1)
-    typer.echo(text)
-    _status_echo(f"appended changelog entry for {slug}")
-
-
 @deck_app.command("versions")
 def deck_versions(
     slug: str = typer.Argument(..., help="Bundled deck slug."),
@@ -543,7 +516,7 @@ def deck_versions(
     from . import bootstrap
 
     config, deck = _resolve_deck(slug)
-    if slug not in bootstrap.BUNDLED_DECK_SPECS:
+    if slug not in bootstrap._bundled_slugs():
         _status_echo(f"{slug!r} is not a bundled deck", ok=False, err=True)
         raise typer.Exit(1)
 

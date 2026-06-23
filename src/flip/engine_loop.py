@@ -1190,8 +1190,8 @@ def deck_picker(config):
                     continue
                 if key in {'c', 'C'} and boot_items:
                     slug = boot_items[boot_index]["slug"]
-                    entries = bootstrap.read_changelog(slug)
-                    _render_changelog_view(slug, entries)
+                    changelog_text = bootstrap.read_changelog(slug)
+                    _render_changelog_view(slug, changelog_text)
                     wait_key = read_key()
                     if wait_key == '\x03':
                         raise KeyboardInterrupt
@@ -1318,7 +1318,7 @@ def _render_bootstrap_picker(items, cursor, selected, warning, confirming):
     print("  " + DIM_COLOR + hint + RESET_COLOR)
 
 
-def _render_changelog_view(slug, entries):
+def _render_changelog_view(slug, changelog_text):
     from .tui.render import DIM_COLOR, RESET_COLOR
 
     clear_screen()
@@ -1327,16 +1327,11 @@ def _render_changelog_view(slug, entries):
     print()
     print(f"  {slug}")
     print()
-    if not entries:
+    if not str(changelog_text).strip():
         print("  " + DIM_COLOR + "(暂无 changelog)" + RESET_COLOR)
     else:
-        for i, entry in enumerate(entries):
-            if i:
-                print()
-                print(DIM_COLOR + "  " + "─" * 40 + RESET_COLOR)
-                print()
-            for line in entry["text"].splitlines():
-                print("  " + line if line else "")
+        for line in str(changelog_text).splitlines():
+            print("  " + line if line else "")
     print()
     print("  " + DIM_COLOR + "按任意键返回 Bootstrap" + RESET_COLOR)
 

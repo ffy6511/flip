@@ -235,6 +235,15 @@ def _install_fake_bootstrap_deck(monkeypatch, decks_dir, *, version="1", topic="
     import json
     from flip import bootstrap
 
+    monkeypatch.setattr(bootstrap, "_bundled_slugs", lambda: ["se-template"])
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "se-template",
+        "name": "软件工程模板",
+        "source_lang": "en",
+        "role": "软件工程助教",
+        "content_version": version,
+        "changelog_file": "CHANGELOG.md",
+    })
     monkeypatch.setattr(
         bootstrap,
         "_read_bundled_tiku_text",
@@ -242,7 +251,6 @@ def _install_fake_bootstrap_deck(monkeypatch, decks_dir, *, version="1", topic="
             {"topic": topic, "options": ["A. x", "B. y"], "answer": "A"},
         ]}, ensure_ascii=False),
     )
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS["se-template"], "content_version", version)
     bootstrap.install_bundled("se-template", decks_dir)
 
 
@@ -402,7 +410,14 @@ def test_bootstrap_tab_shows_updateable_deck(capsys, monkeypatch, tmp_path):
         "_read_bundled_tiku_text",
         lambda _slug: '{"1":[{"topic":"new topic","options":["A. x","B. y"],"answer":"A"}]}',
     )
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS["se-template"], "content_version", "2")
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "se-template",
+        "name": "软件工程模板",
+        "source_lang": "en",
+        "role": "软件工程助教",
+        "content_version": "2",
+        "changelog_file": "CHANGELOG.md",
+    })
 
     engine_loop.deck_picker(config)
 
@@ -435,7 +450,14 @@ def test_bootstrap_tab_enter_updates_and_refreshes(capsys, monkeypatch, tmp_path
             % qid
         ),
     )
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS["se-template"], "content_version", "2")
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "se-template",
+        "name": "软件工程模板",
+        "source_lang": "en",
+        "role": "软件工程助教",
+        "content_version": "2",
+        "changelog_file": "CHANGELOG.md",
+    })
 
     engine_loop.deck_picker(config)
 
@@ -457,17 +479,19 @@ def test_bootstrap_tab_c_key_shows_changelog(capsys, monkeypatch, tmp_path):
     monkeypatch.setattr(
         bootstrap,
         "read_changelog",
-        lambda slug, version=None: [{
-            "version": "2",
-            "date": "2026-06-23",
-            "text": "## [2] - 2026-06-23\n\n更新 1 题。",
-            "diff": [{"id": "q-1", "kind": "updated"}],
-        }],
+        lambda slug: "# Changelog — 软件工程模板\n\n## v1.1\n\n更新 1 题。",
     )
 
     config = _empty_config(tmp_path, monkeypatch)
     _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS["se-template"], "content_version", "2")
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "se-template",
+        "name": "软件工程模板",
+        "source_lang": "en",
+        "role": "软件工程助教",
+        "content_version": "2",
+        "changelog_file": "CHANGELOG.md",
+    })
 
     engine_loop.deck_picker(config)
 

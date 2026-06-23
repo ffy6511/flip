@@ -8,6 +8,18 @@ from flip import bootstrap, store
 from flip.cli import app
 
 
+def _patch_demo_bundled(monkeypatch, *, version="1", name="Demo", source_lang="en", role="demo"):
+    monkeypatch.setattr(bootstrap, "_bundled_slugs", lambda: ["demo"])
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "demo",
+        "name": name,
+        "source_lang": source_lang,
+        "role": role,
+        "content_version": version,
+        "changelog_file": "CHANGELOG.md",
+    })
+
+
 def test_deck_assign_ids_dry_run(deck):
     # The example fixture deck's questions already have ids, so dry-run reports
     # zero — verifies the no-op path and the preview message format.
@@ -53,9 +65,7 @@ def test_deck_update_runs_merge_and_preserves_history(tmp_path, monkeypatch):
     monkeypatch.setenv("FLIP_HOME", str(home))
 
     q1 = {"topic": "t1", "options": ["A. x", "B. y"], "answer": "A"}
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
-        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "1",
-    })
+    _patch_demo_bundled(monkeypatch, version="1")
     monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
                         lambda _slug: json.dumps({"1": [q1]}, ensure_ascii=False))
     bootstrap.install_bundled("demo", decks_dir)
@@ -76,7 +86,7 @@ def test_deck_update_runs_merge_and_preserves_history(tmp_path, monkeypatch):
                         lambda _slug: json.dumps({"1": [
                             {"id": qid, "topic": "t1 [fixed]", "options": ["A. x", "B. y"], "answer": "A"},
                         ]}, ensure_ascii=False))
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS["demo"], "content_version", "2")
+    _patch_demo_bundled(monkeypatch, version="2")
 
     result = CliRunner().invoke(app, ["deck", "update", "demo"])
 
@@ -103,9 +113,7 @@ def test_deck_prune_no_orphans_is_noop(tmp_path, monkeypatch):
     home = tmp_path / "flip_home"
     decks_dir = home / "decks"
     monkeypatch.setenv("FLIP_HOME", str(home))
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
-        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "1",
-    })
+    _patch_demo_bundled(monkeypatch, version="1")
     monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
                         lambda _slug: json.dumps({"1": [
                             {"id": "q-aaaaaaaaaaaa", "topic": "t", "options": ["A. x"], "answer": "A"},
@@ -118,35 +126,12 @@ def test_deck_prune_no_orphans_is_noop(tmp_path, monkeypatch):
     assert "no orphaned questions" in result.output
 
 
-def test_deck_gen_changelog_appends_entry(tmp_path, monkeypatch):
-    root = tmp_path / "flip"
-    slug_dir = root / "bundled_decks" / "demo"
-    slug_dir.mkdir(parents=True)
-    current = {"1": [{"id": "q-1", "topic": "new", "options": ["A. x"], "answer": "A"}]}
-    prev = {"1": [{"id": "q-1", "topic": "old", "options": ["A. x"], "answer": "A"}]}
-    (slug_dir / "tiku.json").write_text(json.dumps(current, ensure_ascii=False), encoding="utf-8")
-    (slug_dir / "prev_tiku.json").write_text(json.dumps(prev, ensure_ascii=False), encoding="utf-8")
-    (slug_dir / "CHANGELOG.md").write_text("# Changelog — Demo\n\n", encoding="utf-8")
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
-        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "2",
-    })
-    monkeypatch.setattr(bootstrap.resources, "files", lambda _pkg: root)
-
-    result = CliRunner().invoke(app, ["deck", "gen-changelog", "demo"])
-
-    assert result.exit_code == 0, result.output
-    assert "## [2] -" in result.output
-    assert "appended changelog entry for demo" in result.output
-
-
 def test_deck_versions_cli_switches(tmp_path, monkeypatch):
     home = tmp_path / "flip_home"
     decks_dir = home / "decks"
     monkeypatch.setenv("FLIP_HOME", str(home))
 
-    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS, "demo", {
-        "name": "Demo", "source_lang": "en", "role": "demo", "content_version": "2",
-    })
+    _patch_demo_bundled(monkeypatch, version="2")
     monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
                         lambda _slug: json.dumps({"1": [
                             {"id": "q-1", "topic": "new topic", "options": ["A. x"], "answer": "A"},

@@ -16,25 +16,10 @@ from copy import deepcopy
 from importlib import resources
 from pathlib import Path
 
+from ._toml import load_toml
 from . import engine, store
 from .deck import Deck
 from .importers import validate_tiku
-
-
-# Single source of truth for bundled deck metadata. The Bootstrap tab iterates
-# this dict (insertion order is the display order) and filters by which deck
-# directories already exist to compute the "available to install" list.
-BUNDLED_DECK_SPECS = {
-    "se-template": {
-        "name": "软件工程模板",
-        "source_lang": "en",
-        "role": "软件工程助教",
-        # Monotonic content version of the bundled tiku data. Bump on every
-        # upstream change so already-installed decks show as updatable.
-        "content_version": "1",
-    },
-}
-
 
 def available_bundled_slugs(decks_dir: Path) -> list[str]:
     """Slugs that can be offered by the Bootstrap tab right now.
@@ -44,7 +29,7 @@ def available_bundled_slugs(decks_dir: Path) -> list[str]:
     installed one is hidden until its directory disappears.
     """
     decks_dir = Path(decks_dir)
-    return [slug for slug in BUNDLED_DECK_SPECS if not (decks_dir / slug).exists()]
+    return [slug for slug in _bundled_slugs() if not (decks_dir / slug).exists()]
 
 
 def updatable_bundled_decks(decks_dir: Path) -> list[dict]:
@@ -57,12 +42,13 @@ def updatable_bundled_decks(decks_dir: Path) -> list[dict]:
     """
     decks_dir = Path(decks_dir)
     out = []
-    for slug, spec in BUNDLED_DECK_SPECS.items():
+    for slug in _bundled_slugs():
+        spec = _read_bundled_metadata(slug)
         deck_dir = decks_dir / slug
         if not deck_dir.is_dir():
             continue
         current = _read_local_version(deck_dir)
-        latest = spec.get("content_version", "0")
+        latest = spec["content_version"]
         if _version_lt(current, latest):
             out.append({
                 "slug": slug,
@@ -91,7 +77,7 @@ def update_bundled(slug: str, decks_dir: Path):
     Creates a full-deck backup under <home>/backups/<slug>-update-<stamp>/ via
     store.export_deck. Returns the MergeResult from the merge step.
     """
-    spec = BUNDLED_DECK_SPECS[slug]
+    spec = _read_bundled_metadata(slug)
     decks_dir = Path(decks_dir)
     deck_dir = decks_dir / slug
     if not deck_dir.is_dir():
@@ -108,7 +94,7 @@ def update_bundled(slug: str, decks_dir: Path):
 
 
 def switch_bundled(slug: str, decks_dir: Path, backup_path) -> object:
-    spec = BUNDLED_DECK_SPECS[slug]
+    spec = _read_bundled_metadata(slug)
     decks_dir = Path(decks_dir)
     backup_path = Path(backup_path)
     if not backup_path.is_dir():
@@ -132,7 +118,7 @@ def _apply_incoming(slug: str, decks_dir: Path, incoming_tiku: dict, incoming_ve
                     *, backup_op: str, deck_name: str | None = None, source_lang: str | None = None):
     from .merge import merge_tiku
 
-    spec = BUNDLED_DECK_SPECS[slug]
+    spec = _read_bundled_metadata(slug)
     decks_dir = Path(decks_dir)
     deck_dir = decks_dir / slug
     if not deck_dir.is_dir():
@@ -255,7 +241,6 @@ def list_backups(decks_dir: Path, slug: str) -> list[dict]:
 
 def _read_local_version(deck_dir: Path) -> str:
     """Read content_version from an installed deck's manifest; "0" if absent."""
-    from ._toml import load_toml
     manifest = deck_dir / "manifest.toml"
     if not manifest.exists():
         return "0"
@@ -264,11 +249,24 @@ def _read_local_version(deck_dir: Path) -> str:
 
 
 def _version_lt(a: str, b: str) -> bool:
-    """True if version a is strictly older than b. Numeric compare, else string."""
-    try:
-        return int(a) < int(b)
-    except (TypeError, ValueError):
-        return str(a) < str(b)
+    """True if version a is strictly older than b."""
+    pa = _parse_version(a)
+    pb = _parse_version(b)
+    if pa is not None and pb is not None:
+        return pa < pb
+    return str(a) < str(b)
+
+
+def _parse_version(value: str):
+    text = str(value or "").strip().lower()
+    if text.startswith("v"):
+        text = text[1:]
+    if not text:
+        return None
+    parts = text.split(".")
+    if not all(part.isdigit() for part in parts):
+        return None
+    return tuple(int(part) for part in parts)
 
 
 def _migrate_legacy_ids(local_tiku: dict, bundled_tiku: dict, slug: str):
@@ -390,7 +388,7 @@ def install_bundled(slug: str, decks_dir: Path) -> None:
     will still work if the directory already exists but is normally only called
     for slugs returned by `available_bundled_slugs`.
     """
-    spec = BUNDLED_DECK_SPECS[slug]
+    spec = _read_bundled_metadata(slug)
     decks_dir = Path(decks_dir)
     decks_dir.mkdir(parents=True, exist_ok=True)
 
@@ -434,7 +432,7 @@ def bundled_deck_summary(slug: str) -> dict:
     the bundled tiku.json, so the renderer can show "(120 题, en→zh)" without
     each render having to parse the JSON itself.
     """
-    spec = BUNDLED_DECK_SPECS[slug]
+    spec = _read_bundled_metadata(slug)
     data = json.loads(_read_bundled_tiku_text(slug))
     count = 0
     for _, _q in engine.iter_question_records(data):
@@ -455,179 +453,37 @@ def _read_bundled_text(slug: str, filename: str) -> str:
     return _bundled_file_path(slug, filename).read_text(encoding="utf-8")
 
 
+def _bundled_slugs() -> list[str]:
+    root = Path(resources.files("flip").joinpath("bundled_decks"))
+    if not root.exists():
+        return []
+    return sorted(
+        path.name for path in root.iterdir()
+        if path.is_dir() and (path / "metadata.toml").exists()
+    )
+
+
+def _read_bundled_metadata(slug: str) -> dict:
+    data = load_toml(_bundled_file_path(slug, "metadata.toml"))
+    deck = data.get("deck", {})
+    explain = data.get("explain", {})
+    changelog = data.get("changelog", {})
+    return {
+        "slug": str(deck.get("slug", slug)),
+        "name": str(deck.get("name", slug)),
+        "source_lang": str(deck.get("source_lang", "en")),
+        "role": str(explain.get("role", "")),
+        "content_version": str(deck.get("content_version", "0")).strip() or "0",
+        "changelog_file": str(changelog.get("file", "CHANGELOG.md")),
+    }
+
+
 def _read_bundled_tiku_text(slug: str) -> str:
     return _read_bundled_text(slug, "tiku.json")
 
 
-def _diff_tiku(before_data, after_data) -> list[dict]:
-    before_index = {}
-    after_index = {}
-    before_order = []
-    after_order = []
-
-    for chapter, q in engine.iter_question_records(before_data):
-        qid = engine.question_id(q)
-        if not qid:
-            continue
-        before_index[qid] = (str(chapter), q)
-        before_order.append(qid)
-    for chapter, q in engine.iter_question_records(after_data):
-        qid = engine.question_id(q)
-        if not qid:
-            continue
-        after_index[qid] = (str(chapter), q)
-        after_order.append(qid)
-
-    changes = []
-    for qid in after_order:
-        if qid not in before_index:
-            continue
-        before_chapter, before_q = before_index[qid]
-        after_chapter, after_q = after_index[qid]
-        if (
-            before_q.get("topic") == after_q.get("topic")
-            and before_q.get("options") == after_q.get("options")
-            and before_q.get("answer") == after_q.get("answer")
-            and before_q.get("zh") == after_q.get("zh")
-            and before_q.get("user_note") == after_q.get("user_note")
-        ):
-            continue
-        change = {
-            "id": qid,
-            "kind": "updated",
-            "chapter": after_chapter,
-            "topic": {"before": before_q.get("topic", ""), "after": after_q.get("topic", "")},
-            "options": {"before": before_q.get("options", []), "after": after_q.get("options", [])},
-            "answer": {"before": before_q.get("answer", ""), "after": after_q.get("answer", "")},
-        }
-        if before_q.get("zh") != after_q.get("zh"):
-            change["zh_changed"] = True
-        if before_q.get("user_note") != after_q.get("user_note"):
-            change["user_note_changed"] = True
-        changes.append(change)
-
-    for qid in before_order:
-        if qid in after_index:
-            continue
-        chapter, q = before_index[qid]
-        changes.append({
-            "id": qid,
-            "kind": "removed",
-            "chapter": chapter,
-            "topic": q.get("topic", ""),
-        })
-
-    for qid in after_order:
-        if qid in before_index:
-            continue
-        chapter, q = after_index[qid]
-        changes.append({
-            "id": qid,
-            "kind": "added",
-            "chapter": chapter,
-            "topic": q.get("topic", ""),
-        })
-    return changes
-
-
-def _change_summary_line(change: dict) -> str:
-    kind = change.get("kind")
-    qid = change.get("id", "-")
-    chapter = change.get("chapter", "?")
-    if kind == "added":
-        return f"新增 {qid} (ch{chapter}): {str(change.get('topic', ''))[:80]}"
-    if kind == "removed":
-        return f"删除 {qid} (ch{chapter}): {str(change.get('topic', ''))[:80]}"
-    parts = []
-    topic = change.get("topic", {})
-    answer = change.get("answer", {})
-    options = change.get("options", {})
-    if topic.get("before") != topic.get("after"):
-        parts.append("题干修订")
-    if answer.get("before") != answer.get("after"):
-        parts.append(f"答案 {answer.get('before', '')}→{answer.get('after', '')}")
-    if options.get("before") != options.get("after"):
-        parts.append("选项修订")
-    if change.get("zh_changed"):
-        parts.append("译文更新")
-    if change.get("user_note_changed"):
-        parts.append("说明更新")
-    summary = "、".join(parts) if parts else "内容修订"
-    return f"更新 {qid} (ch{chapter}): {summary}"
-
-
-def gen_changelog(slug: str) -> str:
-    before_data = json.loads(_read_bundled_text(slug, "prev_tiku.json"))
-    after_data = json.loads(_read_bundled_tiku_text(slug))
-    changes = _diff_tiku(before_data, after_data)
-    if not changes:
-        raise ValueError("prev_tiku.json 与 tiku.json 相同,无法生成 diff;请确认 prev 是上一版发布时的快照")
-
-    version = str(BUNDLED_DECK_SPECS[slug].get("content_version", "0"))
-    today = datetime.date.today().isoformat()
-    updated = sum(1 for item in changes if item["kind"] == "updated")
-    added = sum(1 for item in changes if item["kind"] == "added")
-    removed = sum(1 for item in changes if item["kind"] == "removed")
-    lines = [
-        f"## [{version}] - {today}",
-        "",
-        f"更新 {updated} 题、新增 {added} 题、删除 {removed} 题。",
-        "",
-    ]
-    for change in changes:
-        lines.append(f"- {_change_summary_line(change)}")
-    payload = {
-        "version": version,
-        "date": today,
-        "changes": changes,
-    }
-    lines.extend([
-        "",
-        "```json",
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        "```",
-    ])
-    entry_text = "\n".join(lines)
-
-    changelog_path = _bundled_file_path(slug, "CHANGELOG.md")
-    original = changelog_path.read_text(encoding="utf-8")
-    if original.startswith("# "):
-        first_line, _, remainder = original.partition("\n")
-        remainder = remainder.lstrip("\n")
-        new_text = first_line + "\n\n" + entry_text + ("\n\n" + remainder if remainder else "\n")
-    else:
-        new_text = entry_text + "\n\n" + original.lstrip("\n")
-    changelog_path.write_text(new_text.rstrip() + "\n", encoding="utf-8")
-    return entry_text
-
-
-def read_changelog(slug: str, version=None) -> list[dict]:
-    text = _read_bundled_text(slug, "CHANGELOG.md")
-    pattern = re.compile(
-        r"^## \[(?P<version>[^\]]+)\] - (?P<date>\d{4}-\d{2}-\d{2})\n(?P<body>.*?)(?=^## \[|\Z)",
-        re.MULTILINE | re.DOTALL,
-    )
-    entries = []
-    for match in pattern.finditer(text):
-        entry_version = match.group("version").strip()
-        if version is not None and str(version) != entry_version:
-            continue
-        body = match.group("body").strip()
-        diff = None
-        text_body = body
-        json_match = re.search(r"```json\n(.*?)\n```", body, re.DOTALL)
-        if json_match:
-            diff_payload = json.loads(json_match.group(1))
-            diff = diff_payload.get("changes")
-            text_body = body[:json_match.start()].rstrip()
-        section_text = f"## [{entry_version}] - {match.group('date')}\n\n{text_body}".rstrip()
-        entries.append({
-            "version": entry_version,
-            "date": match.group("date"),
-            "text": section_text,
-            "diff": diff,
-        })
-    return entries
+def read_changelog(slug: str) -> str:
+    return _read_bundled_text(slug, _read_bundled_metadata(slug)["changelog_file"])
 
 
 def _detect_alphabet_from_tiku(data):
