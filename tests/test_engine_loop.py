@@ -1,3 +1,5 @@
+import shutil
+
 from flip import engine, engine_loop, store
 from flip.tui.render import default_detail_view, normalize_detail_view
 
@@ -229,6 +231,61 @@ def _patch_deck_picker_tty(monkeypatch, keys):
     monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
 
 
+def _install_fake_bootstrap_deck(monkeypatch, decks_dir, *, version="1", topic="t1"):
+    import json
+    from flip import bootstrap
+
+    monkeypatch.setattr(bootstrap, "_bundled_slugs", lambda: ["se-template"])
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "se-template",
+        "name": "软件工程模板",
+        "source_lang": "en",
+        "role": "软件工程助教",
+        "content_version": version,
+    })
+    monkeypatch.setattr(
+        bootstrap,
+        "_read_bundled_tiku_text",
+        lambda _slug: json.dumps({"1": [
+            {"topic": topic, "options": ["A. x", "B. y"], "answer": "A"},
+        ]}, ensure_ascii=False),
+    )
+    bootstrap.install_bundled("se-template", decks_dir)
+
+
+def test_deck_picker_initially_highlights_last_used_deck(flip_home, monkeypatch):
+    from flip.config import load_config, save_default_deck
+
+    decks_dir = flip_home / "decks"
+    later_dir = decks_dir / "later"
+    later_dir.mkdir()
+    shutil.copyfile(decks_dir / "example" / "tiku.json", later_dir / "tiku.json")
+    (later_dir / "manifest.toml").write_text(
+        '[deck]\nname = "Later"\nslug = "later"\nsource_lang = "en"\n'
+        'answer_alphabet = "ABCDE"\nmax_display_options = 4\n\n'
+        '[explain]\nrole = "later"\nmax_chars = 200\n',
+        encoding="utf-8",
+    )
+
+    config = load_config()
+    save_default_deck(config, "later")
+    _patch_deck_picker_tty(monkeypatch, ["q"])
+
+    rendered = []
+
+    def capture_render(rows, index, query, default_deck):
+        rendered.append((rows, index, query, default_deck))
+
+    monkeypatch.setattr(engine_loop, "_render_deck_picker", capture_render)
+
+    engine_loop.deck_picker(config)
+
+    rows, index, query, default_deck = rendered[0]
+    assert query == ""
+    assert default_deck == "later"
+    assert rows[index][0] == "later"
+
+
 def test_deck_picker_empty_library_shows_bootstrap_hint(capsys, monkeypatch, tmp_path):
     # Empty home: Library must NOT abort flip; it shows a pointer to the
     # Bootstrap tab so the user can install without leaving the picker.
@@ -318,9 +375,8 @@ def test_bootstrap_tab_enter_confirms_then_installs(capsys, monkeypatch, tmp_pat
     assert (deck_dir / "tiku.json").is_file()
 
     out = capsys.readouterr().out
-    # After install the Bootstrap list shows "all installed".
-    assert "所有内置 deck 已安装" in out
     assert "已安装 1 个 deck" in out
+    assert "reinstall" in out
 
 
 def test_bootstrap_tab_second_enter_without_selection_is_noop(capsys, monkeypatch, tmp_path):
@@ -336,6 +392,214 @@ def test_bootstrap_tab_second_enter_without_selection_is_noop(capsys, monkeypatc
     assert not (config.decks_dir / "se-template").exists()
     out = capsys.readouterr().out
     assert "将安装" not in out  # confirm prompt never shown
+
+
+def test_bootstrap_tab_shows_updateable_deck(capsys, monkeypatch, tmp_path):
+    from flip import bootstrap
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+
+    monkeypatch.setattr(
+        bootstrap,
+        "_read_bundled_tiku_text",
+        lambda _slug: '{"1":[{"topic":"new topic","options":["A. x","B. y"],"answer":"A"}]}',
+    )
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "se-template",
+        "name": "软件工程模板",
+        "source_lang": "en",
+        "role": "软件工程助教",
+        "content_version": "2",
+    })
+
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    assert "软件工程模板" in out
+    assert "update v1→v2" in out
+
+
+def test_bootstrap_tab_shows_installed_deck_as_reinstall(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    assert "软件工程模板" in out
+    assert "reinstall" in out
+
+
+def test_bootstrap_tab_enter_updates_and_refreshes(capsys, monkeypatch, tmp_path):
+    from flip import bootstrap, store
+    from flip.deck import load_deck
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(
+        monkeypatch,
+        ["\x1b[C", " ", "\r", "\r", "\x1b", "q"],
+    )
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+    deck = load_deck(config.decks_dir / "se-template")
+    qid = store.load_tiku(deck)["1"][0]["id"]
+
+    monkeypatch.setattr(
+        bootstrap,
+        "_read_bundled_tiku_text",
+        lambda _slug: (
+            '{"1":[{"id":"%s","topic":"old topic [fixed]","options":["A. x","B. y"],"answer":"A"}]}'
+            % qid
+        ),
+    )
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "se-template",
+        "name": "软件工程模板",
+        "source_lang": "en",
+        "role": "软件工程助教",
+        "content_version": "2",
+    })
+
+    engine_loop.deck_picker(config)
+
+    deck2 = load_deck(config.decks_dir / "se-template")
+    assert deck2.content_version == "2"
+    assert store.load_tiku(deck2)["1"][0]["topic"] == "old topic [fixed]"
+
+    out = capsys.readouterr().out
+    assert "已更新 1 个 deck" in out
+    assert "updated=1" in out
+    assert "reinstall" in out
+
+
+def test_bootstrap_tab_u_toggles_note_overwrite_and_applies_update(capsys, monkeypatch, tmp_path):
+    from flip import bootstrap, store
+    from flip.deck import load_deck
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(
+        monkeypatch,
+        ["\x1b[C", "u", " ", "\r", "\r", "\x1b", "q"],
+    )
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+    deck = load_deck(config.decks_dir / "se-template")
+    tiku = store.load_tiku(deck)
+    qid = tiku["1"][0]["id"]
+    tiku["1"][0]["user_note"] = "MINE"
+    store.save_tiku(deck, tiku)
+
+    monkeypatch.setattr(
+        bootstrap,
+        "_read_bundled_tiku_text",
+        lambda _slug: (
+            '{"1":[{"id":"%s","topic":"old topic [fixed]","options":["A. x","B. y"],"answer":"A","user_note":"UPSTREAM"}]}'
+            % qid
+        ),
+    )
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "se-template",
+        "name": "软件工程模板",
+        "source_lang": "en",
+        "role": "软件工程助教",
+        "content_version": "2",
+    })
+
+    engine_loop.deck_picker(config)
+
+    deck2 = load_deck(config.decks_dir / "se-template")
+    assert store.load_tiku(deck2)["1"][0]["user_note"] == "UPSTREAM"
+    out = capsys.readouterr().out
+    assert "覆盖 bundled note" in out
+
+
+def test_bootstrap_tab_enter_reinstalls_installed_deck(capsys, monkeypatch, tmp_path):
+    from flip import bootstrap, store
+    from flip.deck import load_deck
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", " ", "\r", "\r", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+    deck = load_deck(config.decks_dir / "se-template")
+    qid = store.load_tiku(deck)["1"][0]["id"]
+
+    monkeypatch.setattr(
+        bootstrap,
+        "_read_bundled_tiku_text",
+        lambda _slug: (
+            '{"1":[{"id":"%s","topic":"old topic [reinstalled]","options":["A. x","B. y"],"answer":"A"}]}'
+            % qid
+        ),
+    )
+
+    engine_loop.deck_picker(config)
+
+    deck2 = load_deck(config.decks_dir / "se-template")
+    assert store.load_tiku(deck2)["1"][0]["topic"] == "old topic [reinstalled]"
+    out = capsys.readouterr().out
+    assert "已重装 1 个 deck" in out
+    assert "reinstall" in out
+
+
+def test_bootstrap_tab_c_key_shows_changelog(capsys, monkeypatch, tmp_path):
+    from flip import bootstrap
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", "c", "\x1b", "q", "q"])
+    monkeypatch.setattr(
+        bootstrap,
+        "read_changelog",
+        lambda slug: "# Changelog — 软件工程模板\n\n## v1.1\n\n更新 1 题。",
+    )
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "se-template",
+        "name": "软件工程模板",
+        "source_lang": "en",
+        "role": "软件工程助教",
+        "content_version": "2",
+    })
+
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    assert "Changelog" in out
+    assert "更新 1 题" in out
+
+
+def test_markdown_lines_render_heading_and_bullets():
+    lines = engine_loop._markdown_lines("# Title\n\n- item `code`", 40)
+
+    assert any("Title" in line for line in lines)
+    assert any("• item" in line for line in lines)
+    assert any("code" in line for line in lines)
+
+
+def test_changelog_view_scrolls_down(capsys, monkeypatch):
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "_terminal_height", lambda: 8, raising=False)
+    _patch_tty(monkeypatch, ["G", "q"])
+
+    text = "\n".join(f"- line {i}" for i in range(1, 9))
+
+    engine_loop._view_changelog("demo", text)
+
+    out = capsys.readouterr().out
+    assert "line 1" in out
+    assert "line 8" in out
 
 
 def test_render_stats_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch, deck, config):
@@ -410,6 +674,29 @@ def test_prompt_answer_resize_key_rerenders_without_state_change(deck, config, m
 
     assert result[0] == "A"
     assert rendered == [(0, set()), (0, set()), (0, {0})]
+
+
+def test_prompt_answer_single_select_replaces_previous_choice(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    _patch_tty(monkeypatch, ["1", "2", "\r"])
+
+    result = engine_loop.prompt_answer(deck, config, 1, 1, "1", q)
+
+    assert result[0] == "B"
+
+
+def test_prompt_answer_multi_select_keeps_multiple_choices(deck, config, monkeypatch):
+    q = {
+        "topic": "multi",
+        "options": ["A. x", "B. y", "C. z"],
+        "answer": "AC",
+        "user_note": "",
+    }
+    _patch_tty(monkeypatch, ["1", "3", "\r"])
+
+    result = engine_loop.prompt_answer(deck, config, 1, 1, "1", q)
+
+    assert result[0] == "AC"
 
 
 def test_prompt_result_refreshes_marked_state_after_m(deck, config, monkeypatch):
@@ -786,6 +1073,76 @@ def test_review_questions_r_removes_wrong_index_only_with_explicit_warning(deck,
     assert any(item.get("id") == q.get("id") for item in store.load_tiku(deck)["1"])
 
 
+def test_review_questions_s_opens_empty_search_then_esc_returns_to_browse(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q)], input_is_index=False)
+    search_renders = []
+    _patch_tty(monkeypatch, ["s", "\x1b", "q"])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "render_review_question", lambda *a, **k: None)
+    monkeypatch.setattr(
+        engine_loop,
+        "render_review_search",
+        lambda *args, **kwargs: search_renders.append(
+            {
+                "query": kwargs.get("query", ""),
+                "results": list(kwargs.get("results", [])),
+            }
+        ),
+        raising=False,
+    )
+
+    status, _browse_items = engine_loop.review_questions(deck, config, selected)
+
+    assert status == "quit"
+    assert search_renders[0]["query"] == ""
+    assert search_renders[0]["results"] == []
+
+
+def test_review_questions_search_matches_zh_topic_and_enter_jumps(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    q2["zh"] = {
+        "topic": "中文搜索目标",
+        "options": ["A. 一", "B. 二", "C. 三", "D. 四"],
+    }
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    renders = []
+    _patch_tty(monkeypatch, ["s", "中", "文", "\r", "q"])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(
+        engine_loop,
+        "render_review_question",
+        lambda index, *args, **kwargs: renders.append(index),
+    )
+    monkeypatch.setattr(engine_loop, "render_review_search", lambda *a, **k: None, raising=False)
+
+    status, _browse_items = engine_loop.review_questions(deck, config, selected)
+
+    assert status == "quit"
+    assert renders[:2] == [0, 1]
+
+
+def test_review_questions_j_digits_enter_jumps_to_1_based_index(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
+    renders = []
+    _patch_tty(monkeypatch, ["j", "2", "\r", "q"])
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(
+        engine_loop,
+        "render_review_question",
+        lambda index, *args, **kwargs: renders.append(index),
+    )
+
+    status, _browse_items = engine_loop.review_questions(deck, config, selected)
+
+    assert status == "quit"
+    assert renders[:2] == [0, 1]
+
+
 def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypatch):
     q1, q2 = store.load_tiku(deck)["1"][:2]
     selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
@@ -813,9 +1170,9 @@ def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypat
     assert summaries[0]["wrong_items"][0]["question"] is q1
 
 
-def test_run_train_review_counts_only_when_all_correct(deck, config, monkeypatch):
+def test_run_train_train_counts_even_with_incorrect_answers(deck, config, monkeypatch):
     q1, q2 = store.load_tiku(deck)["1"][:2]
-    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=True)
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
     records = []
     monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
     monkeypatch.setattr(
@@ -831,10 +1188,47 @@ def test_run_train_review_counts_only_when_all_correct(deck, config, monkeypatch
     monkeypatch.setattr(engine_loop, "_record_drill", lambda *a, **k: records.append((a, k)))
     monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: None)
 
-    outcome = engine_loop.run_train(deck, config, selector="1", source="wrong")
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku")
 
     assert outcome == 0
-    assert records == []
+    assert records
+    assert records[0][1]["mode"] == "train"
+
+
+def test_run_train_review_counts_only_fully_correct_chapters(deck, config, monkeypatch):
+    q26a = {"topic": "q26a", "options": ["A. x"], "answer": "A", "user_note": ""}
+    q26b = {"topic": "q26b", "options": ["A. x"], "answer": "A", "user_note": ""}
+    q31 = {"topic": "q31", "options": ["A. x"], "answer": "A", "user_note": ""}
+    selected = engine.SelectedSet([("26", q26a), ("26", q26b), ("31", q31)], input_is_index=True)
+
+    def fake_pick_questions(_deck, _config, selector=None, **_kwargs):
+        assert selector == "26-31"
+        return selected
+
+    monkeypatch.setattr(engine, "pick_questions", fake_pick_questions)
+    monkeypatch.setattr(
+        engine_loop,
+        "epoch",
+        lambda *_a, **_k: (
+            4,
+            [engine.incorrect_record("31", q31, "B", deck.answer_alphabet)],
+            "done",
+            [],
+        ),
+    )
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector="26-31", source="wrong")
+    history = store.load_history(deck)
+
+    assert outcome == 0
+    assert history == [{
+        "date": history[0]["date"],
+        "chapters": ["26"],
+        "total": 3,
+        "incorrect": 1,
+        "mode": "review",
+    }]
 
 
 def test_run_train_review_counts_when_all_correct(deck, config, monkeypatch):

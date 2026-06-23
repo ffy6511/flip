@@ -269,6 +269,47 @@ def test_render_session_item_list_shows_selected_translation_block_before_separa
     assert plain.index("第一题") < plain.index("A. 甲") < plain.index("B. 乙") < plain.index("──")
 
 
+def test_render_review_search_numbers_items_and_keeps_fixed_two_line_rows(capsys, monkeypatch):
+    monkeypatch.setattr(render, "terminal_width", lambda: 32)
+    monkeypatch.setattr(render, "terminal_height", lambda: 14)
+    results = [
+        {
+            "question": {
+                "topic": "1. An extremely long English title that should not wrap into multiple rows",
+                "answer": "A",
+                "options": ["A. x"],
+                "zh": {
+                    "topic": "1. 这是一个非常长的中文标题，渲染时也不应该继续向下换行挤掉搜索栏",
+                    "options": ["A. 甲"],
+                },
+            }
+        },
+        {
+            "question": {
+                "topic": "2. Another long English title that would normally wrap in a narrow terminal",
+                "answer": "A",
+                "options": ["A. x"],
+                "zh": {
+                    "topic": "2. 第二个中文标题同样应该被压成一行显示",
+                    "options": ["A. 甲"],
+                },
+            }
+        },
+    ]
+
+    render.render_review_search("cache", results, 0)
+
+    plain = _strip_ansi(capsys.readouterr().out)
+    lines = plain.splitlines()
+    assert "search: cache" in plain
+    assert "> 1. " in plain
+    assert "  2. " in plain
+    assert any(line.startswith("> 1. ") for line in lines)
+    assert any(line.startswith("    这是一个非常长的中文标题") for line in lines)
+    assert not any(line.startswith("  title that should") for line in lines)
+    assert not any(line.startswith("  into multiple rows") for line in lines)
+
+
 def test_accuracy_style_thresholds():
     assert render._accuracy_style(10, 5)[0] == render.CORRECT_COLOR
     assert render._accuracy_style(10, 2)[0] == render.AI_COLOR

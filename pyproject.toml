@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flip"
-version = "0.4.0"
+version = "0.5.0"
 description = "Terminal quiz trainer — a deck-agnostic template engine."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -39,7 +39,11 @@ flip = "flip.cli:app"
 where = ["src"]
 
 [tool.setuptools.package-data]
-flip = ["bundled_decks/se-template/tiku.json"]
+flip = [
+    "bundled_decks/se-template/tiku.json",
+    "bundled_decks/se-template/metadata.toml",
+    "bundled_decks/se-template/CHANGELOG.md",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

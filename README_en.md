@@ -88,9 +88,9 @@ The `$FLIP_HOME` environment variable overrides the default data directory on ev
 Run `flip` with no arguments. You land in a deck picker with two tabs at the top — switch with **←/→**:
 
 - **Library** — your installed decks. Pick one with ↑/↓ + Enter (typing filters by slug/name). When empty it shows a hint pointing at the Bootstrap tab (and the `flip import` command) instead of aborting, so you can install your first deck without leaving the picker.
-- **Bootstrap** — bundled decks not yet installed. Select with **space** (multi-select, marked `[x]`), then **Enter** twice to confirm and install.
+- **Bootstrap** — bundled deck management. Select with **space**, press **Enter** to confirm install/update/reinstall, press `c` to view the changelog, and press `u` to toggle whether upstream notes may overwrite local notes.
 
-Bundled decks ship inside the package (currently the Software Engineering template, 561 questions, English→Chinese). Installing is **explicit and one-shot**: `flip deck remove <slug>` deletes a deck entirely, and it will **not** come back on the next launch — you'd re-pick it from the Bootstrap tab yourself. Nothing is auto-installed at startup.
+Bundled decks ship inside the package (currently the Software Engineering template, 561 questions, English→Chinese). Install, update, and reinstall actions are explicit; `flip deck remove <slug>` deletes a deck entirely, after which it can be installed again from Bootstrap.
 
 <table>
   <tr>
@@ -133,6 +133,10 @@ flip deck clear-count se --mode all  # clear stored train/review counts only
 flip deck mark se                 # list marked questions
 flip deck wrong se                # list wrong-index questions
 flip deck merge se ./new.json --dry-run  # preview an incremental deck update
+flip deck update se              # update from the bundled deck, preserving learner state
+flip deck prune se               # remove bundled questions deleted upstream but still local
+flip deck versions se            # list/switch bundled deck backup versions
+flip deck assign-ids se --dry-run  # add q-<12hex> stable ids to questions missing ids
 flip deck repair se --dry-run     # validate tiku and rebuild marked index
 flip deck translate se            # fill missing zh fields
 flip import se ./tiku.json        # register a compliant JSON as a new deck

@@ -1,0 +1,8 @@
+[deck]
+name = "软件工程模板"
+slug = "se-template"
+source_lang = "en"
+content_version = "1.1"
+
+[explain]
+role = "软件工程助教"

@@ -305,6 +305,7 @@ def deck_merge(
     import datetime
 
     config, deck = _resolve_deck(slug)
+    from . import bootstrap
     from . import engine as _engine
     from . import store as _store
     from .merge import POLICIES, merge_tiku
@@ -351,6 +352,13 @@ def deck_merge(
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         backup_dir = config.home / "backups" / f"{slug}-deck-{stamp}"
         _store.export_deck(deck, backup_dir)
+        bootstrap._write_backup_meta(
+            backup_dir,
+            slug=slug,
+            content_version=deck.content_version,
+            op="merge",
+            timestamp=stamp,
+        )
         typer.echo(f"backup: {backup_dir}")
 
     _store.save_tiku(deck, result.data)
@@ -358,6 +366,206 @@ def deck_merge(
     if alphabet_changed:
         _update_manifest_answer_alphabet(deck, merged_alphabet)
     _status_echo(f"merged deck {slug}")
+
+
+@deck_app.command("assign-ids")
+def deck_assign_ids(
+    slug: str = typer.Argument(..., help="Deck slug."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview how many ids would be assigned."),
+):
+    """Assign stable UUID ids to every question missing one.
+
+    Ids already present are preserved verbatim. Use this on a freshly-authored
+    deck before it ships, or to backfill ids on an old deck. Ids are
+    content-independent (`q-<12hex>`): once assigned, never reassign — that's
+    what keeps marks/notes/wrong-history attached across content edits.
+    """
+    config, deck = _resolve_deck(slug)
+    from . import engine as _engine
+    from . import store as _store
+
+    data = _store.load_tiku(deck) or {}
+    missing_before = sum(1 for _, q in _engine.iter_question_records(data)
+                         if not _engine.question_id(q))
+    if dry_run:
+        typer.echo(f"would assign {missing_before} new id(s); existing ids preserved")
+        raise typer.Exit(0)
+    if missing_before == 0:
+        _status_echo(f"all questions already have ids; nothing to do")
+        raise typer.Exit(0)
+    added = _engine.ensure_question_ids(data, prefix=slug)
+    _store.save_tiku(deck, data)
+    _status_echo(f"assigned {added} new id(s) to deck {slug}")
+
+
+@deck_app.command("update")
+def deck_update(
+    slug: str = typer.Argument(..., help="Bundled deck slug to update."),
+    overwrite_notes: bool = typer.Option(False, "--overwrite-notes", help="Allow bundled user_note to overwrite local notes for this update."),
+):
+    """Update an installed bundled deck to the shipped content version.
+
+    Pulls the bundled tiku as the incoming source and merges it into the local
+    deck by question id (upsert), so marks, notes, ai_explanations and the
+    wrong-index survive. Legacy positional ids are migrated to UUIDs first.
+    A full-deck backup is written before any change. Use this after a maintainer
+    bumps a bundled deck's content_version.
+    """
+    from . import bootstrap
+
+    config, deck = _resolve_deck(slug)
+    if slug not in bootstrap._bundled_slugs():
+        _status_echo(f"{slug!r} is not a bundled deck; update only applies to bundled decks", ok=False, err=True)
+        raise typer.Exit(1)
+
+    upd = bootstrap.updatable_bundled_decks(config.decks_dir)
+    if not any(u["slug"] == slug for u in upd):
+        _status_echo(f"{slug} is already up to date (content_version={deck.content_version})")
+        raise typer.Exit(0)
+
+    result = bootstrap.update_bundled(slug, config.decks_dir, overwrite_notes=overwrite_notes)
+    typer.echo(f"backup: {result.backup_dir}")
+    _status_echo(
+        "update preview: "
+        f"added={result.added}, updated={result.updated}, skipped={result.skipped}, "
+        f"assigned_ids={result.assigned_ids}, conflicts={len(result.conflicts)}",
+        ok=not result.conflicts,
+    )
+    if result.conflicts:
+        _status_echo("conflicts:", ok=False, err=True)
+        for conflict in result.conflicts[:20]:
+            typer.echo(f"  {conflict}", err=True)
+    if result.unmigrated:
+        _status_echo(
+            f"{len(result.unmigrated)} question(s) could not be migrated to new ids "
+            "(content changed upstream); their history is orphaned:",
+            ok=False, err=True,
+        )
+        for chapter, qid, topic in result.unmigrated[:20]:
+            typer.echo(f"  chapter {chapter}: id={qid}, topic={topic!r}", err=True)
+    _status_echo(f"updated deck {slug} to content_version={bootstrap._read_bundled_metadata(slug)['content_version']}")
+
+
+@deck_app.command("prune")
+def deck_prune(
+    slug: str = typer.Argument(..., help="Bundled deck slug to prune."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
+):
+    """Remove local questions that no longer exist in the bundled source.
+
+    After `flip deck update`, questions the maintainer deleted upstream remain
+    in the local deck (merge never deletes). This command drops them. A backup
+    is written first; the action is irreversible.
+    """
+    from . import bootstrap
+
+    config, deck = _resolve_deck(slug)
+    if slug not in bootstrap._bundled_slugs():
+        _status_echo(f"{slug!r} is not a bundled deck; prune only applies to bundled decks", ok=False, err=True)
+        raise typer.Exit(1)
+
+    from . import engine as _engine
+    from . import store as _store
+    import datetime
+
+    local = _store.load_tiku(deck) or {}
+    bundled = __import__("json").loads(bootstrap._read_bundled_tiku_text(slug))
+    bundled_ids = {_engine.question_id(q) for _, q in _engine.iter_question_records(bundled) if _engine.question_id(q)}
+    orphaned = [(ch, q) for ch, q in _engine.iter_question_records(local)
+                if _engine.question_id(q) and _engine.question_id(q) not in bundled_ids]
+
+    if not orphaned:
+        _status_echo(f"no orphaned questions in {slug}; nothing to prune")
+        raise typer.Exit(0)
+
+    _status_echo(f"{len(orphaned)} question(s) in {slug} are no longer in the bundled source:")
+    for ch, q in orphaned[:20]:
+        typer.echo(f"  chapter {ch}: id={_engine.question_id(q)}, topic={str(q.get('topic',''))[:80]!r}")
+    if not yes:
+        if not typer.confirm("Permanently remove these questions? This cannot be undone.", default=False):
+            typer.echo("aborted.")
+            raise typer.Exit(0)
+
+    backup_dir = config.home / "backups" / f"{slug}-prune-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    _store.export_deck(deck, backup_dir)
+    bootstrap._write_backup_meta(
+        backup_dir,
+        slug=slug,
+        content_version=deck.content_version,
+        op="prune",
+        timestamp=backup_dir.name.rsplit("-", 1)[-1],
+    )
+    typer.echo(f"backup: {backup_dir}")
+
+    keep_ids = bundled_ids | {_engine.question_id(q) for _, q in _engine.iter_question_records(local)
+                              if not _engine.question_id(q)}  # keep id-less questions untouched
+    for chapter in list(local.keys()):
+        if chapter == "_chapter_titles":
+            continue
+        if isinstance(local[chapter], list):
+            local[chapter] = [q for q in local[chapter]
+                              if (not _engine.question_id(q)) or (_engine.question_id(q) in keep_ids)]
+    _store.save_tiku(deck, local)
+    _engine._sync_marked_from_tiku(deck)
+    _status_echo(f"pruned {len(orphaned)} question(s) from {slug}")
+
+@deck_app.command("versions")
+def deck_versions(
+    slug: str = typer.Argument(..., help="Bundled deck slug."),
+    overwrite_notes: bool = typer.Option(False, "--overwrite-notes", help="Allow backup/bundled user_note to overwrite local notes for this switch."),
+):
+    """List historical versions from backups and switch to one."""
+    from . import bootstrap
+
+    config, deck = _resolve_deck(slug)
+    if slug not in bootstrap._bundled_slugs():
+        _status_echo(f"{slug!r} is not a bundled deck", ok=False, err=True)
+        raise typer.Exit(1)
+
+    backups = bootstrap.list_backups(config.decks_dir, slug)
+    typer.echo(f"current: content_version={deck.content_version}")
+    if not backups:
+        _status_echo(f"no backups available for {slug}", ok=False, err=True)
+        raise typer.Exit(1)
+    typer.echo("available backups:")
+    for i, item in enumerate(backups, start=1):
+        typer.echo(
+            f"  {i}. version={item['content_version']} op={item['op']} "
+            f"time={item['timestamp']} ({item['name']})"
+        )
+    choice = typer.prompt("Pick a backup to switch to", type=int)
+    if choice < 1 or choice > len(backups):
+        _status_echo("invalid backup selection", ok=False, err=True)
+        raise typer.Exit(1)
+
+    result = bootstrap.switch_bundled(
+        slug,
+        config.decks_dir,
+        backups[choice - 1]["path"],
+        overwrite_notes=overwrite_notes,
+    )
+    typer.echo(f"backup: {result.backup_dir}")
+    _status_echo(
+        "switch preview: "
+        f"added={result.added}, updated={result.updated}, skipped={result.skipped}, "
+        f"assigned_ids={result.assigned_ids}, conflicts={len(result.conflicts)}",
+        ok=not result.conflicts,
+    )
+    if result.conflicts:
+        _status_echo("conflicts:", ok=False, err=True)
+        for conflict in result.conflicts[:20]:
+            typer.echo(f"  {conflict}", err=True)
+    if result.unmigrated:
+        _status_echo(
+            f"{len(result.unmigrated)} question(s) could not be migrated to new ids "
+            "(content changed across versions); their history is orphaned:",
+            ok=False,
+            err=True,
+        )
+        for chapter, qid, topic in result.unmigrated[:20]:
+            typer.echo(f"  chapter {chapter}: id={qid}, topic={topic!r}", err=True)
+    current_version = bootstrap._read_local_version(config.decks_dir / slug)
+    _status_echo(f"switched deck {slug} to content_version={current_version}")
 
 
 @deck_app.command("repair")

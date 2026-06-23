@@ -60,6 +60,8 @@ flip deck mark <slug>
 flip deck wrong <slug>
 ```
 
+Bundled deck maintenance follows the same id contract. When updating a shipped bundled deck, bump its `content_version` before release and run `flip deck assign-ids` for any newly added questions so later `flip deck update <slug>` can match by UUID and preserve learner history.
+
 ## Direct JSON editing
 
 Locate the live deck with:

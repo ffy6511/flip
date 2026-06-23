@@ -42,7 +42,7 @@ to human-readable names, purely for display:
 
 | Field    | Type     | Notes |
 |----------|----------|-------|
-| `id`     | string   | Stable question identity. New imports should write it; old decks without it still load. Keep it unchanged when editing a question so marks and wrong-history stay attached. |
+| `id`     | string   | Stable question identity. Preferred format is `q-<12hex>` from a UUID4 prefix. `flip import` and `flip deck assign-ids` write it when absent. It is independent of chapter, content, and order. Once assigned, keep it unchanged when editing a question, give every new question a fresh UUID, and never reuse the id of a deleted question. |
 | `topic`  | string   | The question **stem text**. Often starts with `"N. "` (the question's own ordinal), but the engine does not parse that prefix. |
 | `options`| string[] | Each entry is `LABEL + ". " + text` — a **3-character prefix** (`"A. "`, `"B. "`, …). `_split_option` relies on this exact shape. |
 | `answer` | string   | Letters of the correct option(s), concatenated and sorted, e.g. `"A"`, `"AC"`, `"BDE"`. Single select → one letter; multiple select → multiple letters. |

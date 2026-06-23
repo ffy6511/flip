@@ -1,6 +1,11 @@
 from flip.merge import merge_tiku
 
 
+import re
+
+_UUID_RE = re.compile(r"q-[0-9a-f]{12}")
+
+
 def _q(qid=None, topic="t", answer="A", note=""):
     q = {
         "topic": topic,
@@ -21,7 +26,7 @@ def test_append_adds_new_question_and_assigns_id():
 
     assert result.added == 1
     assert result.assigned_ids == 1
-    assert result.data["1"][1]["id"] == "demo-1-002"
+    assert _UUID_RE.fullmatch(result.data["1"][1]["id"])
 
 
 def test_append_conflicts_on_same_id_with_different_content():
@@ -87,8 +92,8 @@ def test_merge_fills_missing_ids_in_existing_deck():
     result = merge_tiku(base, incoming, policy="append", prefix="demo")
 
     assert result.assigned_ids == 2
-    assert result.data["1"][0]["id"] == "demo-1-001"
-    assert result.data["2"][0]["id"] == "demo-2-001"
+    assert _UUID_RE.fullmatch(result.data["1"][0]["id"])
+    assert _UUID_RE.fullmatch(result.data["2"][0]["id"])
 
 
 def test_chapter_titles_are_merged():

@@ -26,6 +26,8 @@ from .render import (
     render_question,
     render_result,
     render_review_question,
+    render_review_search,
+    render_review_jump,
     render_session_summary,
     render_session_item_list,
     render_ai_waiting,
@@ -43,6 +45,7 @@ __all__ = [
     "print_translation_block", "print_detail_view",
     "print_key_hint_footer", "print_ai_interaction_footer", "print_warning",
     "render_question", "render_result", "render_review_question",
+    "render_review_search", "render_review_jump",
     "render_session_summary", "render_session_item_list",
     "render_ai_waiting", "render_ai_prompt_input", "render_note_input",
 ]

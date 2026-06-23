@@ -10,6 +10,7 @@ the example deck.
 """
 
 import datetime
+import re
 import shutil
 import sys
 
@@ -24,6 +25,7 @@ from .tui import (
     has_translation, has_agent_said, has_user_note,
     translated_question, default_detail_view, normalize_detail_view,
     render_question, render_result, render_review_question,
+    render_review_search, render_review_jump,
     render_session_summary, render_session_item_list,
     render_ai_waiting, render_ai_prompt_input, render_note_input,
 )
@@ -93,6 +95,17 @@ def _answer_from_selected(options, selected):
     for index in sorted(selected):
         answer.append(options[index][0].upper())
     return "".join(answer)
+
+
+def _toggle_answer_selection(selected, index, *, multi_select):
+    if index in selected:
+        selected.remove(index)
+        return
+    if multi_select:
+        selected.add(index)
+        return
+    selected.clear()
+    selected.add(index)
 
 
 # ---- small sub-prompts (ai extra / note) ----
@@ -187,6 +200,25 @@ def _edit_current_detail(deck, config, chapter, q, detail_view, render_current):
     return detail_view, "当前没有可编辑的底部内容；按 x 生成 Agent Said 或 n 新建笔记。"
 
 
+def _browse_search_text(q):
+    parts = [str(q.get("topic", ""))]
+    zh = q.get("zh")
+    if isinstance(zh, dict):
+        parts.append(str(zh.get("topic", "")))
+    return "\n".join(parts).casefold()
+
+
+def _browse_search_results(questions, query):
+    text = str(query or "").strip().casefold()
+    if not text:
+        return []
+    results = []
+    for index, (chapter, q) in enumerate(questions):
+        if text in _browse_search_text(q):
+            results.append({"index": index, "chapter": chapter, "question": q})
+    return results
+
+
 # ---- shared per-question key handling ----
 
 def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current):
@@ -260,6 +292,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
     options = _options(q, deck)
     alphabet = deck.answer_alphabet
     translation_enabled = config.translation_enabled
+    multi_select = len(str(q.get("answer", "") or "")) > 1
     detail_view = normalize_detail_view(q, detail_view)
     cursor = 0
     selected = set()
@@ -301,10 +334,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                 continue
             if key == ' ':
                 warning = ""
-                if cursor in selected:
-                    selected.remove(cursor)
-                else:
-                    selected.add(cursor)
+                _toggle_answer_selection(selected, cursor, multi_select=multi_select)
                 continue
             if key == '\x1b[A':  # up
                 warning = ""
@@ -320,10 +350,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                 idx = int(key) - 1
                 if 0 <= idx < len(options):
                     warning = ""
-                    if idx in selected:
-                        selected.remove(idx)
-                    else:
-                        selected.add(idx)
+                    _toggle_answer_selection(selected, idx, multi_select=multi_select)
                 continue
 
             if translation_enabled and key in {'t', 'T'}:
@@ -759,6 +786,10 @@ def review_questions(deck, config, selected_set, *, start_index=0, on_progress=N
     detail_view = default_detail_view(questions[0][1])
     warning = ""
     confirm_remove = False
+    mode = "browse"
+    search_query = ""
+    search_cursor = 0
+    jump_buffer = ""
     model_name = deck.explain.resolve_model()
     old_settings = save_tty()
     try:
@@ -770,6 +801,89 @@ def review_questions(deck, config, selected_set, *, start_index=0, on_progress=N
             detail_view = normalize_detail_view(q, detail_view)
             translation = _translated_options(q, options) if (translation_enabled and show_translation) else None
             marked = engine.is_marked(deck, chapter, q)
+            if mode == "search":
+                results = _browse_search_results(questions, search_query)
+                if results:
+                    search_cursor = max(0, min(search_cursor, len(results) - 1))
+                else:
+                    search_cursor = 0
+                render_review_search(search_query, results, search_cursor, warning=warning)
+                key = read_key()
+                if key == RESIZE_KEY:
+                    continue
+                if key == '\x03':
+                    raise KeyboardInterrupt
+                if key == '\x1b':
+                    mode = "browse"
+                    warning = ""
+                    continue
+                if key in {'\x7f', '\b'}:
+                    search_query = search_query[:-1]
+                    search_cursor = 0
+                    warning = ""
+                    continue
+                if key == '\x1b[A' and results:
+                    search_cursor = (search_cursor - 1) % len(results)
+                    warning = ""
+                    continue
+                if key == '\x1b[B' and results:
+                    search_cursor = (search_cursor + 1) % len(results)
+                    warning = ""
+                    continue
+                if key in {'\r', '\n'}:
+                    if not search_query:
+                        warning = "请先输入关键词。"
+                        continue
+                    if not results:
+                        warning = "没有匹配结果。"
+                        continue
+                    index = results[search_cursor]["index"]
+                    detail_view = default_detail_view(questions[index][1])
+                    mode = "browse"
+                    warning = ""
+                    if on_progress is not None:
+                        on_progress(index, selected_set)
+                    continue
+                if len(key) == 1 and key.isprintable():
+                    search_query += key
+                    search_cursor = 0
+                    warning = ""
+                continue
+            if mode == "jump":
+                render_review_jump(index, len(questions), q, jump_buffer, warning=warning)
+                key = read_key()
+                if key == RESIZE_KEY:
+                    continue
+                if key == '\x03':
+                    raise KeyboardInterrupt
+                if key == '\x1b':
+                    mode = "browse"
+                    warning = ""
+                    continue
+                if key in {'\x7f', '\b'}:
+                    jump_buffer = jump_buffer[:-1]
+                    warning = ""
+                    continue
+                if key in {'\r', '\n'}:
+                    if not jump_buffer:
+                        warning = "请先输入题号。"
+                        continue
+                    target = int(jump_buffer)
+                    if 1 <= target <= len(questions):
+                        index = target - 1
+                        detail_view = default_detail_view(questions[index][1])
+                        jump_buffer = ""
+                        mode = "browse"
+                        warning = ""
+                        if on_progress is not None:
+                            on_progress(index, selected_set)
+                        continue
+                    warning = f"题号 {target} 超出范围。"
+                    continue
+                if len(key) == 1 and key.isdigit():
+                    jump_buffer += key
+                    warning = ""
+                continue
             render_review_question(
                 index, len(questions), chapter, q,
                 options=options, show_translation=show_translation, translation=translation,
@@ -806,6 +920,17 @@ def review_questions(deck, config, selected_set, *, start_index=0, on_progress=N
                         on_progress(index, selected_set)
                 else:
                     warning = "已经是第一题。"
+                continue
+            if key in {'s', 'S'}:
+                mode = "search"
+                search_query = ""
+                search_cursor = 0
+                warning = ""
+                continue
+            if key in {'j', 'J'}:
+                mode = "jump"
+                jump_buffer = ""
+                warning = ""
                 continue
             if translation_enabled and key in {'t', 'T'}:
                 warning = ""
@@ -950,6 +1075,62 @@ TABS = ("library", "bootstrap")
 TAB_LABELS = {"library": "Library", "bootstrap": "Bootstrap"}
 
 
+def _bootstrap_picker_items(config):
+    from . import bootstrap
+
+    updatable_by_slug = {
+        item["slug"]: item for item in bootstrap.updatable_bundled_decks(config.decks_dir)
+    }
+    items = []
+    for slug in bootstrap._bundled_slugs():
+        info = bootstrap.bundled_deck_summary(slug)
+        src = info.get("source_lang", "?")
+        tgt = config.target_lang or "?"
+        installed = (config.decks_dir / slug).is_dir()
+        update_info = updatable_by_slug.get(slug)
+        if update_info is not None:
+            kind = "update"
+            status = f"update v{update_info['current']}→v{update_info['latest']}"
+        elif installed:
+            kind = "reinstall"
+            status = "reinstall"
+        else:
+            kind = "install"
+            status = ""
+        items.append({
+            "kind": kind,
+            "slug": slug,
+            "name": info.get("name", slug),
+            "extra": f"{info.get('questions', 0)}题, {src}→{tgt}",
+            "status": status,
+        })
+    return items
+
+
+def _bootstrap_confirm_message(items, selected):
+    install_count = sum(1 for item in items if item["slug"] in selected and item["kind"] == "install")
+    update_count = sum(1 for item in items if item["slug"] in selected and item["kind"] == "update")
+    reinstall_count = sum(1 for item in items if item["slug"] in selected and item["kind"] == "reinstall")
+    parts = []
+    if install_count:
+        parts.append(f"安装 {install_count} 个 deck")
+    if update_count:
+        parts.append(f"更新 {update_count} 个 deck")
+    if reinstall_count:
+        parts.append(f"重装 {reinstall_count} 个 deck")
+    if not parts:
+        return ""
+    return "将" + "、".join(parts) + ",再次按 Enter 确认 / 其他键取消"
+
+
+def _bootstrap_result_summary(result):
+    unmigrated = len(getattr(result, "unmigrated", []))
+    return (
+        f"added={result.added}, updated={result.updated}, skipped={result.skipped}, "
+        f"conflicts={len(result.conflicts)}, unmigrated={unmigrated}"
+    )
+
+
 def deck_picker(config):
     """Phase 1 of the interactive entry: pick a deck (or install one).
 
@@ -981,15 +1162,15 @@ def deck_picker(config):
         # Library tab state.
         query = ""
         index = 0
-        # Bootstrap tab state. `boot_slugs` is recomputed every time we enter
-        # the tab (and after a successful install) so installs/removes are
-        # reflected immediately.
+        library_anchored = False
+        # Bootstrap tab state. `boot_items` is recomputed every frame so
+        # installs, removals, and updatable decks are reflected immediately.
         boot_index = 0
         boot_selected: set[str] = set()
         boot_warning = ""
         boot_confirming = False  # True between "Enter on selection" and 2nd Enter
-        boot_slugs: list[str] = []
-        boot_summaries: dict[str, dict] = {}
+        boot_items: list[dict] = []
+        boot_overwrite_notes = False
 
         while True:
             # Refresh per-frame data so installs/removes done out-of-band show up.
@@ -1000,15 +1181,19 @@ def deck_picker(config):
                 rows = _filter_rows(all_rows, name_index, query)
                 # Re-anchor the cursor onto default_deck on first frame only;
                 # afterwards let it stay where the user put it.
+                if not library_anchored:
+                    for i, row in enumerate(rows):
+                        if row[0] == config.default_deck:
+                            index = i
+                            break
+                    library_anchored = True
                 _render_deck_picker(rows, index, query, config.default_deck)
             else:
-                boot_slugs = bootstrap.available_bundled_slugs(config.decks_dir)
-                boot_summaries = {s: bootstrap.bundled_deck_summary(s) for s in boot_slugs}
-                if boot_index >= len(boot_slugs):
-                    boot_index = max(0, len(boot_slugs) - 1)
+                boot_items = _bootstrap_picker_items(config)
+                if boot_index >= len(boot_items):
+                    boot_index = max(0, len(boot_items) - 1)
                 _render_bootstrap_picker(
-                    config, boot_slugs, boot_summaries,
-                    boot_index, boot_selected, boot_warning, boot_confirming,
+                    boot_items, boot_index, boot_selected, boot_warning, boot_confirming, boot_overwrite_notes,
                 )
 
             key = read_key()
@@ -1084,15 +1269,15 @@ def deck_picker(config):
                         tab = "library"
                     continue
                 if key == '\x1b[A':
-                    if boot_slugs:
-                        boot_index = (boot_index - 1) % len(boot_slugs)
+                    if boot_items:
+                        boot_index = (boot_index - 1) % len(boot_items)
                     continue
                 if key == '\x1b[B':
-                    if boot_slugs:
-                        boot_index = (boot_index + 1) % len(boot_slugs)
+                    if boot_items:
+                        boot_index = (boot_index + 1) % len(boot_items)
                     continue
-                if key == ' ' and boot_slugs:
-                    slug = boot_slugs[boot_index]
+                if key == ' ' and boot_items:
+                    slug = boot_items[boot_index]["slug"]
                     if slug in boot_selected:
                         boot_selected.discard(slug)
                     else:
@@ -1102,25 +1287,57 @@ def deck_picker(config):
                     continue
                 if key in {'\r', '\n'}:
                     if boot_confirming:
-                        # Second Enter: commit the install.
-                        to_install = sorted(boot_selected)
+                        selected_items = [item for item in boot_items if item["slug"] in boot_selected]
                         installed = 0
-                        for slug in to_install:
+                        updated = 0
+                        reinstalled = 0
+                        notices = []
+                        for item in selected_items:
+                            slug = item["slug"]
                             try:
-                                bootstrap.install_bundled(slug, config.decks_dir)
-                                installed += 1
+                                if item["kind"] == "install":
+                                    bootstrap.install_bundled(slug, config.decks_dir)
+                                    installed += 1
+                                else:
+                                    result = bootstrap.update_bundled(
+                                        slug,
+                                        config.decks_dir,
+                                        overwrite_notes=boot_overwrite_notes,
+                                    )
+                                    if item["kind"] == "update":
+                                        updated += 1
+                                    else:
+                                        reinstalled += 1
+                                    notices.append(f"{item['name']}: {_bootstrap_result_summary(result)}")
                             except Exception as exc:  # pragma: no cover - defensive
-                                boot_warning = f"安装 {slug} 失败: {exc}"
+                                action = {"install": "安装", "update": "更新", "reinstall": "重装"}[item["kind"]]
+                                notices.append(f"{action} {slug} 失败: {exc}")
                         boot_selected = set()
                         boot_confirming = False
+                        summary = []
                         if installed:
-                            boot_warning = f"已安装 {installed} 个 deck。按 ← 回到 Library。"
+                            summary.append(f"已安装 {installed} 个 deck")
+                        if updated:
+                            summary.append(f"已更新 {updated} 个 deck")
+                        if reinstalled:
+                            summary.append(f"已重装 {reinstalled} 个 deck")
+                        if notices:
+                            summary.append("；".join(notices))
+                        if summary:
+                            boot_warning = "。".join(summary) + "。按 ← 回到 Library。"
                     elif boot_selected:
                         boot_confirming = True
-                        boot_warning = (
-                            f"将安装 {len(boot_selected)} 个 deck,"
-                            "再次按 Enter 确认 / 其他键取消"
-                        )
+                        boot_warning = _bootstrap_confirm_message(boot_items, boot_selected)
+                    continue
+                if key in {'c', 'C'} and boot_items:
+                    slug = boot_items[boot_index]["slug"]
+                    changelog_text = bootstrap.read_changelog(slug)
+                    _view_changelog(slug, changelog_text)
+                    continue
+                if key in {'u', 'U'}:
+                    boot_overwrite_notes = not boot_overwrite_notes
+                    boot_confirming = False
+                    boot_warning = ""
                     continue
                 # Any other key cancels a pending confirm.
                 if boot_confirming:
@@ -1198,8 +1415,8 @@ def _render_deck_picker(rows, index, query, default_deck):
     print("  " + DIM_COLOR + "↑/↓ 选,←/→ 切 tab,Enter 进入,Esc 清空搜索/q 退出  (* = 上次使用)" + RESET_COLOR)
 
 
-def _render_bootstrap_picker(config, slugs, summaries, cursor, selected, warning, confirming):
-    """Multi-select list of bundled decks available to install.
+def _render_bootstrap_picker(items, cursor, selected, warning, confirming, overwrite_notes):
+    """Multi-select list of bundled decks available to install or update.
 
     Mirrors _render_chapter_picker's structure (clear → header → list with
     windowed scroll → hint) and its marker style: [x]/[ ] in the row's own
@@ -1213,29 +1430,156 @@ def _render_bootstrap_picker(config, slugs, summaries, cursor, selected, warning
     print("@ flip — Bootstrap")
     _render_tabs("bootstrap")
     print()
-    print("  " + DIM_COLOR + "勾选要安装的内置 deck,Enter 确认安装" + RESET_COLOR)
+    print("  " + DIM_COLOR + "勾选要安装或更新的内置 deck,Enter 确认执行" + RESET_COLOR)
     if warning:
         color = SELECTED_COLOR if confirming else DIM_COLOR
         print("  " + color + warning + RESET_COLOR)
     else:
         print()
-    if not slugs:
-        print("  " + DIM_COLOR + "(所有内置 deck 已安装)" + RESET_COLOR)
+    if not items:
+        print("  " + DIM_COLOR + "(暂无 bundled deck)" + RESET_COLOR)
     else:
-        start, end = _window_bounds(len(slugs), cursor, _terminal_height() - 8)
-        for i, slug in enumerate(slugs[start:end], start=start):
-            info = summaries.get(slug, {})
-            name = info.get("name", slug)
-            n = info.get("questions", 0)
-            src = info.get("source_lang", "?")
-            tgt = config.target_lang or "?"
+        start, end = _window_bounds(len(items), cursor, _terminal_height() - 8)
+        for i, item in enumerate(items[start:end], start=start):
+            slug = item["slug"]
+            name = item["name"]
+            extra = item["extra"]
+            status = item.get("status", "")
             mark = "[x]" if slug in selected else "[ ]"
             line_color = SELECTED_COLOR if i == cursor else DIM_COLOR
-            line = f"  {mark} {name}  ({n}题, {src}→{tgt})"
-            print(line_color + line + RESET_COLOR)
+            base = f"  {mark} {name}  ({extra})"
+            if status:
+                pad = max(2, shutil.get_terminal_size((80, 24)).columns - store.display_width(base) - store.display_width(status) - 2)
+                base = base + (" " * pad) + status
+            print(line_color + base + RESET_COLOR)
     print()
-    hint = "↑/↓ 移动,空格 切换选中,Enter 安装,Esc 取消选中/返回,← 回 Library"
+    hint = "↑/↓ 移动,空格 切换选中,Enter 执行,u 切换 note 覆盖,c 查看 changelog,Esc 取消选中/返回,← 回 Library"
     print("  " + DIM_COLOR + hint + RESET_COLOR)
+    print("  u", _opt_state(overwrite_notes), "覆盖 bundled note")
+
+
+def _style_inline_code(text):
+    from .tui.render import AI_COLOR, RESET_COLOR
+
+    def repl(match):
+        return AI_COLOR + match.group(1) + RESET_COLOR
+
+    return re.sub(r"`([^`]+)`", repl, text)
+
+
+def _markdown_lines(text, width):
+    from .tui.render import ACTIVE_COLOR, AI_COLOR, DIM_COLOR, RESET_COLOR, SELECTED_COLOR, wrap_text
+
+    width = max(20, width)
+    out = []
+    in_code = False
+    for raw in str(text).splitlines():
+        line = raw.rstrip()
+        if line.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code:
+            for wrapped in wrap_text(line or " ", max(1, width - 4)):
+                out.append("    " + DIM_COLOR + wrapped + RESET_COLOR)
+            continue
+        if not line:
+            out.append("")
+            continue
+        if line.startswith("# "):
+            for wrapped in wrap_text(line[2:].strip(), width):
+                out.append(SELECTED_COLOR + wrapped + RESET_COLOR)
+            continue
+        if line.startswith("## "):
+            for wrapped in wrap_text(line[3:].strip(), width):
+                out.append(AI_COLOR + wrapped + RESET_COLOR)
+            continue
+        if line.startswith("### "):
+            for wrapped in wrap_text(line[4:].strip(), width):
+                out.append(ACTIVE_COLOR + wrapped + RESET_COLOR)
+            continue
+        if line.startswith("> "):
+            wrapped_lines = wrap_text(_style_inline_code(line[2:].strip()), max(1, width - 4))
+            for i, wrapped in enumerate(wrapped_lines):
+                prefix = "│ " if i == 0 else "  "
+                out.append(DIM_COLOR + prefix + wrapped + RESET_COLOR)
+            continue
+        bullet_match = re.match(r"^(\s*)([-*])\s+(.*)$", line)
+        if bullet_match:
+            base_indent = " " * len(bullet_match.group(1))
+            wrapped_lines = wrap_text(_style_inline_code(bullet_match.group(3)), max(1, width - len(base_indent) - 4))
+            for i, wrapped in enumerate(wrapped_lines):
+                prefix = base_indent + ("• " if i == 0 else "  ")
+                out.append(prefix + wrapped)
+            continue
+        number_match = re.match(r"^(\s*)(\d+\.)\s+(.*)$", line)
+        if number_match:
+            base_indent = " " * len(number_match.group(1))
+            marker = number_match.group(2)
+            wrapped_lines = wrap_text(_style_inline_code(number_match.group(3)), max(1, width - len(base_indent) - len(marker) - 1))
+            for i, wrapped in enumerate(wrapped_lines):
+                prefix = base_indent + (marker + " " if i == 0 else " " * (len(marker) + 1))
+                out.append(prefix + wrapped)
+            continue
+        for wrapped in wrap_text(_style_inline_code(line), width):
+            out.append(wrapped)
+    return out or [""]
+
+
+def _view_changelog(slug, changelog_text):
+    scroll = 0
+    while True:
+        _render_changelog_view(slug, changelog_text, scroll=scroll)
+        rendered_lines = _markdown_lines(str(changelog_text), max(20, shutil.get_terminal_size((80, 24)).columns - 4))
+        viewport = max(1, _terminal_height() - 7)
+        max_scroll = max(0, len(rendered_lines) - viewport)
+        key = read_key()
+        if key == RESIZE_KEY:
+            scroll = min(scroll, max_scroll)
+            continue
+        if key == '\x03':
+            raise KeyboardInterrupt
+        if key in {'\x1b', 'q', 'Q', '\r', '\n'}:
+            return
+        if key in {'\x1b[A', 'k', 'K'}:
+            scroll = max(0, scroll - 1)
+            continue
+        if key in {'\x1b[B', 'j', 'J'}:
+            scroll = min(max_scroll, scroll + 1)
+            continue
+        if key in {'g'}:
+            scroll = 0
+            continue
+        if key in {'G'}:
+            scroll = max_scroll
+            continue
+        if key in {'d', 'D', ' '}:
+            scroll = min(max_scroll, scroll + max(1, viewport // 2))
+            continue
+        if key in {'u', 'U', 'b', 'B'}:
+            scroll = max(0, scroll - max(1, viewport // 2))
+            continue
+
+
+def _render_changelog_view(slug, changelog_text, *, scroll=0):
+    from .tui.render import DIM_COLOR, RESET_COLOR
+
+    clear_screen()
+    print("@ flip — Bootstrap Changelog")
+    _render_tabs("bootstrap")
+    print()
+    print(f"  {slug}")
+    print()
+    if not str(changelog_text).strip():
+        print("  " + DIM_COLOR + "(暂无 changelog)" + RESET_COLOR)
+    else:
+        rendered_lines = _markdown_lines(str(changelog_text), max(20, shutil.get_terminal_size((80, 24)).columns - 4))
+        viewport = max(1, _terminal_height() - 7)
+        start = max(0, min(scroll, max(0, len(rendered_lines) - viewport)))
+        end = min(len(rendered_lines), start + viewport)
+        for line in rendered_lines[start:end]:
+            print("  " + line if line else "")
+    print()
+    print("  " + DIM_COLOR + "↑/↓ 滚动, j/k 滚动, 空格/d 下翻, b/u 上翻, g/G 首尾, Esc/q 返回" + RESET_COLOR)
 
 
 def _table_widths(rows):
@@ -1885,7 +2229,18 @@ def _run_scored_session(deck, config, selected, *, source, mode_label, selector,
         return 0
 
     _write_wrong_report(deck, selected, incorrects)
-    if mode_label != "review" or not incorrects:
+    if mode_label == "review":
+        counted_chapters = _counted_review_chapters(selected, incorrects)
+        if counted_chapters:
+            _record_drill(
+                deck,
+                selected,
+                total=count - 1,
+                incorrect=len(incorrects),
+                mode=mode_label,
+                chapters=counted_chapters,
+            )
+    else:
         _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
     store.clear_session(deck)
     _run_session_summary_loop(
@@ -2028,7 +2383,21 @@ def _write_wrong_report(deck, selected, incorrects):
         store.write_json(out, merged)
 
 
-def _record_drill(deck, selected, *, total, incorrect, mode):
+def _counted_review_chapters(selected, incorrects):
+    wrong_chapters = {
+        str(item.get("chapter"))
+        for item in incorrects
+        if isinstance(item, dict) and str(item.get("chapter", "")).strip()
+    }
+    chapters = {
+        str(chapter)
+        for chapter, _ in selected.questions
+        if str(chapter) not in wrong_chapters
+    }
+    return sorted(chapters, key=store._chapter_sort_key)
+
+
+def _record_drill(deck, selected, *, total, incorrect, mode, chapters=None):
     """Append one drill record to the deck's history.
 
     Centralizes record construction so train and review share the same shape.
@@ -2038,7 +2407,10 @@ def _record_drill(deck, selected, *, total, incorrect, mode):
     counted (a half-finished session isn't a real drill).
     """
     import datetime
-    chapters = sorted({str(ch) for ch, _ in selected.questions})
+    if chapters is None:
+        chapters = sorted({str(ch) for ch, _ in selected.questions}, key=store._chapter_sort_key)
+    else:
+        chapters = sorted({str(ch) for ch in chapters}, key=store._chapter_sort_key)
     store.append_history(deck, {
         "date": datetime.datetime.now().isoformat(timespec="seconds"),
         "chapters": chapters,

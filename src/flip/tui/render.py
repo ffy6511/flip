@@ -35,6 +35,10 @@ def terminal_width():
     return max(MIN_WRAP_WIDTH, shutil.get_terminal_size((80, 24)).columns)
 
 
+def terminal_height():
+    return max(8, shutil.get_terminal_size((80, 24)).lines)
+
+
 def display_width(text):
     return sum(
         2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
@@ -80,6 +84,25 @@ def _wrap_unspaced(text, width):
             line += ch
             used += ch_width
     return lines + ([line] if line else [""])
+
+
+def truncate_text(text, width, ellipsis="..."):
+    text = str(text)
+    width = max(1, int(width))
+    if display_width(text) <= width:
+        return text
+    ellipsis_width = display_width(ellipsis)
+    if ellipsis_width >= width:
+        return ellipsis[:width]
+    kept = ""
+    used = 0
+    for ch in text:
+        ch_width = display_width(ch)
+        if used + ch_width + ellipsis_width > width:
+            break
+        kept += ch
+        used += ch_width
+    return kept + ellipsis
 
 
 def print_wrapped(prefix, text, *, continuation_prefix=None, color=""):
@@ -206,6 +229,13 @@ def session_item_translation(q):
         "topic": topic_with_answer_badge(_strip_topic_number(translation["topic"]), q.get("answer", "")),
         "options": list(translation.get("options", [])),
     }
+
+
+def search_item_titles(q):
+    english = _strip_topic_number(q.get("topic", ""))
+    translation = translated_question(q)
+    chinese = _strip_topic_number(translation["topic"]) if translation else ""
+    return english, chinese
 
 
 # ---- translation / explanation / note presence (pure) ----
@@ -473,7 +503,7 @@ def render_review_question(index, total, chapter, q, *, options=None, show_trans
         print_question_reference_block(reference)
     print_detail_view(q, detail_view)
 
-    parts = ["←/→ 后退/前进"]
+    parts = ["←/→ 后退/前进", "s 搜索", "j 跳转"]
     if translation_enabled:
         parts.append("t 中文")
     parts.append(detail_key_hints(q))
@@ -520,6 +550,54 @@ def render_note_input(chapter, q, buffer):
     print_wrapped(LOWER_BLOCK_INDENT, "Enter 保存；清空后 Enter 会删除笔记；Esc 取消。")
     print()
     print_wrapped(LOWER_BLOCK_INDENT + "> ", buffer)
+
+
+def render_review_search(query, results, cursor, *, warning=""):
+    clear_screen()
+    print("@ 搜索题目")
+    if query:
+        print("  " + DIM_COLOR + "search:" + RESET_COLOR + " " + query)
+    else:
+        print("  " + DIM_COLOR + "search: 输入以搜索, Esc 返回" + RESET_COLOR)
+    print()
+    if not results:
+        print_wrapped("  ", "输入题干关键词后显示结果。", color=DIM_COLOR)
+        print_key_hint_footer("输入关键词, Backspace 删除, Esc 返回")
+        print_warning(warning)
+        return
+
+    cursor = max(0, min(int(cursor), len(results) - 1))
+    visible = max(1, (terminal_height() - 8) // 3)
+    start = max(0, min(cursor - (visible // 2), max(0, len(results) - visible)))
+    end = min(len(results), start + visible)
+    for i in range(start, end):
+        item = results[i]
+        english, chinese = search_item_titles(item["question"])
+        is_selected = i == cursor
+        prefix = ("> " if is_selected else "  ") + f"{i + 1}. "
+        color = SELECTED_COLOR if is_selected else ""
+        english_width = terminal_width() - display_width(prefix)
+        chinese_width = terminal_width() - display_width("    ")
+        print(prefix + (color if color else "") + truncate_text(english, english_width) + (RESET_COLOR if color else ""))
+        print("    " + (TRANSLATION_COLOR if chinese else DIM_COLOR) + truncate_text(chinese if chinese else "", chinese_width) + RESET_COLOR)
+        if i != end - 1:
+            print("  " + DIM_COLOR + "─" * max(1, terminal_width() - 4) + RESET_COLOR)
+    print_key_hint_footer("↑/↓ 选择, Enter 跳转, Backspace 删除, Esc 返回")
+    print_warning(warning)
+
+
+def render_review_jump(current_index, total, q, buffer, *, warning=""):
+    clear_screen()
+    print("@ 跳转题号")
+    if buffer:
+        print("  " + DIM_COLOR + "jump:" + RESET_COLOR + " " + buffer)
+    else:
+        print("  " + DIM_COLOR + "jump: 输入题号后回车跳转, Esc 返回" + RESET_COLOR)
+    print()
+    print_wrapped("  ", f"当前: {current_index + 1} / {total}")
+    print_wrapped("> ", question_topic(q), color=SELECTED_COLOR)
+    print_key_hint_footer("输入数字, Enter 跳转, Backspace 删除, Esc 返回")
+    print_warning(warning)
 
 
 # ---- session summary ----

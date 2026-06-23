@@ -22,6 +22,8 @@ import select
 import signal
 import sys
 import time
+from collections import deque
+from codecs import getincrementaldecoder
 
 try:
     import fcntl      # type: ignore[import-not-found]
@@ -39,6 +41,8 @@ RESIZE_DEBOUNCE_SECONDS = 0.08
 _resize_pending = False
 _resize_at = 0.0
 _resize_installed = False
+_pending_keys = deque()
+_utf8_decoder = getincrementaldecoder("utf-8")()
 
 
 def is_supported() -> bool:
@@ -66,10 +70,59 @@ def install_resize_handler(resize_key):
     _resize_installed = True
 
 
+def _read_ready_bytes(fd):
+    """Drain all bytes currently readable from the tty fd.
+
+    `select` only reports kernel-level readability. Once Python decodes one
+    char from `sys.stdin`, the remaining bytes may sit in user-space buffers
+    and become invisible to the next `select` call. Reading raw bytes from the
+    fd avoids that split-brain state.
+    """
+    flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+    data = bytearray()
+    try:
+        fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+        while True:
+            try:
+                chunk = os.read(fd, 64)
+            except BlockingIOError:
+                break
+            if not chunk:
+                break
+            data.extend(chunk)
+        if data == b"\x1b":
+            time.sleep(0.01)
+            try:
+                data.extend(os.read(fd, 2))
+            except BlockingIOError:
+                pass
+    finally:
+        fcntl.fcntl(fd, fcntl.F_SETFL, flags)
+    return bytes(data)
+
+
+def _queue_decoded_keys(data):
+    index = 0
+    while index < len(data):
+        byte = data[index]
+        if byte == 0x1b:
+            end = min(len(data), index + 3)
+            _pending_keys.append(data[index:end].decode("latin1"))
+            index = end
+            continue
+        decoded = _utf8_decoder.decode(bytes([byte]), final=False)
+        if decoded:
+            _pending_keys.extend(decoded)
+        index += 1
+
+
 def read_key(resize_key):
     """Read one keypress. Returns escape-prefixed sequences like '\\x1b[D' for arrows."""
     install_resize_handler(resize_key)
     while True:
+        if _pending_keys:
+            return _pending_keys.popleft()
+
         if _resize_pending and time.monotonic() - _resize_at >= RESIZE_DEBOUNCE_SECONDS:
             globals()["_resize_pending"] = False
             return resize_key
@@ -77,22 +130,12 @@ def read_key(resize_key):
         ready, _, _ = select.select([sys.stdin], [], [], 0.02)
         if not ready:
             continue
-        break
-
-    char = sys.stdin.read(1)
-    if char == '\x1b':
-        time.sleep(0.01)
-        fd = sys.stdin.fileno()
-        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
-        try:
-            fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-            rest = sys.stdin.read(2) or ""
-        except (BlockingIOError, TypeError):
-            rest = ""
-        finally:
-            fcntl.fcntl(fd, fcntl.F_SETFL, flags)
-        return char + rest
-    return char
+        data = _read_ready_bytes(sys.stdin.fileno())
+        if not data:
+            continue
+        _queue_decoded_keys(data)
+        if _pending_keys:
+            return _pending_keys.popleft()
 
 
 def save_tty():

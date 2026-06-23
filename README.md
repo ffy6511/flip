@@ -88,9 +88,9 @@ flip 是纯 Python,无编译依赖,在以下平台均可运行:
 直接运行 `flip`,顶部有两个 tab,用 **←/→** 切换:
 
 - **Library** —— 你已安装的 deck。↑/↓ 选中、Enter 进入(输入字符可按 slug/名称实时过滤)；
-- **Bootstrap** —— 尚未安装的内置 deck。**空格** 多选,然后 **回车** 确认安装。
+- **Bootstrap** —— 管理内置 deck。**空格** 多选,**回车** 确认安装/更新/重装,`c` 查看 changelog,`u` 切换是否允许上游 note 覆盖本地 note。
 
-内置 deck 随包发布。安装是**显式且一次性的**:`flip deck remove <slug>` 会把一个 deck 彻底删除。
+内置 deck 随包发布。安装、更新和重装都需要显式确认;`flip deck remove <slug>` 会把一个 deck 彻底删除,之后可在 Bootstrap 里重新安装。
 
 <table>
   <tr>
@@ -132,6 +132,10 @@ flip deck clear-count se --mode all  # 只清空 train/review 刷题次数
 flip deck mark se                 # 列出已标记题目
 flip deck wrong se                # 列出错题索引题目
 flip deck merge se ./new.json --dry-run  # 预览增量更新
+flip deck update se              # 用 bundled deck 新版本增量更新,保留学习记录
+flip deck prune se               # 删除上游已移除但本地仍残留的 bundled 题目
+flip deck versions se            # 查看/切换 bundled deck 的历史 backup 版本
+flip deck assign-ids se --dry-run  # 给缺 id 的题目补 q-<12hex> 稳定 id
 flip deck repair se --dry-run     # 校验 tiku 并重建 marked 索引
 flip deck translate se            # 补全缺失的 zh 字段
 flip import se ./tiku.json        # 把一份合规 JSON 注册为新 deck

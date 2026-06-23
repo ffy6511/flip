@@ -10,7 +10,11 @@ to import anywhere). They pin the encoding contract so a future edit to
 _Keys_windows can't drift out of sync with engine_loop's expectations.
 """
 
+import os
+import pty
+
 from flip.tui import keys
+from flip.tui import _keys_unix as unix
 from flip.tui import _keys_windows as win
 
 
@@ -52,3 +56,29 @@ def test_windows_save_restore_tty_is_safe_without_real_console():
     win.restore_tty(token)        # must not raise
     win.restore_tty(None)         # must tolerate a missing token
     win.restore_tty(("win", None, None))  # and a degenerate token
+
+
+def test_unix_read_key_drains_pending_text_before_next_select(monkeypatch):
+    master, slave = pty.openpty()
+    stdin = open(slave, "r", encoding="utf-8", newline="")
+    monkeypatch.setattr(unix, "install_resize_handler", lambda _resize_key: None)
+    monkeypatch.setattr(unix.sys, "stdin", stdin)
+
+    calls = {"count": 0}
+
+    def fake_select(_rlist, _wlist, _xlist, _timeout):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return [stdin], [], []
+        raise AssertionError("read_key polled select again instead of draining pending text")
+
+    monkeypatch.setattr(unix.select, "select", fake_select)
+    try:
+        os.write(master, "你好\r".encode("utf-8"))
+
+        assert unix.read_key(keys.RESIZE_KEY) == "你"
+        assert unix.read_key(keys.RESIZE_KEY) == "好"
+        assert unix.read_key(keys.RESIZE_KEY) in {"\r", "\n"}
+    finally:
+        stdin.close()
+        os.close(master)
