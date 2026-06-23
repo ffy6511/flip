@@ -14,7 +14,7 @@ A deck-agnostic terminal quiz trainer. Pick a **deck** (a subject like Software 
 - **AI explanation of mistakes** — generate explanations via a configurable backend (codex / Zhipu GLM / ollama …); the persona comes from the deck.
 - **Bilingual translation** — global toggle: when `source_lang ≠ target_lang`, the `t` key shows, `zh` fields are written, and AI prompts carry translations.
 - **Import / export / merge** — import from JSON / CSV / deck directory, one-command export for backups, `merge` with -append/-upsert/-overwrite preserves learner state.
-- **On-demand bundled decks** — bundled decks ship in the package and are installed explicitly from the Bootstrap tab; once removed via `flip deck remove` they do not come back.
+- **On-demand bundled decks** — bundled decks ship in the package and are installed explicitly from the Bootstrap tab
 - **Companion agent skills** — `flip-deck-init` builds a deck from raw material, `flip-deck-maintain` safely updates an existing one.
 
 ## Install
@@ -91,6 +91,13 @@ Run `flip` with no arguments. You land in a deck picker with two tabs at the top
 - **Bootstrap** — bundled decks not yet installed. Select with **space** (multi-select, marked `[x]`), then **Enter** twice to confirm and install.
 
 Bundled decks ship inside the package (currently the Software Engineering template, 561 questions, English→Chinese). Installing is **explicit and one-shot**: `flip deck remove <slug>` deletes a deck entirely, and it will **not** come back on the next launch — you'd re-pick it from the Bootstrap tab yourself. Nothing is auto-installed at startup.
+
+<table>
+  <tr>
+    <td><img src="assets/demo-1.png" alt="TUI" /></td>
+    <td><img src="assets/demo-2.png" alt="check record" /></td>
+  </tr>
+</table>
 
 ## Optional: companion agent skills
 

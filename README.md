@@ -14,7 +14,7 @@
 - **AI 错题解释** —— 通过可配置后端(codex / 智谱 GLM / ollama ……)对错题生成解释,角色文案来自 deck。
 - **双语翻译** —— 全局开关:`source_lang ≠ target_lang` 时显示 `t` 键、写 `zh` 字段、AI prompt 附译文。
 - **导入 / 导出 / 合并** —— 从 JSON / CSV / deck 目录导入,一键导出备份,`merge` 支持-append/-upsert/-overwrite 保留学习状态。
-- **bundled deck 按需安装** —— 内置 deck 随包发布,在 Bootstrap tab 显式勾选安装;`flip deck remove` 删后不会自动回来。
+- **bundled deck 按需安装** —— 内置 deck 随包发布,在 Bootstrap tab 显式勾选安装;
 - **配套 agent skill** —— `flip-deck-init` 从原始素材生成 deck,`flip-deck-maintain` 安全更新已有 deck。
 
 ## 安装
@@ -91,6 +91,13 @@ flip 是纯 Python,无编译依赖,在以下平台均可运行:
 - **Bootstrap** —— 尚未安装的内置 deck。**空格** 多选,然后 **回车** 确认安装。
 
 内置 deck 随包发布。安装是**显式且一次性的**:`flip deck remove <slug>` 会把一个 deck 彻底删除。
+
+<table>
+  <tr>
+    <td><img src="assets/demo-1.png" alt="刷题界面" /></td>
+    <td><img src="assets/demo-2.png" alt="浏览记录" /></td>
+  </tr>
+</table>
 
 ## 可选:配套的 agent skill
 
