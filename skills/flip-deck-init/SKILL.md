@@ -58,7 +58,7 @@ Produce a compliant tiku.json → self-check with `flip import --dry-run` → la
 
 | Field        | Type     | Required | Notes |
 |--------------|----------|----------|-------|
-| `id`         | string   | no       | Stable question identity. You may write it yourself; otherwise `flip import` assigns ids. Preserve it on later edits. |
+| `id`         | string   | no       | Stable question identity. Prefer `q-<12hex>` UUID-style ids. You may write it yourself; otherwise `flip import` assigns one automatically. Preserve it on later edits and give every new question a fresh id. |
 | `topic`      | string   | yes      | The question stem. May carry its own ordinal prefix (e.g. `"3. What is..."`); flip does not parse it. |
 | `options`    | string[] | yes      | The choices. **Every entry must be `"X. text"`** (letter + period + space, a 3-char prefix), e.g. `"A. correct choice"`. Letters start at A and increment consecutively. |
 | `answer`     | string   | yes      | The correct option letter(s). Single-select `"A"`; multi-select is the **sorted concatenation**, e.g. `"AC"`, `"BDE"`. Every letter must be the first char of some option. |
@@ -73,14 +73,14 @@ Produce a compliant tiku.json → self-check with `flip import --dry-run` → la
 {
   "1": [
     {
-      "id": "demo-1-001",
+      "id": "q-111111111111",
       "topic": "What is 2 + 2?",
       "options": ["A. 3", "B. 4", "C. 5", "D. 6"],
       "answer": "B",
       "user_note": ""
     },
     {
-      "id": "demo-1-002",
+      "id": "q-222222222222",
       "topic": "Which are prime?",
       "options": ["A. 2", "B. 4", "C. 7", "D. 9"],
       "answer": "AC",
@@ -89,7 +89,7 @@ Produce a compliant tiku.json → self-check with `flip import --dry-run` → la
   ],
   "2": [
     {
-      "id": "demo-2-001",
+      "id": "q-333333333333",
       "topic": "Capital of France?",
       "options": ["A. Berlin", "B. Madrid", "C. Paris", "D. Rome"],
       "answer": "C",

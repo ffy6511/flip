@@ -28,6 +28,14 @@
 - `bootstrap.py` 只提供纯函数(`available_bundled_slugs` / `install_bundled` / `bundled_deck_summary`),不得含 TUI 循环。
 - 一个 bundled slug 是否"可装"的唯一判据是 `decks_dir/<slug>` 目录是否存在——删了就重新可装,装了就从 Bootstrap 列表消失。不需要 `.bootstrapped` 之类的持久戳。
 
+## bundled deck 更新
+
+- bundled deck 的更新入口是 Bootstrap tab 里的可更新项和 `flip deck update <slug>`。维护者改 shipped 内容时,先 bump `content_version`,再发布。
+- update 走按 `id` 的 upsert 合并。未修改题目的 `marked`、`marked_at`、`user_note`、`ai_explanation` 和 wrong 索引记录必须保留。
+- bundled deck 自带的 `user_note` 不能覆盖用户自己的 note。维护者说明只作为初始内容存在,update 时始终保留本地用户 note。
+- 老的“位置 id” deck 会在 update 时自动迁移到 UUID,并同步改写 `marked.json` 与 `wrong/` 的 key。内容已改到无法桥接的题目要上报为 unmigrated,不能静默吞掉。
+- update 不主动删题。上游已删除、但本地仍保留的题目,统一交给 `flip deck prune <slug>` 清理。
+
 ## schema 是 source-of-truth
 
 - `docs/schema.md` 是 `tiku.json` 字段的权威定义。引擎读写、skill 提取、测试夹具都必须对齐它。
