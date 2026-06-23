@@ -1957,7 +1957,18 @@ def _run_scored_session(deck, config, selected, *, source, mode_label, selector,
         return 0
 
     _write_wrong_report(deck, selected, incorrects)
-    if mode_label != "review" or not incorrects:
+    if mode_label == "review":
+        counted_chapters = _counted_review_chapters(selected, incorrects)
+        if counted_chapters:
+            _record_drill(
+                deck,
+                selected,
+                total=count - 1,
+                incorrect=len(incorrects),
+                mode=mode_label,
+                chapters=counted_chapters,
+            )
+    else:
         _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
     store.clear_session(deck)
     _run_session_summary_loop(
@@ -2100,7 +2111,21 @@ def _write_wrong_report(deck, selected, incorrects):
         store.write_json(out, merged)
 
 
-def _record_drill(deck, selected, *, total, incorrect, mode):
+def _counted_review_chapters(selected, incorrects):
+    wrong_chapters = {
+        str(item.get("chapter"))
+        for item in incorrects
+        if isinstance(item, dict) and str(item.get("chapter", "")).strip()
+    }
+    chapters = {
+        str(chapter)
+        for chapter, _ in selected.questions
+        if str(chapter) not in wrong_chapters
+    }
+    return sorted(chapters, key=store._chapter_sort_key)
+
+
+def _record_drill(deck, selected, *, total, incorrect, mode, chapters=None):
     """Append one drill record to the deck's history.
 
     Centralizes record construction so train and review share the same shape.
@@ -2110,7 +2135,10 @@ def _record_drill(deck, selected, *, total, incorrect, mode):
     counted (a half-finished session isn't a real drill).
     """
     import datetime
-    chapters = sorted({str(ch) for ch, _ in selected.questions})
+    if chapters is None:
+        chapters = sorted({str(ch) for ch, _ in selected.questions}, key=store._chapter_sort_key)
+    else:
+        chapters = sorted({str(ch) for ch in chapters}, key=store._chapter_sort_key)
     store.append_history(deck, {
         "date": datetime.datetime.now().isoformat(timespec="seconds"),
         "chapters": chapters,

@@ -947,9 +947,9 @@ def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypat
     assert summaries[0]["wrong_items"][0]["question"] is q1
 
 
-def test_run_train_review_counts_only_when_all_correct(deck, config, monkeypatch):
+def test_run_train_train_counts_even_with_incorrect_answers(deck, config, monkeypatch):
     q1, q2 = store.load_tiku(deck)["1"][:2]
-    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=True)
+    selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
     records = []
     monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
     monkeypatch.setattr(
@@ -965,10 +965,47 @@ def test_run_train_review_counts_only_when_all_correct(deck, config, monkeypatch
     monkeypatch.setattr(engine_loop, "_record_drill", lambda *a, **k: records.append((a, k)))
     monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: None)
 
-    outcome = engine_loop.run_train(deck, config, selector="1", source="wrong")
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku")
 
     assert outcome == 0
-    assert records == []
+    assert records
+    assert records[0][1]["mode"] == "train"
+
+
+def test_run_train_review_counts_only_fully_correct_chapters(deck, config, monkeypatch):
+    q26a = {"topic": "q26a", "options": ["A. x"], "answer": "A", "user_note": ""}
+    q26b = {"topic": "q26b", "options": ["A. x"], "answer": "A", "user_note": ""}
+    q31 = {"topic": "q31", "options": ["A. x"], "answer": "A", "user_note": ""}
+    selected = engine.SelectedSet([("26", q26a), ("26", q26b), ("31", q31)], input_is_index=True)
+
+    def fake_pick_questions(_deck, _config, selector=None, **_kwargs):
+        assert selector == "26-31"
+        return selected
+
+    monkeypatch.setattr(engine, "pick_questions", fake_pick_questions)
+    monkeypatch.setattr(
+        engine_loop,
+        "epoch",
+        lambda *_a, **_k: (
+            4,
+            [engine.incorrect_record("31", q31, "B", deck.answer_alphabet)],
+            "done",
+            [],
+        ),
+    )
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: None)
+
+    outcome = engine_loop.run_train(deck, config, selector="26-31", source="wrong")
+    history = store.load_history(deck)
+
+    assert outcome == 0
+    assert history == [{
+        "date": history[0]["date"],
+        "chapters": ["26"],
+        "total": 3,
+        "incorrect": 1,
+        "mode": "review",
+    }]
 
 
 def test_run_train_review_counts_when_all_correct(deck, config, monkeypatch):
