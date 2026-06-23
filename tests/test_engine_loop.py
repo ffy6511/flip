@@ -229,6 +229,21 @@ def _patch_deck_picker_tty(monkeypatch, keys):
     monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
 
 
+def _install_fake_bootstrap_deck(monkeypatch, decks_dir, *, version="1", topic="t1"):
+    import json
+    from flip import bootstrap
+
+    monkeypatch.setattr(
+        bootstrap,
+        "_read_bundled_tiku_text",
+        lambda _slug: json.dumps({"1": [
+            {"topic": topic, "options": ["A. x", "B. y"], "answer": "A"},
+        ]}, ensure_ascii=False),
+    )
+    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS["se-template"], "content_version", version)
+    bootstrap.install_bundled("se-template", decks_dir)
+
+
 def test_deck_picker_empty_library_shows_bootstrap_hint(capsys, monkeypatch, tmp_path):
     # Empty home: Library must NOT abort flip; it shows a pointer to the
     # Bootstrap tab so the user can install without leaving the picker.
@@ -319,7 +334,7 @@ def test_bootstrap_tab_enter_confirms_then_installs(capsys, monkeypatch, tmp_pat
 
     out = capsys.readouterr().out
     # After install the Bootstrap list shows "all installed".
-    assert "所有内置 deck 已安装" in out
+    assert "所有内置 deck 已是最新" in out
     assert "已安装 1 个 deck" in out
 
 
@@ -336,6 +351,67 @@ def test_bootstrap_tab_second_enter_without_selection_is_noop(capsys, monkeypatc
     assert not (config.decks_dir / "se-template").exists()
     out = capsys.readouterr().out
     assert "将安装" not in out  # confirm prompt never shown
+
+
+def test_bootstrap_tab_shows_updateable_deck(capsys, monkeypatch, tmp_path):
+    from flip import bootstrap
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(monkeypatch, ["\x1b[C", "\x1b", "q"])
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+
+    monkeypatch.setattr(
+        bootstrap,
+        "_read_bundled_tiku_text",
+        lambda _slug: '{"1":[{"topic":"new topic","options":["A. x","B. y"],"answer":"A"}]}',
+    )
+    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS["se-template"], "content_version", "2")
+
+    engine_loop.deck_picker(config)
+
+    out = capsys.readouterr().out
+    assert "软件工程模板" in out
+    assert "有更新" in out
+    assert "v1→v2" in out
+
+
+def test_bootstrap_tab_enter_updates_and_refreshes(capsys, monkeypatch, tmp_path):
+    from flip import bootstrap, store
+    from flip.deck import load_deck
+
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+    _patch_deck_picker_tty(
+        monkeypatch,
+        ["\x1b[C", " ", "\r", "\r", "\x1b", "q"],
+    )
+
+    config = _empty_config(tmp_path, monkeypatch)
+    _install_fake_bootstrap_deck(monkeypatch, config.decks_dir, version="1", topic="old topic")
+    deck = load_deck(config.decks_dir / "se-template")
+    qid = store.load_tiku(deck)["1"][0]["id"]
+
+    monkeypatch.setattr(
+        bootstrap,
+        "_read_bundled_tiku_text",
+        lambda _slug: (
+            '{"1":[{"id":"%s","topic":"old topic [fixed]","options":["A. x","B. y"],"answer":"A"}]}'
+            % qid
+        ),
+    )
+    monkeypatch.setitem(bootstrap.BUNDLED_DECK_SPECS["se-template"], "content_version", "2")
+
+    engine_loop.deck_picker(config)
+
+    deck2 = load_deck(config.decks_dir / "se-template")
+    assert deck2.content_version == "2"
+    assert store.load_tiku(deck2)["1"][0]["topic"] == "old topic [fixed]"
+
+    out = capsys.readouterr().out
+    assert "已更新 1 个 deck" in out
+    assert "updated=1" in out
+    assert "所有内置 deck 已是最新" in out
 
 
 def test_render_stats_scrolls_window_to_keep_cursor_visible(capsys, monkeypatch, deck, config):

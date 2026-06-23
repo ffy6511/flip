@@ -950,6 +950,51 @@ TABS = ("library", "bootstrap")
 TAB_LABELS = {"library": "Library", "bootstrap": "Bootstrap"}
 
 
+def _bootstrap_picker_items(config):
+    from . import bootstrap
+
+    items = []
+    for info in bootstrap.updatable_bundled_decks(config.decks_dir):
+        items.append({
+            "kind": "update",
+            "slug": info["slug"],
+            "name": info["name"],
+            "extra": f"有更新: v{info['current']}→v{info['latest']}",
+        })
+    for slug in bootstrap.available_bundled_slugs(config.decks_dir):
+        info = bootstrap.bundled_deck_summary(slug)
+        src = info.get("source_lang", "?")
+        tgt = config.target_lang or "?"
+        items.append({
+            "kind": "install",
+            "slug": slug,
+            "name": info.get("name", slug),
+            "extra": f"{info.get('questions', 0)}题, {src}→{tgt}",
+        })
+    return items
+
+
+def _bootstrap_confirm_message(items, selected):
+    install_count = sum(1 for item in items if item["slug"] in selected and item["kind"] == "install")
+    update_count = sum(1 for item in items if item["slug"] in selected and item["kind"] == "update")
+    parts = []
+    if install_count:
+        parts.append(f"安装 {install_count} 个 deck")
+    if update_count:
+        parts.append(f"更新 {update_count} 个 deck")
+    if not parts:
+        return ""
+    return "将" + "、".join(parts) + ",再次按 Enter 确认 / 其他键取消"
+
+
+def _bootstrap_result_summary(result):
+    unmigrated = len(getattr(result, "unmigrated", []))
+    return (
+        f"added={result.added}, updated={result.updated}, skipped={result.skipped}, "
+        f"conflicts={len(result.conflicts)}, unmigrated={unmigrated}"
+    )
+
+
 def deck_picker(config):
     """Phase 1 of the interactive entry: pick a deck (or install one).
 
@@ -981,15 +1026,13 @@ def deck_picker(config):
         # Library tab state.
         query = ""
         index = 0
-        # Bootstrap tab state. `boot_slugs` is recomputed every time we enter
-        # the tab (and after a successful install) so installs/removes are
-        # reflected immediately.
+        # Bootstrap tab state. `boot_items` is recomputed every frame so
+        # installs, removals, and updatable decks are reflected immediately.
         boot_index = 0
         boot_selected: set[str] = set()
         boot_warning = ""
         boot_confirming = False  # True between "Enter on selection" and 2nd Enter
-        boot_slugs: list[str] = []
-        boot_summaries: dict[str, dict] = {}
+        boot_items: list[dict] = []
 
         while True:
             # Refresh per-frame data so installs/removes done out-of-band show up.
@@ -1002,13 +1045,11 @@ def deck_picker(config):
                 # afterwards let it stay where the user put it.
                 _render_deck_picker(rows, index, query, config.default_deck)
             else:
-                boot_slugs = bootstrap.available_bundled_slugs(config.decks_dir)
-                boot_summaries = {s: bootstrap.bundled_deck_summary(s) for s in boot_slugs}
-                if boot_index >= len(boot_slugs):
-                    boot_index = max(0, len(boot_slugs) - 1)
+                boot_items = _bootstrap_picker_items(config)
+                if boot_index >= len(boot_items):
+                    boot_index = max(0, len(boot_items) - 1)
                 _render_bootstrap_picker(
-                    config, boot_slugs, boot_summaries,
-                    boot_index, boot_selected, boot_warning, boot_confirming,
+                    boot_items, boot_index, boot_selected, boot_warning, boot_confirming,
                 )
 
             key = read_key()
@@ -1084,15 +1125,15 @@ def deck_picker(config):
                         tab = "library"
                     continue
                 if key == '\x1b[A':
-                    if boot_slugs:
-                        boot_index = (boot_index - 1) % len(boot_slugs)
+                    if boot_items:
+                        boot_index = (boot_index - 1) % len(boot_items)
                     continue
                 if key == '\x1b[B':
-                    if boot_slugs:
-                        boot_index = (boot_index + 1) % len(boot_slugs)
+                    if boot_items:
+                        boot_index = (boot_index + 1) % len(boot_items)
                     continue
-                if key == ' ' and boot_slugs:
-                    slug = boot_slugs[boot_index]
+                if key == ' ' and boot_items:
+                    slug = boot_items[boot_index]["slug"]
                     if slug in boot_selected:
                         boot_selected.discard(slug)
                     else:
@@ -1102,25 +1143,37 @@ def deck_picker(config):
                     continue
                 if key in {'\r', '\n'}:
                     if boot_confirming:
-                        # Second Enter: commit the install.
-                        to_install = sorted(boot_selected)
+                        selected_items = [item for item in boot_items if item["slug"] in boot_selected]
                         installed = 0
-                        for slug in to_install:
+                        updated = 0
+                        notices = []
+                        for item in selected_items:
+                            slug = item["slug"]
                             try:
-                                bootstrap.install_bundled(slug, config.decks_dir)
-                                installed += 1
+                                if item["kind"] == "install":
+                                    bootstrap.install_bundled(slug, config.decks_dir)
+                                    installed += 1
+                                else:
+                                    result = bootstrap.update_bundled(slug, config.decks_dir)
+                                    updated += 1
+                                    notices.append(f"{item['name']}: {_bootstrap_result_summary(result)}")
                             except Exception as exc:  # pragma: no cover - defensive
-                                boot_warning = f"安装 {slug} 失败: {exc}"
+                                action = "安装" if item["kind"] == "install" else "更新"
+                                notices.append(f"{action} {slug} 失败: {exc}")
                         boot_selected = set()
                         boot_confirming = False
+                        summary = []
                         if installed:
-                            boot_warning = f"已安装 {installed} 个 deck。按 ← 回到 Library。"
+                            summary.append(f"已安装 {installed} 个 deck")
+                        if updated:
+                            summary.append(f"已更新 {updated} 个 deck")
+                        if notices:
+                            summary.append("；".join(notices))
+                        if summary:
+                            boot_warning = "。".join(summary) + "。按 ← 回到 Library。"
                     elif boot_selected:
                         boot_confirming = True
-                        boot_warning = (
-                            f"将安装 {len(boot_selected)} 个 deck,"
-                            "再次按 Enter 确认 / 其他键取消"
-                        )
+                        boot_warning = _bootstrap_confirm_message(boot_items, boot_selected)
                     continue
                 # Any other key cancels a pending confirm.
                 if boot_confirming:
@@ -1198,8 +1251,8 @@ def _render_deck_picker(rows, index, query, default_deck):
     print("  " + DIM_COLOR + "↑/↓ 选,←/→ 切 tab,Enter 进入,Esc 清空搜索/q 退出  (* = 上次使用)" + RESET_COLOR)
 
 
-def _render_bootstrap_picker(config, slugs, summaries, cursor, selected, warning, confirming):
-    """Multi-select list of bundled decks available to install.
+def _render_bootstrap_picker(items, cursor, selected, warning, confirming):
+    """Multi-select list of bundled decks available to install or update.
 
     Mirrors _render_chapter_picker's structure (clear → header → list with
     windowed scroll → hint) and its marker style: [x]/[ ] in the row's own
@@ -1213,28 +1266,34 @@ def _render_bootstrap_picker(config, slugs, summaries, cursor, selected, warning
     print("@ flip — Bootstrap")
     _render_tabs("bootstrap")
     print()
-    print("  " + DIM_COLOR + "勾选要安装的内置 deck,Enter 确认安装" + RESET_COLOR)
+    print("  " + DIM_COLOR + "勾选要安装或更新的内置 deck,Enter 确认执行" + RESET_COLOR)
     if warning:
         color = SELECTED_COLOR if confirming else DIM_COLOR
         print("  " + color + warning + RESET_COLOR)
     else:
         print()
-    if not slugs:
-        print("  " + DIM_COLOR + "(所有内置 deck 已安装)" + RESET_COLOR)
+    if not items:
+        print("  " + DIM_COLOR + "(所有内置 deck 已是最新)" + RESET_COLOR)
     else:
-        start, end = _window_bounds(len(slugs), cursor, _terminal_height() - 8)
-        for i, slug in enumerate(slugs[start:end], start=start):
-            info = summaries.get(slug, {})
-            name = info.get("name", slug)
-            n = info.get("questions", 0)
-            src = info.get("source_lang", "?")
-            tgt = config.target_lang or "?"
+        start, end = _window_bounds(len(items), cursor, _terminal_height() - 8)
+        for i, item in enumerate(items[start:end], start=start):
+            slug = item["slug"]
+            name = item["name"]
+            extra = item["extra"]
             mark = "[x]" if slug in selected else "[ ]"
             line_color = SELECTED_COLOR if i == cursor else DIM_COLOR
-            line = f"  {mark} {name}  ({n}题, {src}→{tgt})"
-            print(line_color + line + RESET_COLOR)
+            prefix = f"  {mark} {name}  ("
+            suffix = ")"
+            if item["kind"] == "update" and i != cursor:
+                print(
+                    line_color + prefix + RESET_COLOR
+                    + SELECTED_COLOR + extra + RESET_COLOR
+                    + line_color + suffix + RESET_COLOR
+                )
+            else:
+                print(line_color + prefix + extra + suffix + RESET_COLOR)
     print()
-    hint = "↑/↓ 移动,空格 切换选中,Enter 安装,Esc 取消选中/返回,← 回 Library"
+    hint = "↑/↓ 移动,空格 切换选中,Enter 执行,Esc 取消选中/返回,← 回 Library"
     print("  " + DIM_COLOR + hint + RESET_COLOR)
 
 
