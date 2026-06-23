@@ -95,6 +95,17 @@ def _answer_from_selected(options, selected):
     return "".join(answer)
 
 
+def _toggle_answer_selection(selected, index, *, multi_select):
+    if index in selected:
+        selected.remove(index)
+        return
+    if multi_select:
+        selected.add(index)
+        return
+    selected.clear()
+    selected.add(index)
+
+
 # ---- small sub-prompts (ai extra / note) ----
 
 def _prompt_ai_extra(deck, chapter, q, render_current):
@@ -260,6 +271,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
     options = _options(q, deck)
     alphabet = deck.answer_alphabet
     translation_enabled = config.translation_enabled
+    multi_select = len(str(q.get("answer", "") or "")) > 1
     detail_view = normalize_detail_view(q, detail_view)
     cursor = 0
     selected = set()
@@ -301,10 +313,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                 continue
             if key == ' ':
                 warning = ""
-                if cursor in selected:
-                    selected.remove(cursor)
-                else:
-                    selected.add(cursor)
+                _toggle_answer_selection(selected, cursor, multi_select=multi_select)
                 continue
             if key == '\x1b[A':  # up
                 warning = ""
@@ -320,10 +329,7 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                 idx = int(key) - 1
                 if 0 <= idx < len(options):
                     warning = ""
-                    if idx in selected:
-                        selected.remove(idx)
-                    else:
-                        selected.add(idx)
+                    _toggle_answer_selection(selected, idx, multi_select=multi_select)
                 continue
 
             if translation_enabled and key in {'t', 'T'}:
@@ -1026,6 +1032,7 @@ def deck_picker(config):
         # Library tab state.
         query = ""
         index = 0
+        library_anchored = False
         # Bootstrap tab state. `boot_items` is recomputed every frame so
         # installs, removals, and updatable decks are reflected immediately.
         boot_index = 0
@@ -1043,6 +1050,12 @@ def deck_picker(config):
                 rows = _filter_rows(all_rows, name_index, query)
                 # Re-anchor the cursor onto default_deck on first frame only;
                 # afterwards let it stay where the user put it.
+                if not library_anchored:
+                    for i, row in enumerate(rows):
+                        if row[0] == config.default_deck:
+                            index = i
+                            break
+                    library_anchored = True
                 _render_deck_picker(rows, index, query, config.default_deck)
             else:
                 boot_items = _bootstrap_picker_items(config)

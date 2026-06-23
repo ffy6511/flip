@@ -1,3 +1,5 @@
+import shutil
+
 from flip import engine, engine_loop, store
 from flip.tui.render import default_detail_view, normalize_detail_view
 
@@ -244,6 +246,39 @@ def _install_fake_bootstrap_deck(monkeypatch, decks_dir, *, version="1", topic="
     bootstrap.install_bundled("se-template", decks_dir)
 
 
+def test_deck_picker_initially_highlights_last_used_deck(flip_home, monkeypatch):
+    from flip.config import load_config, save_default_deck
+
+    decks_dir = flip_home / "decks"
+    later_dir = decks_dir / "later"
+    later_dir.mkdir()
+    shutil.copyfile(decks_dir / "example" / "tiku.json", later_dir / "tiku.json")
+    (later_dir / "manifest.toml").write_text(
+        '[deck]\nname = "Later"\nslug = "later"\nsource_lang = "en"\n'
+        'answer_alphabet = "ABCDE"\nmax_display_options = 4\n\n'
+        '[explain]\nrole = "later"\nmax_chars = 200\n',
+        encoding="utf-8",
+    )
+
+    config = load_config()
+    save_default_deck(config, "later")
+    _patch_deck_picker_tty(monkeypatch, ["q"])
+
+    rendered = []
+
+    def capture_render(rows, index, query, default_deck):
+        rendered.append((rows, index, query, default_deck))
+
+    monkeypatch.setattr(engine_loop, "_render_deck_picker", capture_render)
+
+    engine_loop.deck_picker(config)
+
+    rows, index, query, default_deck = rendered[0]
+    assert query == ""
+    assert default_deck == "later"
+    assert rows[index][0] == "later"
+
+
 def test_deck_picker_empty_library_shows_bootstrap_hint(capsys, monkeypatch, tmp_path):
     # Empty home: Library must NOT abort flip; it shows a pointer to the
     # Bootstrap tab so the user can install without leaving the picker.
@@ -486,6 +521,29 @@ def test_prompt_answer_resize_key_rerenders_without_state_change(deck, config, m
 
     assert result[0] == "A"
     assert rendered == [(0, set()), (0, set()), (0, {0})]
+
+
+def test_prompt_answer_single_select_replaces_previous_choice(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    _patch_tty(monkeypatch, ["1", "2", "\r"])
+
+    result = engine_loop.prompt_answer(deck, config, 1, 1, "1", q)
+
+    assert result[0] == "B"
+
+
+def test_prompt_answer_multi_select_keeps_multiple_choices(deck, config, monkeypatch):
+    q = {
+        "topic": "multi",
+        "options": ["A. x", "B. y", "C. z"],
+        "answer": "AC",
+        "user_note": "",
+    }
+    _patch_tty(monkeypatch, ["1", "3", "\r"])
+
+    result = engine_loop.prompt_answer(deck, config, 1, 1, "1", q)
+
+    assert result[0] == "AC"
 
 
 def test_prompt_result_refreshes_marked_state_after_m(deck, config, monkeypatch):
