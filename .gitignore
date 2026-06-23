@@ -22,3 +22,5 @@ htmlcov/
 
 # Generated artifact (staged-commit-message skill writes here, not tracked)
 COMMIT.md
+
+tmp

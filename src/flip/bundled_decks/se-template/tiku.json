@@ -1530,7 +1530,7 @@
         "B. False"
       ],
       "answer": "A",
-      "user_note": "User stories(用户故事)通常只是对用户需求的简短描述,关注用户想做什么和为什么做,但不包含完整需求描述,尤其很少包括非功能性需求(如性能、安全性等).非功能性需求一般需通过单独条目或文档补充说明.所以,用户故事不是用户需求的完整描述,也通常不包括非功能性需求.",
+      "user_note": "按本课程题库与复习材料的语境,本题应保持 A。这里强调的是:用户故事不仅描述功能需求,也可以纳入非功能性需求;题目将 user stories 视为针对某个 increment 的完整需求概述,因此判 True。",
       "zh": {
         "topic": "11. 用户故事是对用户需求的完整描述,并包含软件增量的非功能性需求。",
         "options": [
@@ -5340,7 +5340,7 @@
       "id": "q-31cc634184f3"
     },
     {
-      "topic": "8. Six Sigma methodology defines three core steps.",
+      "topic": "8. Six Sigma methodology defines five core steps. Which of the following are the first three?",
       "options": [
         "A. analyze, improve, control",
         "B. analyze, design, verify",
@@ -5348,9 +5348,9 @@
         "D. define, measure, control"
       ],
       "answer": "C",
-      "user_note": "Six Sigma方法论的三个核心步骤是define(定义)、measure(测量)、analyze(分析),简称DMA(Define, Measure, Analyze).这三个步骤包括明确问题、收集和测量相关数据、分析数据找出问题根源.",
+      "user_note": "Six Sigma 在课程材料里的完整步骤是 DMAIC: define、measure、analyze、improve、control。本题现在问的是前 3 步，因此正确答案是 C，即 define、measure、analyze。",
       "zh": {
-        "topic": "8. 六西格玛方法论定义了三个核心步骤。",
+        "topic": "8. 六西格玛方法论定义了五个核心步骤。以下哪几个是前三步？",
         "options": [
           "A. 分析、改进、控制",
           "B. 分析、设计、验证",
@@ -6359,8 +6359,8 @@
         "A. True",
         "B. False"
       ],
-      "answer": "A",
-      "user_note": "面向对象 (OO) 软件的测试用例设计需要关注每个操作 (类的方法)的算法细节. 每个操作内部的逻辑决定了它在不同输入下的行为, 测试用例要覆盖这些逻辑分支和可能的执行路径, 以确保操作的正确性. 因此, 测试用例设计是由各操作的算法细节驱动的.",
+      "answer": "B",
+      "user_note": "本题更合理的答案是 B。课程材料明确写到: OO 测试中最小可测试单元是封装类,单个操作不能独立测试。因此测试用例设计不能简单说是由 individual operations 的算法细节驱动。",
       "zh": {
         "topic": "4. 面向对象软件的测试用例设计是由各个操作的算法细节驱动的。",
         "options": [
@@ -7404,8 +7404,8 @@
         "D. Testing",
         "E. a, b, c"
       ],
-      "answer": "ABC",
-      "user_note": "安全性正确性检查是指在不同阶段对软件安全性进行评估和验证.\nA. Audits(审计)用于核查系统安全要求是否得到满足.\nB. Deployment(部署)阶段需要进行安全检查,确保环境和配置不会引入新的安全风险.\nC. Inspections(评审)通过代码和设计评审发现潜在安全漏洞.\nD. Testing(测试)虽然安全测试很重要,但主要是缺陷发现,不属于检查活动.因此,安全性正确性检查应包括A、B、C三项.",
+      "answer": "ACD",
+      "user_note": "本题更合理的答案是 ACD。课程材料写的是: 审计、检查和测试用例期间收集的数据会被分析并总结为安全案例,因此 audits、inspections、testing 都应包含在 security correctness checks 中。deployment 并未在这里被列为对应活动。",
       "zh": {
         "topic": "10. 安全性正确性检查应包含在以下哪些活动中？",
         "options": [
@@ -8441,7 +8441,7 @@
         "D. level of object reusability achieved"
       ],
       "answer": "C",
-      "user_note": "DIT(继承树深度)表示从继承树根节点到某个类的路径长度,首先反映的是类层次结构的复杂度。DIT 越大，继承体系通常越复杂。它不能直接衡量系统实现完成时间，因此更合理的答案是 C，而不是 B。",
+      "user_note": "当前 deck 先保持 C, 即类层次结构的复杂度。需要注意的是, 课程复习 PDF 中有一版表述把 DIT 解释为“可提供关于系统实现所需完成时间的信息”,与原始题库中的 B 更接近,说明这一题在材料来源之间存在分歧。当前先按 deck 语境保留 C。",
       "zh": {
         "topic": "11. 继承树深度(DIT)度量可以为面向对象软件设计师提供关于以下哪方面的信息？",
         "options": [
