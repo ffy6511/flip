@@ -9,7 +9,7 @@ A terminal quiz tool powered by skill-driven agent: turn any subject into tailor
 - **Deck-agnostic quiz engine** — one schema serves any subject; question shape and persona come from the deck manifest, the engine carries no subject assumptions.
 - **Native terminal TUI** — deck picker with live search and **Library / Bootstrap** tabs (←/→ to switch), multi-select chapters, adaptive width and resize redraw.
 - **Multiple drill modes** — Train (tiku, scored), Review (wrong index, scored), Ans (browse with answers shown, no scoring), Continue (resume a paused drill).
-- **Wrong-index & stats** — auto-maintained wrong-question index, per-chapter stats page, drill-count badges per question.
+- **Wrong-index & stats** — auto-maintained wrong-question index, per-chapter stats page, drill-count badges per question, plus diagnostics and stale wrong-record cleanup.
 - **Marks & notes** — flag a question, attach a note; filter by mark/note/ai.
 - **AI explanation of mistakes** — generate explanations via a configurable backend (codex / Zhipu GLM / ollama …); the persona comes from the deck.
 - **Bilingual translation** — global toggle: when `source_lang ≠ target_lang`, the `t` key shows, `zh` fields are written, and AI prompts carry translations.
@@ -125,6 +125,7 @@ See `docs/schema.md` and `docs/deck-manifest.md` for the data contracts.
 flip                              # interactive: pick a deck, then pick a mode
 flip --version                    # print the installed version
 flip list                         # list registered decks
+flip doctor se                    # inspect deck compatibility and print repair commands
 flip deck train se -c 5-10        # train SE on chapters 5–10 (tiku, scored)
 flip deck review se               # drill SE's wrong index (scored)
 flip deck continue se             # resume the latest paused scored drill
@@ -138,7 +139,8 @@ flip deck update se              # update from the bundled deck, preserving lear
 flip deck prune se               # remove bundled questions deleted upstream but still local
 flip deck versions se            # list/switch bundled deck backup versions
 flip deck assign-ids se --dry-run  # add q-<12hex> stable ids to questions missing ids
-flip deck repair se --dry-run     # validate tiku and rebuild marked index
+flip deck migrate se --ids --dry-run  # migrate missing/legacy positional ids to UUID ids
+flip deck repair se --dry-run     # validate tiku, rebuild marked, and remove stale wrong records
 flip deck translate se            # fill missing zh fields
 flip import se ./tiku.json        # register a compliant JSON as a new deck
 flip export se -o ./se-deck       # bundle a deck for backup or transfer
@@ -149,6 +151,7 @@ flip config                       # show config and explain-backend status
 > Chapter selectors accept single chapters, ranges, first-N shorthand, and
 > comma unions: `5`, `5-10`, `-3`, `5,3-4`; press `a` to auto-select the chapters with the lowest count for the current mode.
 > Running `flip` with no args starts in the deck picker (see [Getting started](#getting-started)): pick a deck on the **Library** tab (↑/↓ + Enter, live search) or install a bundled one on the **Bootstrap** tab (←/→ to switch). After choosing a deck you pick a mode — **Train** (tiku), **Review** (wrong index), **Continue** (paused scored drill), or **List** (stats) — plus the 1-5 filters/display toggles, a **clear-count** action, and an **Ans mode** toggle that shows answers without scoring.
+> On the scored Train and Review summary screen, press `d` to keep drilling this round's wrong answers. Follow-up rounds converge only over the in-memory wrong set and do not write the wrong index or history stats.
 > While browsing a question, press `e` to edit the standard answer. AI follow-up prompts and user-note inputs support `Ctrl+U` to clear the current buffer.
 
 ## Layout

@@ -146,8 +146,11 @@ def _demo_deck_with(tmp_path, answer="A", qid="q-test0000001"):
     home = tmp_path / "flip_home"
     decks = home / "decks" / "demo"
     decks.mkdir(parents=True)
+    q = {"topic": "pick", "options": ["A. x", "B. y", "C. z"], "answer": answer}
+    if qid is not None:
+        q["id"] = qid
     store.save_tiku(Deck(slug="demo", name="Demo", path=decks, source_lang="en"),
-                    {"1": [{"id": qid, "topic": "pick", "options": ["A. x", "B. y", "C. z"], "answer": answer}]})
+                    {"1": [q]})
     (decks / "manifest.toml").write_text(
         '[deck]\nname="Demo"\nslug="demo"\nsource_lang="en"\nanswer_alphabet="ABC"\nmax_display_options=4\n\n[explain]\nrole="d"\nmax_chars=200\n',
         encoding="utf-8")
@@ -172,6 +175,91 @@ def test_e_edits_answer_when_detail_view_none(monkeypatch, tmp_path):
     assert q["answer"] == "B"
     # Persisted to disk.
     assert store.load_tiku(deck)["1"][0]["answer"] == "B"
+
+
+def test_e_edits_answer_without_question_id(monkeypatch, tmp_path):
+    _stub_tty_for_keys(monkeypatch, ["\x1b[B", " ", "\r"])
+    deck = _demo_deck_with(tmp_path, answer="A", qid=None)
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+
+    detail_view, warning, action = engine_loop._handle_detail_keys(
+        deck, None, "1", q, None, "e", _noop_render)
+
+    assert detail_view is None
+    assert action is None
+    assert "已更新" in warning
+    assert q["answer"] == "B"
+    assert store.load_tiku(deck)["1"][0]["answer"] == "B"
+
+
+def test_e_answer_edit_refreshes_current_selected_set(monkeypatch, tmp_path):
+    _stub_tty_for_keys(monkeypatch, ["\x1b[B", " ", "\r"])
+    deck = _demo_deck_with(tmp_path, answer="A")
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+    stale_copy = dict(q)
+    selected = engine.SelectedSet(
+        [("1", q), ("1", stale_copy)],
+        input_is_index=True,
+    )
+
+    _detail_view, warning, _action = engine_loop._handle_detail_keys(
+        deck, None, "1", q, None, "e", _noop_render, selected_set=selected)
+
+    assert "已更新" in warning
+    assert selected.questions == [("1", q)]
+    assert selected.questions[0][1]["answer"] == "B"
+
+
+def test_review_questions_answer_edit_refreshes_selected_set(monkeypatch, tmp_path, config):
+    _stub_tty_for_keys(monkeypatch, ["e", "\x1b[B", " ", "\r", "q"])
+    deck = _demo_deck_with(tmp_path, answer="A")
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+    stale_copy = dict(q)
+    selected = engine.SelectedSet(
+        [("1", q), ("1", stale_copy)],
+        input_is_index=True,
+    )
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "enter_cbreak", lambda: None)
+    monkeypatch.setattr(engine_loop, "render_review_question", lambda *a, **k: None)
+
+    status, items = engine_loop.review_questions(deck, config, selected)
+
+    assert status == "quit"
+    assert selected.questions == [("1", q)]
+    assert selected.questions[0][1]["answer"] == "B"
+    assert len(items) == 1
+    assert items[0]["question"]["answer"] == "B"
+
+
+def test_run_train_warns_when_deck_has_missing_ids(monkeypatch, tmp_path, capsys):
+    deck = _demo_deck_with(tmp_path, answer="A", qid=None)
+    engine_loop._DECK_HEALTH_WARNED.clear()
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: engine.SelectedSet([], input_is_index=False))
+
+    outcome = engine_loop.run_train(deck, None, selector=None, source="tiku")
+
+    assert outcome == 0
+    out = capsys.readouterr().out
+    assert "缺少稳定 id" in out
+    assert "flip deck migrate demo --ids" in out
+
+
+def test_run_review_warns_when_deck_has_missing_ids(monkeypatch, tmp_path, capsys):
+    deck = _demo_deck_with(tmp_path, answer="A", qid=None)
+    engine_loop._DECK_HEALTH_WARNED.clear()
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: engine.SelectedSet([], input_is_index=True))
+
+    outcome = engine_loop.run_train(deck, None, selector=None, source="wrong")
+
+    assert outcome == 0
+    out = capsys.readouterr().out
+    assert "缺少稳定 id" in out
+    assert "flip deck migrate demo --ids" in out
 
 
 def test_e_answer_edit_esc_cancels_without_writing(monkeypatch, tmp_path):
@@ -1318,6 +1406,37 @@ def test_review_questions_j_digits_enter_jumps_to_1_based_index(deck, config, mo
     assert renders[:2] == [0, 1]
 
 
+def test_selected_set_remove_in_memory(deck):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet(
+        [("1", q1), ("1", q2)],
+        input_is_index=True,
+        in_memory=True,
+    )
+
+    assert engine.remove_in_memory(selected, "1", q1) is True
+    assert selected.questions == [("1", q2)]
+    assert engine.remove_in_memory(selected, "1", q1) is False
+
+
+def test_remove_from_in_memory_does_not_touch_wrong_index(deck):
+    q1 = store.load_tiku(deck)["1"][0]
+    wrong = engine.incorrect_record("1", q1, "B", deck.answer_alphabet)
+    path = store.build_result_filename([("1", q1)], deck)
+    store.write_json(path, [wrong])
+    selected = engine.SelectedSet(
+        [("1", q1)],
+        input_is_index=True,
+        index_sources={wrong["key"]: {path}},
+        in_memory=True,
+    )
+
+    assert engine_loop._remove_question_from_selected_source(deck, selected, "1", q1) is True
+
+    assert selected.questions == []
+    assert store.read_json(path) == [wrong]
+
+
 def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypatch):
     q1, q2 = store.load_tiku(deck)["1"][:2]
     selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
@@ -1343,6 +1462,55 @@ def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypat
     assert summaries[0]["total"] == 2
     assert summaries[0]["correct"] == 1
     assert summaries[0]["wrong_items"][0]["question"] is q1
+
+
+def test_run_train_scored_summary_d_starts_drill(deck, config, monkeypatch):
+    q1 = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q1)], input_is_index=False)
+    history = [
+        {"count": 1, "chapter": "1", "question": q1, "selected_answer": "B", "is_correct": False},
+    ]
+    calls = []
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "epoch", lambda *_a, **_k: (2, [], "done", history))
+    monkeypatch.setattr(engine_loop, "_record_drill", lambda *a, **k: None)
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: "drill")
+    monkeypatch.setattr(
+        engine_loop,
+        "_run_drill_chain",
+        lambda *a, **k: calls.append((a, k)) or 0,
+    )
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku")
+
+    assert outcome == 0
+    assert calls
+    assert calls[0][1]["mode_label"] == "train"
+    assert calls[0][1]["selector"] == "1"
+
+
+def test_run_train_review_summary_d_starts_drill(deck, config, monkeypatch):
+    q1 = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q1)], input_is_index=True)
+    history = [
+        {"count": 1, "chapter": "1", "question": q1, "selected_answer": "B", "is_correct": False},
+    ]
+    calls = []
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "epoch", lambda *_a, **_k: (2, [], "done", history))
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: "drill")
+    monkeypatch.setattr(
+        engine_loop,
+        "_run_drill_chain",
+        lambda *a, **k: calls.append((a, k)) or 0,
+    )
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="wrong")
+
+    assert outcome == 0
+    assert calls
+    assert calls[0][1]["mode_label"] == "review"
+    assert calls[0][1]["selector"] == "1"
 
 
 def test_run_train_train_counts_even_with_incorrect_answers(deck, config, monkeypatch):
@@ -1520,6 +1688,95 @@ def test_session_summary_v_opens_wrong_list(deck, config, monkeypatch):
     assert list_renders[0][2] == 0
 
 
+def test_session_summary_d_returns_drill(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    summary = {
+        "kind": "scored",
+        "total": 1,
+        "correct": 0,
+        "incorrect": 1,
+        "wrong_items": [{
+            "chapter": "1",
+            "question": q,
+            "selected_answer": "B",
+            "is_correct": False,
+        }],
+    }
+    _patch_tty(monkeypatch, ["d"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "render_session_summary", lambda *_a, **_k: None)
+
+    assert engine_loop._run_session_summary_loop(deck, config, summary, True) == "drill"
+
+
+def test_drill_chain_converges_without_persistent_writes(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    calls = []
+
+    def fake_epoch(_deck, _config, selected, **_kwargs):
+        calls.append(list(selected.questions))
+        if len(calls) == 1:
+            return 3, [], "done", [
+                {"count": 1, "chapter": "1", "question": q1, "selected_answer": "B", "is_correct": False},
+                {"count": 2, "chapter": "1", "question": q2, "selected_answer": "A", "is_correct": True},
+            ]
+        return 2, [], "done", [
+            {"count": 1, "chapter": "1", "question": q1, "selected_answer": "A", "is_correct": True},
+        ]
+
+    summaries = []
+
+    def fake_summary_loop(_deck, _config, summary, drill=False):
+        summaries.append((summary, drill))
+        return "drill" if summary.get("wrong_items") else None
+
+    monkeypatch.setattr(engine_loop, "epoch", fake_epoch)
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", fake_summary_loop)
+    monkeypatch.setattr(
+        engine_loop,
+        "_write_wrong_report",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not write wrong report")),
+    )
+
+    outcome = engine_loop._run_drill_chain(
+        deck,
+        config,
+        [
+            {"chapter": "1", "question": q1},
+            {"chapter": "1", "question": q2},
+        ],
+        mode_label="review",
+        selector="1",
+    )
+
+    assert outcome == 0
+    assert [[q["topic"] for _ch, q in round_questions] for round_questions in calls] == [
+        [q1["topic"], q2["topic"]],
+        [q1["topic"]],
+    ]
+    assert summaries[-1][0]["cleared"] is True
+    assert summaries[-1][0]["wrong_items"] == []
+    assert store.load_history(deck) == []
+
+
+def test_drill_chain_quit_midway_does_not_record_history(deck, config, monkeypatch):
+    q1 = store.load_tiku(deck)["1"][0]
+    monkeypatch.setattr(engine_loop, "epoch", lambda *_a, **_k: (1, [], "quit", []))
+
+    outcome = engine_loop._run_drill_chain(
+        deck,
+        config,
+        [{"chapter": "1", "question": q1}],
+        mode_label="train",
+        selector="1",
+    )
+
+    assert outcome == 0
+    assert store.load_history(deck) == []
+
+
 def test_session_item_list_toggles_inline_translation(deck, config, monkeypatch):
     q = store.load_tiku(deck)["1"][0]
     q["zh"] = {
@@ -1544,6 +1801,34 @@ def test_session_item_list_toggles_inline_translation(deck, config, monkeypatch)
     engine_loop._run_session_item_list({"kind": "scored"}, items, config)
 
     assert renders[:2] == [False, True]
+
+
+def test_session_item_list_sorts_items_by_chapter(deck, config, monkeypatch):
+    # Items arrive in answer order, interleaved across chapters. The loop must
+    # hand the renderer a chapter-sorted list so each chapter's questions stay
+    # together (and cursor ↑/↓ matches display order). Stable within a chapter.
+    items = [
+        {"chapter": "3", "question": {"topic": "a", "options": [], "answer": "A"}, "options": []},
+        {"chapter": "1", "question": {"topic": "b", "options": [], "answer": "A"}, "options": []},
+        {"chapter": "3", "question": {"topic": "c", "options": [], "answer": "A"}, "options": []},
+        {"chapter": "2", "question": {"topic": "d", "options": [], "answer": "A"}, "options": []},
+    ]
+    rendered = []
+    _patch_tty(monkeypatch, ["\r"])
+    monkeypatch.setattr(
+        engine_loop,
+        "render_session_item_list",
+        lambda title, it, cursor, **_k: rendered.append(list(it)),
+    )
+
+    engine_loop._run_session_item_list({"kind": "scored"}, items, config)
+
+    assert rendered, "renderer was never called"
+    chapters = [it["chapter"] for it in rendered[0]]
+    topics = [it["question"]["topic"] for it in rendered[0]]
+    assert chapters == ["1", "2", "3", "3"]
+    # ch3's two items keep their original relative order (stable).
+    assert topics == ["b", "d", "a", "c"]
 
 
 def test_run_stats_loop_uses_alt_screen_and_cbreak_and_esc_returns(deck, config, monkeypatch):

@@ -269,6 +269,45 @@ def test_update_bundled_migrates_legacy_positional_ids(tmp_path, monkeypatch):
     assert any(rec.get("key") == uuid_key for rec in marked)
 
 
+def test_update_bundled_migrates_missing_ids_to_bundled_uuid(tmp_path, monkeypatch):
+    decks_dir = tmp_path / "decks"
+    local_tiku = {"1": [
+        {"topic": "legacy q", "options": ["A. x"], "answer": "A",
+         "marked": True, "marked_at": "2026-01-01T00:00:00", "user_note": "local note"},
+    ]}
+    deck_dir = decks_dir / "demo"
+    deck_dir.mkdir(parents=True)
+    deck = bootstrap.Deck(slug="demo", name="Demo", path=deck_dir, source_lang="en")
+    store.save_tiku(deck, local_tiku)
+    bootstrap.engine._sync_marked_from_tiku(deck)
+
+    uuid = "q-deadbeef0001"
+    monkeypatch.setattr(bootstrap, "_bundled_slugs", lambda: ["demo"])
+    monkeypatch.setattr(bootstrap, "_read_bundled_metadata", lambda _slug: {
+        "slug": "demo",
+        "name": "Demo",
+        "source_lang": "en",
+        "role": "demo",
+        "content_version": "2",
+    })
+    monkeypatch.setattr(bootstrap, "_read_bundled_tiku_text",
+                        lambda _slug: json.dumps({"1": [
+                            {"id": uuid, "topic": "legacy q", "options": ["A. x"], "answer": "A"},
+                        ]}, ensure_ascii=False))
+    _write_min_manifest(deck_dir, version="1")
+
+    result = bootstrap.update_bundled("demo", decks_dir)
+
+    tiku2 = store.load_tiku(deck)
+    assert tiku2["1"][0]["id"] == uuid
+    assert tiku2["1"][0]["marked"] is True
+    assert tiku2["1"][0]["user_note"] == "local note"
+    marked = store.load_marked(deck)
+    uuid_key = bootstrap.engine.question_key("1", {"id": uuid})
+    assert any(rec.get("key") == uuid_key for rec in marked)
+    assert result.unmigrated == []
+
+
 def test_update_bundled_reports_unmigrated_when_content_changed(tmp_path, monkeypatch):
     """A legacy-id question whose topic also changed upstream can't be bridged
     by content key — it's reported as unmigrated (history orphaned, surfaced)."""

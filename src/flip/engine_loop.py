@@ -37,6 +37,21 @@ from .tui import (
 # apart. It is a string (not a tuple) so it threads through the existing
 # ('previous'|'quit'|'remove') plumbing without breaking the unpack shape.
 BACK_TO_SELECTOR = 'back-to-selector'
+_DECK_HEALTH_WARNED = set()
+
+
+def _warn_deck_health_once(deck):
+    key = str(deck.path)
+    if key in _DECK_HEALTH_WARNED:
+        return
+    _DECK_HEALTH_WARNED.add(key)
+    try:
+        from .doctor import migration_warning
+        warning = migration_warning(deck)
+    except Exception:
+        return
+    if warning:
+        print(warning)
 
 
 def _terminal_height():
@@ -56,12 +71,16 @@ def _window_bounds(total, cursor, visible_rows):
 
 
 def _remove_confirm_warning(selected_set):
+    if selected_set is not None and getattr(selected_set, "in_memory", False):
+        return "再次按 r 确认从本轮错题移除；不影响错题本或题库。"
     if selected_set is not None and selected_set.input_is_index:
         return "再次按 r 确认从 wrong/review 索引移除；不会删除题库。"
     return "再次按 r 确认从 tiku 题库删除；该题会从 deck 移除。"
 
 
 def _remove_question_from_selected_source(deck, selected_set, chapter, q):
+    if selected_set is not None and getattr(selected_set, "in_memory", False):
+        return engine.remove_in_memory(selected_set, chapter, q)
     if selected_set is not None and selected_set.input_is_index:
         return engine.remove_from_active_index(selected_set, chapter, q)
     return engine.remove_from_tiku(deck, chapter, q)
@@ -166,7 +185,7 @@ def _edit_user_note(deck, chapter, q, render_current):
     return True
 
 
-def _edit_answer(deck, chapter, q, render_current):
+def _edit_answer(deck, chapter, q, render_current, selected_set=None):
     """Let the user pick a new correct answer for the current question.
 
     Self-renders a compact option picker (↑/↓ move, space toggle, Enter save,
@@ -209,8 +228,10 @@ def _edit_answer(deck, chapter, q, render_current):
             new_answer = _answer_from_selected(options, selected)
             if new_answer == str(q.get("answer", "")):
                 return False
+            old_keys = engine.question_keys(chapter, q)
             q["answer"] = new_answer
-            engine.save_question_field(deck, chapter, q)
+            engine.save_question_field(deck, chapter, q, match_keys=old_keys)
+            _refresh_selected_after_question_edit(selected_set, deck, chapter, q, old_keys)
             return True
         if key == '\x1b':
             return False
@@ -252,7 +273,40 @@ def _open_note_tab(deck, chapter, q, render_current):
     return default_detail_view(q)
 
 
-def _edit_current_detail(deck, config, chapter, q, detail_view, render_current):
+def _refresh_selected_after_question_edit(selected_set, deck, chapter, q, old_keys):
+    if selected_set is None:
+        return
+    tiku_index = engine.build_tiku_index(deck)
+    canonical_key = engine.question_key(chapter, q)
+    edit_keys = set(old_keys or []) | set(engine.question_keys(chapter, q))
+    source_files = set()
+    for key in edit_keys:
+        source_files.update(selected_set.index_sources.get(key, set()))
+    if source_files:
+        selected_set.index_sources.setdefault(canonical_key, set()).update(source_files)
+
+    refreshed = []
+    seen = set()
+    for existing_chapter, existing_q in selected_set.questions:
+        existing_keys = set(engine.question_keys(existing_chapter, existing_q))
+        lookup_keys = [canonical_key] if existing_keys & edit_keys else list(existing_keys)
+        resolved = None
+        for key in lookup_keys:
+            resolved = tiku_index.get(key)
+            if resolved:
+                break
+        if not resolved:
+            continue
+        resolved_key = engine.question_key(resolved[0], resolved[1])
+        if resolved_key in seen:
+            continue
+        seen.add(resolved_key)
+        refreshed.append(resolved)
+    selected_set.questions[:] = refreshed
+
+
+def _edit_current_detail(deck, config, chapter, q, detail_view, render_current,
+                         selected_set=None):
     detail_view = normalize_detail_view(q, detail_view)
     if detail_view == "ai":
         if _request_ai(deck, config, chapter, q, render_current, force=True):
@@ -264,7 +318,7 @@ def _edit_current_detail(deck, config, chapter, q, detail_view, render_current):
         return detail_view, ""
     # detail_view == None: nothing to edit in the lower block, so `e` edits the
     # question's correct answer instead (write back to tiku.json).
-    if _edit_answer(deck, chapter, q, render_current):
+    if _edit_answer(deck, chapter, q, render_current, selected_set=selected_set):
         return detail_view, "标准答案已更新。"
     return detail_view, ""
 
@@ -290,7 +344,8 @@ def _browse_search_results(questions, query):
 
 # ---- shared per-question key handling ----
 
-def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current):
+def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current,
+                        selected_set=None):
     """Dispatch the shared detail/mark/explain/note/edit/quit keys.
 
     Returns a 3-tuple consumed by every prompt loop (prompt_answer,
@@ -328,7 +383,10 @@ def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_curre
             return None, "", None
         return _open_note_tab(deck, chapter, q, render_current), "", None
     if key in {'e', 'E'}:
-        dv, warning = _edit_current_detail(deck, config, chapter, q, detail_view, render_current)
+        dv, warning = _edit_current_detail(
+            deck, config, chapter, q, detail_view, render_current,
+            selected_set=selected_set,
+        )
         return normalize_detail_view(q, dv), warning, None
     return detail_view, "", None
 
@@ -455,7 +513,10 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(
+                deck, config, chapter, q, detail_view, key, render_current,
+                selected_set=selected_set,
+            )
             detail_view = dv
             if w:
                 warning = w
@@ -556,7 +617,10 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(
+                deck, config, chapter, q, detail_view, key, render_current,
+                selected_set=selected_set,
+            )
             detail_view = dv
             if w:
                 warning = w
@@ -697,7 +761,10 @@ def review_history(deck, config, history, start_index, total, *,
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(
+                deck, config, chapter, q, detail_view, key, render_current,
+                selected_set=selected_set,
+            )
             detail_view = dv
             if w:
                 warning = w
@@ -1050,10 +1117,19 @@ def review_questions(deck, config, selected_set, *, start_index=0, on_progress=N
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(
+                deck, config, chapter, q, detail_view, key, render_current,
+                selected_set=selected_set,
+            )
             detail_view = normalize_detail_view(q, dv)
             if w:
                 warning = w
+                if w == "标准答案已更新。":
+                    browse_items = [
+                        {"chapter": item_chapter, "question": item_q, "options": _options(item_q, deck)}
+                        for item_chapter, item_q in questions
+                    ]
+                    index = min(index, len(questions) - 1)
             if action and action[0] == 'quit':
                 return
     finally:
@@ -2234,21 +2310,26 @@ def _browse_summary(*, mode_label, selector, browse_items):
     }
 
 
-def _run_session_summary_loop(deck, config, summary):
+def _run_session_summary_loop(deck, config, summary, drill=False):
     if not sys.stdin.isatty():
-        render_session_summary(summary)
+        render_session_summary(summary, drill=drill)
         return None
     old_settings = save_tty()
     try:
         enter_alt_screen()
         enter_cbreak()
         while True:
-            render_session_summary(summary)
+            render_session_summary(summary, drill=drill)
             key = read_key()
             if key == RESIZE_KEY:
                 continue
             if key in {'\r', '\n', '\x1b', 'q', 'Q'}:
                 return None
+            if key in {'d', 'D'}:
+                if drill and summary.get("kind") == "scored" and summary.get("wrong_items"):
+                    return "drill"
+                summary["warning"] = "本轮无错题。"
+                continue
             if key in {'v', 'V'}:
                 items = summary.get("wrong_items") if summary.get("kind") == "scored" else summary.get("browse_items")
                 if items:
@@ -2261,11 +2342,64 @@ def _run_session_summary_loop(deck, config, summary):
         exit_alt_screen()
 
 
+def _selected_from_summary_items(items):
+    questions = []
+    seen = set()
+    for item in items:
+        chapter = str(item.get("chapter", ""))
+        q = item.get("question")
+        if not isinstance(q, dict):
+            continue
+        key = engine.question_key(chapter, q)
+        if key in seen:
+            continue
+        seen.add(key)
+        questions.append((chapter, q))
+    return engine.SelectedSet(questions, input_is_index=True, in_memory=True)
+
+
+def _run_drill_chain(deck, config, seed_wrong_items, *, mode_label, selector):
+    selected = _selected_from_summary_items(seed_wrong_items)
+    while selected.questions:
+        _count, _incorrects, status, history = epoch(deck, config, selected)
+        if status == BACK_TO_SELECTOR:
+            return BACK_TO_SELECTOR
+        if status == 'quit':
+            return 0
+
+        summary = _scored_summary(
+            deck,
+            mode_label=mode_label,
+            selector=selector,
+            total=len(history),
+            history=history,
+        )
+        if not summary.get("wrong_items"):
+            summary["cleared"] = True
+            _run_session_summary_loop(deck, config, summary, False)
+            return 0
+
+        action = _run_session_summary_loop(deck, config, summary, True)
+        if action != "drill":
+            return 0
+        selected = _selected_from_summary_items(summary["wrong_items"])
+    return 0
+
+
 def _run_session_item_list(summary, items, config):
     cursor = 0
     show_translation = False
     translation_enabled = config.translation_enabled
     title = "本轮错题" if summary.get("kind") == "scored" else "本轮浏览"
+    # Group items by chapter (stable, so within-chapter answer order is kept).
+    # Items arrive in answer/browse order; without this, the same chapter's
+    # questions are scattered and the renderer emits multiple "chN" headers.
+    # Sorting here — not in the renderer — keeps cursor ↑/↓ in sync with the
+    # displayed order.
+    items = sorted(
+        items,
+        key=lambda it: store._chapter_sort_key(it.get("chapter", "")),
+    )
     while True:
         render_session_item_list(
             title, items, cursor,
@@ -2420,16 +2554,19 @@ def _run_scored_session(deck, config, selected, *, source, mode_label, selector,
     else:
         _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
     store.clear_session(deck)
-    _run_session_summary_loop(
-        deck, config,
-        _scored_summary(
-            deck,
-            mode_label=mode_label,
-            selector=selector,
-            total=count - 1,
-            history=history,
-        ),
+    summary = _scored_summary(
+        deck,
+        mode_label=mode_label,
+        selector=selector,
+        total=count - 1,
+        history=history,
     )
+    action = _run_session_summary_loop(deck, config, summary, True)
+    if action == "drill":
+        return _run_drill_chain(
+            deck, config, summary.get("wrong_items", []),
+            mode_label=mode_label, selector=selector,
+        )
     return 0
 
 
@@ -2515,6 +2652,7 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     caller should bounce them back to the chapter picker, clearing chapters
     but keeping mode/ans/filters); otherwise 0 after printing the report.
     """
+    _warn_deck_health_once(deck)
     filters = filters or []
     selected = engine.pick_questions(deck, config, selector=selector, shuffle=not ans_mode,
                                      filters=filters, source=source)

@@ -57,6 +57,36 @@ def test_deck_assign_ids_writes_uuids(flip_home, monkeypatch):
     assert all(re.fullmatch(r"q-[0-9a-f]{12}", i) for i in ids)
 
 
+def test_deck_migrate_ids_writes_backup_and_uuids(flip_home):
+    deck_dir = flip_home / "decks" / "noid"
+    deck_dir.mkdir(parents=True)
+    (deck_dir / "tiku.json").write_text(
+        json.dumps({"1": [
+            {"topic": "q1", "options": ["A. x"], "answer": "A"},
+            {"topic": "q2", "options": ["A. x"], "answer": "A"},
+        ]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (deck_dir / "manifest.toml").write_text(
+        '[deck]\nname = "NoId"\nslug = "noid"\nsource_lang = "en"\n'
+        'answer_alphabet = "ABCD"\nmax_display_options = 4\n\n'
+        '[explain]\nrole = "demo"\nmax_chars = 200\n',
+        encoding="utf-8",
+    )
+    import re
+
+    result = CliRunner().invoke(app, ["deck", "migrate", "noid", "--ids"])
+
+    assert result.exit_code == 0, result.output
+    assert "backup:" in result.output
+    assert "assigned 2 stable id(s)" in result.output
+    tiku = json.loads((deck_dir / "tiku.json").read_text(encoding="utf-8"))
+    ids = [q["id"] for q in tiku["1"]]
+    assert all(re.fullmatch(r"q-[0-9a-f]{12}", i) for i in ids)
+    backups = list((flip_home / "backups").glob("noid-migrate-*"))
+    assert backups and (backups[0] / "tiku.json").exists()
+
+
 def test_deck_update_runs_merge_and_preserves_history(tmp_path, monkeypatch):
     # Install a fake bundled v1, add a mark, ship v2, run `flip deck update`.
     home = tmp_path / "flip_home"
