@@ -9,7 +9,7 @@
 - **deck 无关的题库引擎** —— 一套 schema 服务任意学科(SE、编译原理……),题型与角色由 deck manifest 决定,引擎不夹带学科假设。
 - **原生终端 TUI** —— deck 选择界面带实时搜索与 **Library / Bootstrap** 双 tab(←/→ 切换),章节多选,自适应终端宽度与 resize 重绘。
 - **多种刷题模式** —— Train(题库计分)、Review(错题索引计分)、Ans(直接显答案、不计分浏览)、Continue(续上次暂停的练习)。
-- **错题与统计** —— 自动维护错题索引、按章节分布的统计页、每题刷题次数徽章。
+- **错题与统计** —— 自动维护错题索引、按章节分布的统计页、每题刷题次数徽章,并支持诊断和清理 stale wrong 记录。
 - **标记与笔记** —— 对单题打标记、写笔记,可按 mark/note/ai 过滤。
 - **AI 错题解释** —— 通过可配置后端(codex / 智谱 GLM / ollama ……)对错题生成解释,角色文案来自 deck。
 - **双语翻译** —— 全局开关:`source_lang ≠ target_lang` 时显示 `t` 键、写 `zh` 字段、AI prompt 附译文。
@@ -124,6 +124,7 @@ flip 是纯 Python,无编译依赖,在以下平台均可运行:
 flip                              # 交互:先选 deck,再选模式
 flip --version                    # 输出当前安装版本
 flip list                         # 列出已注册的 deck
+flip doctor se                    # 检查 deck 兼容性并给出修复命令
 flip deck train se -c 5-10        # 训练软件工程,第 5–10 章(tiku,计分)
 flip deck review se               # 练习软件工程的错题索引(计分)
 flip deck continue se             # 继续上次暂停的计分练习
@@ -137,7 +138,8 @@ flip deck update se              # 用 bundled deck 新版本增量更新,保留
 flip deck prune se               # 删除上游已移除但本地仍残留的 bundled 题目
 flip deck versions se            # 查看/切换 bundled deck 的历史 backup 版本
 flip deck assign-ids se --dry-run  # 给缺 id 的题目补 q-<12hex> 稳定 id
-flip deck repair se --dry-run     # 校验 tiku 并重建 marked 索引
+flip deck migrate se --ids --dry-run  # 把缺失/旧位置 id 迁移为 UUID id
+flip deck repair se --dry-run     # 校验 tiku、重建 marked 并清理 stale wrong
 flip deck translate se            # 补全缺失的 zh 字段
 flip import se ./tiku.json        # 把一份合规 JSON 注册为新 deck
 flip export se -o ./se-deck       # 导出 deck,用于备份或迁移
@@ -148,6 +150,7 @@ flip config                       # 查看配置和解释后端状态
 > 章节选择器支持单章、范围、前 N 章和逗号组合:`5`、`5-10`、`-3`、`5,3-4`;按 `a` 可自动选择当前模式下 count 最少的章节。
 > 运行 `flip` 先进入 deck 选择界面(见
 > [快速开始](#快速开始)):在 **Library** tab 选 deck(↑/↓ + Enter,支持实时搜索),或在 **Bootstrap** tab(←/→ 切换)安装内置 deck。选好 deck 后再选模式——**Train**(tiku 题库)、**Review**(错题索引)、**Continue**(暂停的计分练习)或 **List**(统计)——外加 1-5 筛选/显示开关、清空次数动作和一个 **Ans 模式** 开关(直接显答案、不计分)。
+> Train 和 Review 的计分结算页可按 `d` 继续刷本轮错题;后续轮只在本轮内存错题中收敛,不会写入 wrong 索引或 history 统计。
 > 浏览题目时按 `e` 可编辑标准答案;AI 追加提示和用户笔记输入框支持 `Ctrl+U` 一次清空当前输入。
 
 ## 目录结构

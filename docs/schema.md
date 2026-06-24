@@ -106,7 +106,9 @@ badge at render time.
 ```
 
 `flip deck repair <slug>` checks whether these records still resolve to live
-questions, but does not rewrite `wrong_input`, `wrong_answer`, or `wrong_at`.
+questions and removes stale records that no longer match `tiku.json`.
+Resolvable records keep their `wrong_input`, `wrong_answer`, and `wrong_at`
+metadata unchanged. Use `--dry-run` to preview the stale count without writing.
 
 Filename convention (produced by `result_prefix_for_questions`):
 
