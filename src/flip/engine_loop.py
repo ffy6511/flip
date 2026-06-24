@@ -185,7 +185,7 @@ def _edit_user_note(deck, chapter, q, render_current):
     return True
 
 
-def _edit_answer(deck, chapter, q, render_current):
+def _edit_answer(deck, chapter, q, render_current, selected_set=None):
     """Let the user pick a new correct answer for the current question.
 
     Self-renders a compact option picker (↑/↓ move, space toggle, Enter save,
@@ -231,6 +231,7 @@ def _edit_answer(deck, chapter, q, render_current):
             old_keys = engine.question_keys(chapter, q)
             q["answer"] = new_answer
             engine.save_question_field(deck, chapter, q, match_keys=old_keys)
+            _refresh_selected_after_question_edit(selected_set, deck, chapter, q, old_keys)
             return True
         if key == '\x1b':
             return False
@@ -272,7 +273,40 @@ def _open_note_tab(deck, chapter, q, render_current):
     return default_detail_view(q)
 
 
-def _edit_current_detail(deck, config, chapter, q, detail_view, render_current):
+def _refresh_selected_after_question_edit(selected_set, deck, chapter, q, old_keys):
+    if selected_set is None:
+        return
+    tiku_index = engine.build_tiku_index(deck)
+    canonical_key = engine.question_key(chapter, q)
+    edit_keys = set(old_keys or []) | set(engine.question_keys(chapter, q))
+    source_files = set()
+    for key in edit_keys:
+        source_files.update(selected_set.index_sources.get(key, set()))
+    if source_files:
+        selected_set.index_sources.setdefault(canonical_key, set()).update(source_files)
+
+    refreshed = []
+    seen = set()
+    for existing_chapter, existing_q in selected_set.questions:
+        existing_keys = set(engine.question_keys(existing_chapter, existing_q))
+        lookup_keys = [canonical_key] if existing_keys & edit_keys else list(existing_keys)
+        resolved = None
+        for key in lookup_keys:
+            resolved = tiku_index.get(key)
+            if resolved:
+                break
+        if not resolved:
+            continue
+        resolved_key = engine.question_key(resolved[0], resolved[1])
+        if resolved_key in seen:
+            continue
+        seen.add(resolved_key)
+        refreshed.append(resolved)
+    selected_set.questions[:] = refreshed
+
+
+def _edit_current_detail(deck, config, chapter, q, detail_view, render_current,
+                         selected_set=None):
     detail_view = normalize_detail_view(q, detail_view)
     if detail_view == "ai":
         if _request_ai(deck, config, chapter, q, render_current, force=True):
@@ -284,7 +318,7 @@ def _edit_current_detail(deck, config, chapter, q, detail_view, render_current):
         return detail_view, ""
     # detail_view == None: nothing to edit in the lower block, so `e` edits the
     # question's correct answer instead (write back to tiku.json).
-    if _edit_answer(deck, chapter, q, render_current):
+    if _edit_answer(deck, chapter, q, render_current, selected_set=selected_set):
         return detail_view, "标准答案已更新。"
     return detail_view, ""
 
@@ -310,7 +344,8 @@ def _browse_search_results(questions, query):
 
 # ---- shared per-question key handling ----
 
-def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current):
+def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current,
+                        selected_set=None):
     """Dispatch the shared detail/mark/explain/note/edit/quit keys.
 
     Returns a 3-tuple consumed by every prompt loop (prompt_answer,
@@ -348,7 +383,10 @@ def _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_curre
             return None, "", None
         return _open_note_tab(deck, chapter, q, render_current), "", None
     if key in {'e', 'E'}:
-        dv, warning = _edit_current_detail(deck, config, chapter, q, detail_view, render_current)
+        dv, warning = _edit_current_detail(
+            deck, config, chapter, q, detail_view, render_current,
+            selected_set=selected_set,
+        )
         return normalize_detail_view(q, dv), warning, None
     return detail_view, "", None
 
@@ -475,7 +513,10 @@ def prompt_answer(deck, config, count, total, chapter, q, *,
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(
+                deck, config, chapter, q, detail_view, key, render_current,
+                selected_set=selected_set,
+            )
             detail_view = dv
             if w:
                 warning = w
@@ -576,7 +617,10 @@ def prompt_result(deck, config, count, total, chapter, q, selected_answer, is_co
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(
+                deck, config, chapter, q, detail_view, key, render_current,
+                selected_set=selected_set,
+            )
             detail_view = dv
             if w:
                 warning = w
@@ -717,7 +761,10 @@ def review_history(deck, config, history, start_index, total, *,
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(
+                deck, config, chapter, q, detail_view, key, render_current,
+                selected_set=selected_set,
+            )
             detail_view = dv
             if w:
                 warning = w
@@ -1070,10 +1117,19 @@ def review_questions(deck, config, selected_set, *, start_index=0, on_progress=N
                     ai_prompt_buffer=ai_prompt_buffer, ai_waiting=ai_waiting, note_buffer=note_buffer,
                 )
 
-            dv, w, action = _handle_detail_keys(deck, config, chapter, q, detail_view, key, render_current)
+            dv, w, action = _handle_detail_keys(
+                deck, config, chapter, q, detail_view, key, render_current,
+                selected_set=selected_set,
+            )
             detail_view = normalize_detail_view(q, dv)
             if w:
                 warning = w
+                if w == "标准答案已更新。":
+                    browse_items = [
+                        {"chapter": item_chapter, "question": item_q, "options": _options(item_q, deck)}
+                        for item_chapter, item_q in questions
+                    ]
+                    index = min(index, len(questions) - 1)
             if action and action[0] == 'quit':
                 return
     finally:

@@ -44,10 +44,11 @@ def build_repair_plan(deck):
 
 
 def apply_repair_plan(deck, plan):
-    """Write repairable derived indexes. wrong/ is intentionally read-only."""
+    """Write repairable derived indexes and remove stale wrong-index records."""
     if not plan.ok:
         raise ValueError("cannot apply repair plan with invalid tiku")
     store.save_marked(deck, plan.marked_records)
+    return _remove_stale_wrong_records(deck)
 
 
 def _marked_records_from_tiku(records):
@@ -78,3 +79,21 @@ def _check_wrong_records(deck):
             else:
                 result.stale += 1
     return result
+
+
+def _remove_stale_wrong_records(deck):
+    index = engine.build_tiku_index(deck)
+    removed = 0
+    for path in store.wrong_files(deck):
+        data = store.read_json(path, default=[])
+        if not isinstance(data, list):
+            continue
+        kept = []
+        for item in data:
+            if engine._index_key(item) in index:
+                kept.append(item)
+            else:
+                removed += 1
+        if len(kept) != len(data):
+            store.write_json(path, kept)
+    return removed

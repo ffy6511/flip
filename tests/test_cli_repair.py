@@ -56,7 +56,7 @@ def test_deck_repair_rebuilds_marked_from_tiku(deck):
     ]
 
 
-def test_deck_repair_checks_wrong_without_rewriting(deck):
+def test_deck_repair_removes_stale_wrong_records(deck):
     data = store.load_tiku(deck)
     q = data["1"][0]
     wrong_file = deck.wrong_dir / "ch1.json"
@@ -84,6 +84,31 @@ def test_deck_repair_checks_wrong_without_rewriting(deck):
 
     assert result.exit_code == 0, result.output
     assert "wrong: files=1, records=2, resolvable=1, stale=1" in result.output
+    assert "wrong repaired: removed 1 stale record(s)" in result.output
+    assert "wrong checked after repair: 1 resolvable, 0 stale" in result.output
+    assert store.read_json(wrong_file) == [wrong_records[0]]
+
+
+def test_deck_repair_dry_run_keeps_stale_wrong_records(deck):
+    wrong_file = deck.wrong_dir / "ch9.json"
+    wrong_records = [
+        {
+            "key": json.dumps({"id": "missing"}, ensure_ascii=False, sort_keys=True),
+            "chapter": "9",
+            "topic": "stale topic",
+            "wrong_input": "B",
+            "wrong_answer": "B",
+            "wrong_at": "2026-01-02T00:00:00",
+        },
+    ]
+    store.write_json(wrong_file, wrong_records)
+
+    result = CliRunner().invoke(app, ["deck", "repair", "example", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "wrong: files=1, records=1, resolvable=0, stale=1" in result.output
+    assert "dry run: would remove 1 stale wrong record(s)" in result.output
+    assert "dry run: nothing written" in result.output
     assert store.read_json(wrong_file) == wrong_records
 
 
@@ -107,6 +132,41 @@ def test_doctor_reports_missing_ids_and_fix_command(flip_home):
     result = CliRunner().invoke(app, ["doctor", "noid"])
 
     assert result.exit_code == 0, result.output
-    assert "doctor: noid" in result.output
-    assert "missing ids: 2" in result.output
-    assert "fix: flip deck migrate noid --ids" in result.output
+    assert " doctor: noid " in result.output
+    assert "Doctor Results:" in result.output
+    assert "1. tiku: questions=2, chapters=1, errors=0" in result.output
+    assert "2. ids: missing ids=2" in result.output
+    assert "---" in result.output
+    assert "fix commands:" in result.output
+    assert "- flip deck migrate noid --ids" in result.output
+
+    color_result = CliRunner().invoke(app, ["doctor", "noid"], color=True)
+    assert "\x1b[31mfix commands:\x1b[0m" in color_result.output
+    assert "\x1b[31m- flip deck migrate noid --ids\x1b[0m" in color_result.output
+
+
+def test_doctor_reports_no_fix_commands_when_clean(flip_home):
+    deck_dir = flip_home / "decks" / "clean"
+    deck_dir.mkdir(parents=True)
+    (deck_dir / "tiku.json").write_text(
+        json.dumps({"1": [
+            {"id": "q-deadbeef0001", "topic": "q1", "options": ["A. x"], "answer": "A"},
+        ]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (deck_dir / "manifest.toml").write_text(
+        '[deck]\nname = "Clean"\nslug = "clean"\nsource_lang = "en"\n'
+        'answer_alphabet = "ABCD"\nmax_display_options = 4\n\n'
+        '[explain]\nrole = "demo"\nmax_chars = 200\n',
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(app, ["doctor", "clean"])
+
+    assert result.exit_code == 0, result.output
+    assert " doctor: clean " in result.output
+    assert "Doctor Results:" in result.output
+    assert "fix commands: none" in result.output
+
+    color_result = CliRunner().invoke(app, ["doctor", "clean"], color=True)
+    assert "\x1b[32mfix commands: none\x1b[0m" in color_result.output

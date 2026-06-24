@@ -141,7 +141,7 @@ def doctor_cmd(
                 raise typer.Exit(1)
             continue
         for line in format_report(build_doctor_report(deck)):
-            typer.echo(line)
+            _doctor_echo(line)
 
 
 # ---- `flip deck <slug> ...` (nested group) ----
@@ -162,6 +162,15 @@ def _resolve_deck(slug: str):
 def _status_echo(message: str, *, ok: bool = True, err: bool = False):
     color = typer.colors.GREEN if ok else typer.colors.RED
     typer.secho(message, fg=color, err=err)
+
+
+def _doctor_echo(line: str):
+    if line == "fix commands: none":
+        typer.secho(line, fg=typer.colors.GREEN)
+    elif line == "fix commands:" or line.startswith("- flip "):
+        typer.secho(line, fg=typer.colors.RED)
+    else:
+        typer.echo(line)
 
 
 def _run_deck_train_after_esc(deck, config, mode, ans_mode, filters):
@@ -735,15 +744,21 @@ def deck_repair(
     _status_echo(wrong_line, ok=plan.wrong.stale == 0)
 
     if dry_run:
+        typer.echo(f"dry run: would remove {plan.wrong.stale} stale wrong record(s)")
         typer.echo("dry run: nothing written")
         raise typer.Exit(0)
 
-    apply_repair_plan(deck, plan)
+    stale_removed = apply_repair_plan(deck, plan)
     _status_echo(f"repaired deck {slug}")
     _status_echo(f"marked.json rebuilt: {len(plan.marked_records)} records")
+    _status_echo(f"wrong repaired: removed {stale_removed} stale record(s)")
     _status_echo(
-        f"wrong checked: {plan.wrong.resolvable} resolvable, {plan.wrong.stale} stale",
-        ok=plan.wrong.stale == 0,
+        f"wrong checked before repair: {plan.wrong.resolvable} resolvable, {plan.wrong.stale} stale"
+    )
+    post_plan = build_repair_plan(deck)
+    _status_echo(
+        f"wrong checked after repair: {post_plan.wrong.resolvable} resolvable, {post_plan.wrong.stale} stale",
+        ok=post_plan.wrong.stale == 0,
     )
 
 

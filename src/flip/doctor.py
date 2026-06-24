@@ -12,6 +12,7 @@ from .repair import build_repair_plan
 
 UUID_RE = re.compile(r"^q-[0-9a-f]{12}$")
 LEGACY_POSITIONAL_RE = re.compile(r"^[a-z0-9-]+-\d+-\d{3}$")
+HEADER_WIDTH = 40
 
 
 @dataclass
@@ -77,21 +78,27 @@ def build_doctor_report(deck) -> DoctorReport:
 
 def format_report(report: DoctorReport) -> list[str]:
     lines = [
-        f"doctor: {report.slug}",
-        f"tiku: questions={report.question_count}, chapters={report.chapter_count}, "
+        _center_header(f"doctor: {report.slug}"),
+        "",
+        "Doctor Results:",
+        f"1. tiku: questions={report.question_count}, chapters={report.chapter_count}, "
         f"errors={len(report.tiku_errors)}",
-        f"ids: missing ids: {report.missing_ids}, uuid={report.uuid_ids}, "
+        f"2. ids: missing ids={report.missing_ids}, uuid={report.uuid_ids}, "
         f"legacy positional={report.legacy_positional_ids}, other={report.other_ids}, "
         f"duplicates={report.duplicate_ids}",
-        f"wrong: files={report.wrong_files}, records={report.wrong_records}, "
+        f"3. wrong: files={report.wrong_files}, records={report.wrong_records}, "
         f"resolvable={report.wrong_resolvable}, stale={report.wrong_stale}",
     ]
-    for error in report.tiku_errors[:10]:
-        lines.append(f"error: {error}")
+    if report.tiku_errors:
+        lines.append("")
+        lines.append("Tiku Errors:")
+        for index, error in enumerate(report.tiku_errors[:10], start=1):
+            lines.append(f"{index}. {error}")
+    lines.append("---")
     fixes = fix_commands(report)
     if fixes:
         lines.append("fix commands:")
-        lines.extend(f"fix: {cmd}" for cmd in fixes)
+        lines.extend(f"- {cmd}" for cmd in fixes)
     else:
         lines.append("fix commands: none")
     return lines
@@ -104,6 +111,15 @@ def fix_commands(report: DoctorReport) -> list[str]:
     if report.needs_repair:
         commands.append(f"flip deck repair {report.slug}")
     return commands
+
+
+def _center_header(title: str, width: int = HEADER_WIDTH) -> str:
+    label = f" {title} "
+    if len(label) >= width - 2:
+        return f"---- {title} ----"
+    left = (width - len(label)) // 2
+    right = width - len(label) - left
+    return f"{'-' * left}{label}{'-' * right}"
 
 
 def migration_warning(deck) -> str:

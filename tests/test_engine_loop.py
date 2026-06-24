@@ -193,6 +193,49 @@ def test_e_edits_answer_without_question_id(monkeypatch, tmp_path):
     assert store.load_tiku(deck)["1"][0]["answer"] == "B"
 
 
+def test_e_answer_edit_refreshes_current_selected_set(monkeypatch, tmp_path):
+    _stub_tty_for_keys(monkeypatch, ["\x1b[B", " ", "\r"])
+    deck = _demo_deck_with(tmp_path, answer="A")
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+    stale_copy = dict(q)
+    selected = engine.SelectedSet(
+        [("1", q), ("1", stale_copy)],
+        input_is_index=True,
+    )
+
+    _detail_view, warning, _action = engine_loop._handle_detail_keys(
+        deck, None, "1", q, None, "e", _noop_render, selected_set=selected)
+
+    assert "已更新" in warning
+    assert selected.questions == [("1", q)]
+    assert selected.questions[0][1]["answer"] == "B"
+
+
+def test_review_questions_answer_edit_refreshes_selected_set(monkeypatch, tmp_path, config):
+    _stub_tty_for_keys(monkeypatch, ["e", "\x1b[B", " ", "\r", "q"])
+    deck = _demo_deck_with(tmp_path, answer="A")
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+    stale_copy = dict(q)
+    selected = engine.SelectedSet(
+        [("1", q), ("1", stale_copy)],
+        input_is_index=True,
+    )
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "enter_cbreak", lambda: None)
+    monkeypatch.setattr(engine_loop, "render_review_question", lambda *a, **k: None)
+
+    status, items = engine_loop.review_questions(deck, config, selected)
+
+    assert status == "quit"
+    assert selected.questions == [("1", q)]
+    assert selected.questions[0][1]["answer"] == "B"
+    assert len(items) == 1
+    assert items[0]["question"]["answer"] == "B"
+
+
 def test_run_train_warns_when_deck_has_missing_ids(monkeypatch, tmp_path, capsys):
     deck = _demo_deck_with(tmp_path, answer="A", qid=None)
     engine_loop._DECK_HEALTH_WARNED.clear()
