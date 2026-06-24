@@ -14,7 +14,7 @@ A terminal quiz tool powered by skill-driven agent: turn any subject into tailor
 - **AI explanation of mistakes** — generate explanations via a configurable backend (codex / Zhipu GLM / ollama …); the persona comes from the deck.
 - **Bilingual translation** — global toggle: when `source_lang ≠ target_lang`, the `t` key shows, `zh` fields are written, and AI prompts carry translations.
 - **Import / export / merge** — import from JSON / CSV / deck directory, one-command export for backups, `merge` with -append/-upsert/-overwrite preserves learner state.
-- **On-demand bundled decks** — bundled decks ship in the package and are installed explicitly from the Bootstrap tab
+- **On-demand bundled decks** — bundled decks ship in the package and can be explicitly installed, updated, reinstalled, and inspected through Bootstrap.
 - **Companion agent skills** — `flip-deck-init` builds a deck from raw material, `flip-deck-maintain` safely updates an existing one.
 
 ## Install
@@ -123,6 +123,7 @@ See `docs/schema.md` and `docs/deck-manifest.md` for the data contracts.
 
 ```bash
 flip                              # interactive: pick a deck, then pick a mode
+flip --version                    # print the installed version
 flip list                         # list registered decks
 flip deck train se -c 5-10        # train SE on chapters 5–10 (tiku, scored)
 flip deck review se               # drill SE's wrong index (scored)
@@ -146,8 +147,9 @@ flip config                       # show config and explain-backend status
 
 > Subcommand order is `flip deck <verb> <slug>` (verb before slug).
 > Chapter selectors accept single chapters, ranges, first-N shorthand, and
-> comma unions: `5`, `5-10`, `-3`, `5,3-4`.
+> comma unions: `5`, `5-10`, `-3`, `5,3-4`; press `a` to auto-select the chapters with the lowest count for the current mode.
 > Running `flip` with no args starts in the deck picker (see [Getting started](#getting-started)): pick a deck on the **Library** tab (↑/↓ + Enter, live search) or install a bundled one on the **Bootstrap** tab (←/→ to switch). After choosing a deck you pick a mode — **Train** (tiku), **Review** (wrong index), **Continue** (paused scored drill), or **List** (stats) — plus the 1-5 filters/display toggles, a **clear-count** action, and an **Ans mode** toggle that shows answers without scoring.
+> While browsing a question, press `e` to edit the standard answer. AI follow-up prompts and user-note inputs support `Ctrl+U` to clear the current buffer.
 
 ## Layout
 
