@@ -363,11 +363,19 @@ def print_ai_interaction_footer(model_name, ai_prompt_buffer=None, ai_waiting=Fa
         return
     if note_buffer is not None:
         print(LOWER_BLOCK_INDENT + AI_COLOR + "User Note" + RESET_COLOR)
-        print_wrapped(LOWER_BLOCK_INDENT, "Enter 保存；清空后 Enter 会删除笔记；Esc 取消。")
+        print_wrapped(
+            LOWER_BLOCK_INDENT,
+            "Enter 保存；Ctrl+U 全清；清空后 Enter 会删除笔记；Esc 取消。",
+            color=DIM_COLOR,
+        )
         print_wrapped(LOWER_BLOCK_INDENT + "> ", note_buffer)
         return
     print(LOWER_BLOCK_INDENT + AI_COLOR + "Agent 追加提示词" + RESET_COLOR)
-    print_wrapped(LOWER_BLOCK_INDENT, "Enter 直接生成；输入文字后 Enter 会追加到默认提示词；Esc 取消。")
+    print_wrapped(
+        LOWER_BLOCK_INDENT,
+        "Enter 直接生成；输入文字后 Enter 会追加到默认提示词；Ctrl+U 全清；Esc 取消。",
+        color=DIM_COLOR,
+    )
     print_wrapped(LOWER_BLOCK_INDENT + "> ", ai_prompt_buffer)
 
 
@@ -536,7 +544,11 @@ def render_ai_prompt_input(chapter, q, options, buffer):
         print_wrapped("  [ ] ", choice)
     print()
     print(LOWER_BLOCK_INDENT + "x: Agent Said")
-    print_wrapped(LOWER_BLOCK_INDENT, "Enter 直接生成；输入文字后 Enter 会追加到默认提示词；Esc 取消。")
+    print_wrapped(
+        LOWER_BLOCK_INDENT,
+        "Enter 直接生成；输入文字后 Enter 会追加到默认提示词；Ctrl+U 全清；Esc 取消。",
+        color=DIM_COLOR,
+    )
     print()
     print_wrapped(LOWER_BLOCK_INDENT + "> ", buffer)
 
@@ -547,7 +559,11 @@ def render_note_input(chapter, q, buffer):
     print_wrapped("> ", question_topic(q), color=SELECTED_COLOR)
     print()
     print(LOWER_BLOCK_INDENT + "n: User Note")
-    print_wrapped(LOWER_BLOCK_INDENT, "Enter 保存；清空后 Enter 会删除笔记；Esc 取消。")
+    print_wrapped(
+        LOWER_BLOCK_INDENT,
+        "Enter 保存；Ctrl+U 全清；清空后 Enter 会删除笔记；Esc 取消。",
+        color=DIM_COLOR,
+    )
     print()
     print_wrapped(LOWER_BLOCK_INDENT + "> ", buffer)
 

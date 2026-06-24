@@ -208,10 +208,99 @@ def test_e_still_edits_note_when_detail_view_note(monkeypatch, tmp_path):
     assert q["answer"] == "A"             # answer untouched
 
 
+def test_prompt_user_note_ctrl_u_clears_entire_buffer(monkeypatch):
+    _patch_tty(monkeypatch, ["\x15", "n", "e", "w", "\r"])
+    q = {
+        "topic": "t",
+        "options": ["A. x"],
+        "answer": "A",
+        "user_note": "old note",
+    }
+
+    note = engine_loop._prompt_user_note(None, "1", q, _noop_render)
+
+    assert note == "new"
+
+
+def test_prompt_ai_extra_ctrl_u_clears_entire_buffer(monkeypatch, tmp_path):
+    _patch_tty(monkeypatch, ["a", "b", "\x15", "c", "\r"])
+    deck = _demo_deck_with(tmp_path, answer="A")
+    q = {"topic": "t", "options": ["A. x"], "answer": "A"}
+
+    extra = engine_loop._prompt_ai_extra(deck, "1", q, _noop_render)
+
+    assert extra == "c"
+
+
 def test_selector_set_from_text_uses_engine_chapter_selector():
     assert engine_loop._selector_set_from_text(
         "5,3-4", ["1", "2", "3", "4", "5"], 5
     ) == {"3", "4", "5"}
+
+
+def test_auto_select_chapters_uses_mode_specific_availability_and_count():
+    selected = engine_loop._auto_select_chapters(
+        "Review",
+        ["1", "2", "3", "4"],
+        {"1": 5, "2": 4, "3": 3, "4": 2},
+        {"1": 0, "2": 2, "3": 1, "4": 1},
+        {"1": 0, "2": 3, "3": 1, "4": 1},
+        2,
+    )
+
+    assert selected == {"3", "4"}
+
+
+def test_auto_select_chapters_caps_at_all_eligible_chapters():
+    selected = engine_loop._auto_select_chapters(
+        "Train",
+        ["1", "2", "3"],
+        {"1": 0, "2": 2, "3": 1},
+        {"1": 0, "2": 0, "3": 0},
+        {"1": 5, "2": 1, "3": 0},
+        9,
+    )
+
+    assert selected == {"2", "3"}
+
+
+def test_edit_selector_auto_mode_applies_selection_then_returns_to_normal_mode(
+    deck, config, monkeypatch
+):
+    seen_buffers = []
+    _patch_tty(monkeypatch, ["a", "2", "\r", "\x1b"])
+    monkeypatch.setattr(
+        engine_loop.engine,
+        "stats_snapshot",
+        lambda _deck: {
+            "total": 4,
+            "chapters": 4,
+            "marked": 0,
+            "note": 0,
+            "ai": 0,
+            "wrong": 0,
+            "wrong_files": 0,
+            "per_chapter": {"1": 2, "2": 2, "3": 2, "4": 2},
+            "wrong_per_chapter": {"1": 0, "2": 1, "3": 1, "4": 1},
+            "drills_per_chapter": {"1": 9, "2": 9, "3": 9, "4": 9},
+        },
+    )
+    monkeypatch.setattr(
+        engine_loop,
+        "_drills_per_chapter_for_mode",
+        lambda _deck, _mode: {"1": 3, "2": 1, "3": 1, "4": 2},
+    )
+    monkeypatch.setattr(
+        engine_loop,
+        "_render_chapter_picker",
+        lambda _mode, _chapters, _titles, _per, _wrong, _drills, _max, _cursor, _selected, buffer,
+        *args, **kwargs: seen_buffers.append(buffer),
+    )
+
+    confirmed, selector = engine_loop._edit_selector(None, "Review", deck=deck, config=config)
+
+    assert (confirmed, selector) == (False, None)
+    assert "2-3" in seen_buffers
 
 
 def test_options_respects_deck_max_display_options(deck):
