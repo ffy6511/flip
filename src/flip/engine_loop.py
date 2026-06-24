@@ -160,6 +160,65 @@ def _edit_user_note(deck, chapter, q, render_current):
     return True
 
 
+def _edit_answer(deck, chapter, q, render_current):
+    """Let the user pick a new correct answer for the current question.
+
+    Self-renders a compact option picker (↑/↓ move, space toggle, Enter save,
+    Esc cancel). The current `answer` is pre-selected. On Enter the new answer
+    is written back to tiku.json via engine.save_question_field — the question
+    UUID is untouched, so marks/notes/wrong-history stay attached. Returns True
+    if the answer actually changed.
+    """
+    options = _options(q, deck)
+    if not options:
+        return False
+    multi_select = len(str(q.get("answer", ""))) > 1
+    current_letters = set(str(q.get("answer", "")).upper())
+    selected = {i for i, opt in enumerate(options)
+                if opt[:1].upper() in current_letters}
+    cursor = min(next(iter(selected), 0), len(options) - 1)
+    from .tui.render import (
+        DIM_COLOR, RESET_COLOR, SELECTED_COLOR, WRONG_COLOR, clear_screen,
+    )
+    while True:
+        clear_screen()
+        print(SELECTED_COLOR + "@ 编辑标准答案" + RESET_COLOR)
+        print(DIM_COLOR + "  " + str(q.get("topic", "")) + RESET_COLOR)
+        print()
+        for i, opt in enumerate(options):
+            mark = "[x]" if i in selected else "[ ]"
+            line_color = SELECTED_COLOR if i == cursor else DIM_COLOR
+            print(line_color + f"  {mark} {opt}" + RESET_COLOR)
+        print()
+        print(DIM_COLOR + "  ↑/↓ 移动,空格 切换选中,Enter 保存,Esc 取消" + RESET_COLOR)
+        key = read_key()
+        if key == RESIZE_KEY:
+            continue
+        if key == '\x03':
+            raise KeyboardInterrupt
+        if key in {'\r', '\n'}:
+            if not selected:
+                print(WRONG_COLOR + "  请先选择至少一个选项。" + RESET_COLOR)
+                continue
+            new_answer = _answer_from_selected(options, selected)
+            if new_answer == str(q.get("answer", "")):
+                return False
+            q["answer"] = new_answer
+            engine.save_question_field(deck, chapter, q)
+            return True
+        if key == '\x1b':
+            return False
+        if key == ' ':
+            _toggle_answer_selection(selected, cursor, multi_select=multi_select)
+            continue
+        if key == '\x1b[A':
+            cursor = (cursor - 1) % len(options)
+            continue
+        if key == '\x1b[B':
+            cursor = (cursor + 1) % len(options)
+            continue
+
+
 def _request_ai(deck, config, chapter, q, render_current, force=False):
     if q.get("ai_explanation") and not force:
         return True
@@ -197,7 +256,11 @@ def _edit_current_detail(deck, config, chapter, q, detail_view, render_current):
         if _edit_user_note(deck, chapter, q, render_current):
             return ("note" if has_user_note(q) else default_detail_view(q)), ""
         return detail_view, ""
-    return detail_view, "当前没有可编辑的底部内容；按 x 生成 Agent Said 或 n 新建笔记。"
+    # detail_view == None: nothing to edit in the lower block, so `e` edits the
+    # question's correct answer instead (write back to tiku.json).
+    if _edit_answer(deck, chapter, q, render_current):
+        return detail_view, "标准答案已更新。"
+    return detail_view, ""
 
 
 def _browse_search_text(q):

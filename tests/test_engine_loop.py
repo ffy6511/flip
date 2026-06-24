@@ -122,6 +122,92 @@ def test_x_then_x_round_trips_to_hidden_then_ai():
     assert closed is None
 
 
+# ---- e edits the correct answer when no detail block is shown ----
+#
+# detail_view == None means the lower block has nothing to edit, so `e` opens
+# the answer editor instead. This writes the new answer back to tiku.json
+# (UUID untouched, so history stays attached).
+
+def _stub_tty_for_keys(monkeypatch, keys):
+    """Wire fake keypresses into engine_loop for sub-prompt loops."""
+    key_iter = iter(keys)
+    monkeypatch.setattr(engine_loop, "save_tty", lambda: None)
+    monkeypatch.setattr(engine_loop, "restore_tty", lambda _s: None)
+    monkeypatch.setattr(engine_loop, "enter_cbreak", lambda: None)
+    monkeypatch.setattr(engine_loop, "read_key", lambda: next(key_iter))
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+
+
+def _demo_deck_with(tmp_path, answer="A", qid="q-test0000001"):
+    """A one-question deck on disk, returned with its Deck handle."""
+    import os
+    from flip import store
+    from flip.deck import Deck
+    home = tmp_path / "flip_home"
+    decks = home / "decks" / "demo"
+    decks.mkdir(parents=True)
+    store.save_tiku(Deck(slug="demo", name="Demo", path=decks, source_lang="en"),
+                    {"1": [{"id": qid, "topic": "pick", "options": ["A. x", "B. y", "C. z"], "answer": answer}]})
+    (decks / "manifest.toml").write_text(
+        '[deck]\nname="Demo"\nslug="demo"\nsource_lang="en"\nanswer_alphabet="ABC"\nmax_display_options=4\n\n[explain]\nrole="d"\nmax_chars=200\n',
+        encoding="utf-8")
+    os.environ["FLIP_HOME"] = str(home)
+    return Deck(slug="demo", name="Demo", path=decks, source_lang="en")
+
+
+def test_e_edits_answer_when_detail_view_none(monkeypatch, tmp_path):
+    # detail_view None + press e  ->  answer editor opens. Keys: down to B,
+    # space (single-select flips to B), enter to save.
+    _stub_tty_for_keys(monkeypatch, ["\x1b[B", " ", "\r"])
+    deck = _demo_deck_with(tmp_path, answer="A")
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+
+    detail_view, warning, action = engine_loop._handle_detail_keys(
+        deck, None, "1", q, None, "e", _noop_render)
+
+    assert detail_view is None           # answer edit doesn't change detail_view
+    assert action is None
+    assert "已更新" in warning
+    assert q["answer"] == "B"
+    # Persisted to disk.
+    assert store.load_tiku(deck)["1"][0]["answer"] == "B"
+
+
+def test_e_answer_edit_esc_cancels_without_writing(monkeypatch, tmp_path):
+    # Esc in the answer editor cancels: nothing written, no warning.
+    _stub_tty_for_keys(monkeypatch, ["\x1b[B", " ", "\x1b"])
+    deck = _demo_deck_with(tmp_path, answer="A")
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+
+    detail_view, warning, action = engine_loop._handle_detail_keys(
+        deck, None, "1", q, None, "e", _noop_render)
+
+    assert warning == ""
+    assert q["answer"] == "A"             # unchanged
+    assert store.load_tiku(deck)["1"][0]["answer"] == "A"
+
+
+def test_e_still_edits_note_when_detail_view_note(monkeypatch, tmp_path):
+    # When a note is showing, e edits the NOTE, not the answer. Confirms the
+    # dispatch by detail_view still wins over the new answer-edit fallback.
+    deck = _demo_deck_with(tmp_path, answer="A")
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+    q["user_note"] = "orig note"          # a note exists -> detail_view can be "note"
+    store.save_tiku(deck, {"1": [q]})
+    # Stub the note editor to immediately return a new note.
+    monkeypatch.setattr(engine_loop, "_prompt_user_note", lambda *a, **k: "edited")
+
+    detail_view, warning, action = engine_loop._handle_detail_keys(
+        deck, None, "1", q, "note", "e", _noop_render)
+
+    assert detail_view == "note"
+    assert q["user_note"] == "edited"
+    assert q["answer"] == "A"             # answer untouched
+
+
 def test_selector_set_from_text_uses_engine_chapter_selector():
     assert engine_loop._selector_set_from_text(
         "5,3-4", ["1", "2", "3", "4", "5"], 5
