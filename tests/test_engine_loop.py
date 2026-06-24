@@ -146,8 +146,11 @@ def _demo_deck_with(tmp_path, answer="A", qid="q-test0000001"):
     home = tmp_path / "flip_home"
     decks = home / "decks" / "demo"
     decks.mkdir(parents=True)
+    q = {"topic": "pick", "options": ["A. x", "B. y", "C. z"], "answer": answer}
+    if qid is not None:
+        q["id"] = qid
     store.save_tiku(Deck(slug="demo", name="Demo", path=decks, source_lang="en"),
-                    {"1": [{"id": qid, "topic": "pick", "options": ["A. x", "B. y", "C. z"], "answer": answer}]})
+                    {"1": [q]})
     (decks / "manifest.toml").write_text(
         '[deck]\nname="Demo"\nslug="demo"\nsource_lang="en"\nanswer_alphabet="ABC"\nmax_display_options=4\n\n[explain]\nrole="d"\nmax_chars=200\n',
         encoding="utf-8")
@@ -171,6 +174,22 @@ def test_e_edits_answer_when_detail_view_none(monkeypatch, tmp_path):
     assert "已更新" in warning
     assert q["answer"] == "B"
     # Persisted to disk.
+    assert store.load_tiku(deck)["1"][0]["answer"] == "B"
+
+
+def test_e_edits_answer_without_question_id(monkeypatch, tmp_path):
+    _stub_tty_for_keys(monkeypatch, ["\x1b[B", " ", "\r"])
+    deck = _demo_deck_with(tmp_path, answer="A", qid=None)
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+
+    detail_view, warning, action = engine_loop._handle_detail_keys(
+        deck, None, "1", q, None, "e", _noop_render)
+
+    assert detail_view is None
+    assert action is None
+    assert "已更新" in warning
+    assert q["answer"] == "B"
     assert store.load_tiku(deck)["1"][0]["answer"] == "B"
 
 

@@ -213,8 +213,9 @@ def _edit_answer(deck, chapter, q, render_current):
             new_answer = _answer_from_selected(options, selected)
             if new_answer == str(q.get("answer", "")):
                 return False
+            old_keys = engine.question_keys(chapter, q)
             q["answer"] = new_answer
-            engine.save_question_field(deck, chapter, q)
+            engine.save_question_field(deck, chapter, q, match_keys=old_keys)
             return True
         if key == '\x1b':
             return False

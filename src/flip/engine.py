@@ -370,17 +370,20 @@ def toggle_marked(deck, chapter, q):
 
 # ---- note / explanation persistence ----
 
-def save_question_field(deck, chapter, q):
+def save_question_field(deck, chapter, q, *, match_keys=None):
     """Persist any mutation on q back into the deck's tiku.json.
 
     Since q is a reference into the in-memory tiku dict, we re-read, swap in the
-    updated question by key, and write.
+    updated question by key, and write. `match_keys` lets callers that mutate
+    legacy key fields (topic/options/answer) pass the pre-mutation key.
     """
     data = store.load_tiku(deck)
     if isinstance(data, dict):
         target_id = question_id(q)
-        target_keys = set(question_keys(chapter, q))
+        target_keys = set(match_keys or question_keys(chapter, q))
         for ch, qlist in data.items():
+            if not isinstance(qlist, list):
+                continue
             for i, existing in enumerate(qlist):
                 if target_id and question_id(existing) == target_id:
                     qlist[i] = q
