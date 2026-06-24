@@ -232,6 +232,65 @@ def test_render_session_item_list_groups_by_chapter_and_highlights_selected(caps
     assert render.DIM_COLOR in out and "─" in plain
 
 
+def test_render_session_item_list_emits_one_header_per_chapter_run(capsys):
+    # The renderer trusts that the caller pre-sorted items by chapter (sorting
+    # lives in engine_loop so cursor order matches display order). When a
+    # chapter's items are contiguous, exactly one header is emitted for that
+    # run; adjacent same-chapter runs would each get their own header — that
+    # is the caller's job to avoid.
+    items = [
+        {"chapter": "1", "question": {"topic": "1. b", "options": ["A. x"], "answer": "A"},
+         "options": ["A. x"]},
+        {"chapter": "2", "question": {"topic": "1. d", "options": ["A. x"], "answer": "A"},
+         "options": ["A. x"]},
+        {"chapter": "3", "question": {"topic": "1. a", "options": ["A. x"], "answer": "A"},
+         "options": ["A. x"]},
+        {"chapter": "3", "question": {"topic": "2. c", "options": ["A. x"], "answer": "A"},
+         "options": ["A. x"]},
+        {"chapter": "3", "question": {"topic": "3. e", "options": ["A. x"], "answer": "A"},
+         "options": ["A. x"]},
+    ]
+
+    render.render_session_item_list("本轮错题", items, 0)
+
+    plain = _strip_ansi(capsys.readouterr().out)
+    # Exactly one header per chapter, no duplicates.
+    assert plain.count("\nch1\n") == 1
+    assert plain.count("\nch2\n") == 1
+    assert plain.count("\nch3\n") == 1
+    # Chapters appear in the given order, and ch3's three items are contiguous.
+    assert plain.index("ch1") < plain.index("ch2") < plain.index("ch3")
+    ch3_start = plain.index("ch3")
+    ch3_block = plain[ch3_start:]
+    assert ch3_block.index("· a") < ch3_block.index("· c") < ch3_block.index("· e")
+
+
+def test_render_session_item_list_windows_long_list_around_cursor(capsys, monkeypatch):
+    # A list taller than the terminal must be clipped, with the selected item
+    # kept in view. Previously every item was printed and overflow was lost.
+    monkeypatch.setattr(render, "terminal_width", lambda: 40)
+    monkeypatch.setattr(render, "terminal_height", lambda: 8)
+    items = [
+        {"chapter": "1", "question": {"topic": f"q{n}", "options": ["A. x"], "answer": "A"},
+         "options": ["A. x"]}
+        for n in range(20)
+    ]
+
+    # Cursor near the end: the top of the list must be clipped away.
+    render.render_session_item_list("本轮错题", items, 19)
+    plain = _strip_ansi(capsys.readouterr().out)
+    assert "↑ 更多" in plain
+    assert "· q19" in plain  # selected still visible
+    assert "· q0" not in plain  # off the top of the window
+
+    # Cursor at the start: the bottom is clipped instead.
+    render.render_session_item_list("本轮错题", items, 0)
+    plain = _strip_ansi(capsys.readouterr().out)
+    assert "↓ 更多" in plain
+    assert "· q0" in plain
+    assert "· q19" not in plain
+
+
 def test_render_session_item_list_shows_selected_translation_block_before_separator(capsys):
     items = [
         {
@@ -264,6 +323,11 @@ def test_render_session_item_list_shows_selected_translation_block_before_separa
     plain = _strip_ansi(capsys.readouterr().out)
     assert "· First prompt" in plain
     assert "第一题" in plain
+    # "你的答案" and "正确答案" share one line (left before right).
+    assert any(
+        "你的答案: A" in line and "正确答案: B" in line
+        for line in plain.splitlines()
+    )
     assert plain.index("· First prompt") < plain.index("你的答案: A") < plain.index("正确答案: B")
     assert plain.index("B. Beta") < plain.index("第一题") < plain.index("──")
     assert plain.index("第一题") < plain.index("A. 甲") < plain.index("B. 乙") < plain.index("──")

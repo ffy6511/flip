@@ -1546,6 +1546,34 @@ def test_session_item_list_toggles_inline_translation(deck, config, monkeypatch)
     assert renders[:2] == [False, True]
 
 
+def test_session_item_list_sorts_items_by_chapter(deck, config, monkeypatch):
+    # Items arrive in answer order, interleaved across chapters. The loop must
+    # hand the renderer a chapter-sorted list so each chapter's questions stay
+    # together (and cursor ↑/↓ matches display order). Stable within a chapter.
+    items = [
+        {"chapter": "3", "question": {"topic": "a", "options": [], "answer": "A"}, "options": []},
+        {"chapter": "1", "question": {"topic": "b", "options": [], "answer": "A"}, "options": []},
+        {"chapter": "3", "question": {"topic": "c", "options": [], "answer": "A"}, "options": []},
+        {"chapter": "2", "question": {"topic": "d", "options": [], "answer": "A"}, "options": []},
+    ]
+    rendered = []
+    _patch_tty(monkeypatch, ["\r"])
+    monkeypatch.setattr(
+        engine_loop,
+        "render_session_item_list",
+        lambda title, it, cursor, **_k: rendered.append(list(it)),
+    )
+
+    engine_loop._run_session_item_list({"kind": "scored"}, items, config)
+
+    assert rendered, "renderer was never called"
+    chapters = [it["chapter"] for it in rendered[0]]
+    topics = [it["question"]["topic"] for it in rendered[0]]
+    assert chapters == ["1", "2", "3", "3"]
+    # ch3's two items keep their original relative order (stable).
+    assert topics == ["b", "d", "a", "c"]
+
+
 def test_run_stats_loop_uses_alt_screen_and_cbreak_and_esc_returns(deck, config, monkeypatch):
     calls = []
     _patch_tty(monkeypatch, ["\x1b"])

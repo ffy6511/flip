@@ -667,44 +667,91 @@ def render_session_item_list(title, items, cursor, *, show_translation=False,
         print_key_hint_footer(footer)
         return
     cursor = max(0, min(cursor, len(items) - 1))
+
+    # Items are expected to be pre-grouped by chapter (the caller sorts them).
+    # Render into a line buffer first, so we can window it to the terminal
+    # height — the selected item also expands inline, so we can't pre-compute
+    # row counts, we just cap the total emitted height.
+    lines = []
+    cursor_line = 0  # line index of the selected item's first row
+
+    def emit(s="", *, track=False):
+        nonlocal cursor_line
+        if track:
+            cursor_line = len(lines)
+        lines.append(s)
+
     current_chapter = None
     for i, item in enumerate(items):
         q = item["question"]
         chapter = str(item.get("chapter", ""))
         if chapter != current_chapter:
             if current_chapter is not None:
-                print()
-            print(f"ch{chapter}")
+                emit()
+            emit(f"ch{chapter}")
             current_chapter = chapter
 
         is_selected = i == cursor
         prefix = (">" if is_selected else " ") + " · "
-        print_wrapped(
-            prefix,
-            session_item_topic(q),
-            continuation_prefix=" " * display_width(prefix),
-            color=SELECTED_COLOR if is_selected else "",
-        )
+
+        # Inline-wrap each item into the buffer so we can measure real height.
+        width = terminal_width() - display_width(prefix)
+        cont = " " * display_width(prefix)
+        color = SELECTED_COLOR if is_selected else ""
+        wrapped = wrap_text(session_item_topic(q), width)
+        for j, line in enumerate(wrapped):
+            lp = prefix if j == 0 else cont
+            text = color + line + RESET_COLOR if color else line
+            emit(lp + text, track=(is_selected and j == 0))
 
         translation = session_item_translation(q) if (show_translation and is_selected) else None
 
         if is_selected:
             correct = str(q.get("answer", ""))
             selected = item.get("selected_answer")
+            # Pack "你的答案" and "正确答案" onto one line to save vertical
+            # space; the correct-answer half keeps its green highlight. In
+            # browse mode there's no user answer, so only the answer shows.
             if selected:
-                print_wrapped("    ", "你的答案: " + str(selected))
-            print_wrapped("    ", "正确答案: " + correct, color=CORRECT_COLOR)
+                emit("    " + "你的答案: " + str(selected) + "  "
+                     + CORRECT_COLOR + "正确答案: " + correct + RESET_COLOR)
+            else:
+                emit("    " + CORRECT_COLOR + "正确答案: " + correct + RESET_COLOR)
             for choice in item.get("options", q.get("options", [])):
                 label = option_label(choice)
-                color = CORRECT_COLOR if label in set(correct) else ""
-                print_wrapped("    ", choice, color=color)
+                ccolor = CORRECT_COLOR if label in set(correct) else ""
+                for j, line in enumerate(wrap_text(choice, terminal_width() - 4)):
+                    emit("    " + (ccolor + line + RESET_COLOR if ccolor else line))
             if translation:
-                print_wrapped("    ", translation["topic"], color=TRANSLATION_COLOR)
+                for j, line in enumerate(wrap_text(translation["topic"], terminal_width() - 4)):
+                    emit("    " + TRANSLATION_COLOR + line + RESET_COLOR)
                 for choice in translation["options"]:
-                    print_wrapped("    ", choice, color=TRANSLATION_COLOR)
+                    for j, line in enumerate(wrap_text(choice, terminal_width() - 4)):
+                        emit("    " + TRANSLATION_COLOR + line + RESET_COLOR)
 
         if i != len(items) - 1:
-            print("  " + DIM_COLOR + "─" * max(1, terminal_width() - 4) + RESET_COLOR)
+            emit("  " + DIM_COLOR + "─" * max(1, terminal_width() - 4) + RESET_COLOR)
+
+    # Reserve room for the 3-line header (@ title, blank, ...) plus a 2-line
+    # footer (blank + hint). Anything beyond that is windowed so the selected
+    # item stays visible as the cursor moves.
+    budget = terminal_height() - 5
+    if budget > 0 and len(lines) > budget:
+        half = budget // 2
+        desired = cursor_line - half
+        start = max(0, min(desired, len(lines) - budget))
+        end = start + budget
+        window = lines[start:end]
+        if start > 0:
+            print_wrapped("  ", "↑ 更多", color=DIM_COLOR)
+        for line in window:
+            print(line)
+        if end < len(lines):
+            print_wrapped("  ", "↓ 更多", color=DIM_COLOR)
+    else:
+        for line in lines:
+            print(line)
+
     footer = "↑/↓ 移动, Enter/Esc 返回结算页"
     if translation_enabled:
         footer = "↑/↓ 移动, t 中文, Enter/Esc 返回结算页"

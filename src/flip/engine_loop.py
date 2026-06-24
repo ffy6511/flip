@@ -2266,6 +2266,15 @@ def _run_session_item_list(summary, items, config):
     show_translation = False
     translation_enabled = config.translation_enabled
     title = "本轮错题" if summary.get("kind") == "scored" else "本轮浏览"
+    # Group items by chapter (stable, so within-chapter answer order is kept).
+    # Items arrive in answer/browse order; without this, the same chapter's
+    # questions are scattered and the renderer emits multiple "chN" headers.
+    # Sorting here — not in the renderer — keeps cursor ↑/↓ in sync with the
+    # displayed order.
+    items = sorted(
+        items,
+        key=lambda it: store._chapter_sort_key(it.get("chapter", "")),
+    )
     while True:
         render_session_item_list(
             title, items, cursor,
