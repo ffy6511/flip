@@ -2,7 +2,7 @@
 
 [中文](README.md) · [English](README_en.md)
 
-A deck-agnostic terminal quiz trainer. Pick a **deck** (a subject like Software Engineering, Compiler Principles), drill questions, mark the tricky ones, and let an agent explain mistakes — all from a single `flip` command.
+A terminal quiz tool powered by skill-driven agent: turn any subject into tailored exercise with one simple prompt.
 
 ## Features
 

@@ -12,19 +12,46 @@ from . import store
 from .config import load_config
 from .deck import load_deck, list_decks, DeckError
 
+
+def _version() -> str:
+    """Return the installed package version, read from packaging metadata.
+
+    Single source of truth: pyproject.toml's `version`. Falls back to "0.0.0"
+    when the package isn't installed (e.g. running from a source checkout
+    without metadata) so `--version` never crashes.
+    """
+    try:
+        from importlib.metadata import version, PackageNotFoundError
+        try:
+            return version("flip")
+        except PackageNotFoundError:
+            return "0.0.0"
+    except ImportError:  # py < 3.8 without importlib_metadata backport
+        return "0.0.0"
+
+
 app = typer.Typer(
     invoke_without_command=True,
     add_completion=True,
     no_args_is_help=False,
-    help="flip — terminal quiz trainer. Pick a deck and drill.",
+    help="flip — a terminal quiz tool powered by skill-driven agent.",
 )
 
 
 # ---- `flip` (no args) -> interactive deck picker -> mode menu ----
 
 @app.callback()
-def main(ctx: typer.Context):
-    """flip — terminal quiz trainer."""
+def main(
+    ctx: typer.Context,
+    show_version: bool = typer.Option(
+        False, "--version", "-V", help="Show the flip version and exit.",
+        is_eager=True,
+    ),
+):
+    """flip — a terminal quiz tool powered by skill-driven agent."""
+    if show_version:
+        typer.echo(_version())
+        raise typer.Exit()
     if ctx.invoked_subcommand is None:
         config = load_config()
         from .engine_loop import deck_picker, entry_menu, run_continue, run_train, BACK_TO_SELECTOR

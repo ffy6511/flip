@@ -2,7 +2,7 @@
 
 [中文](README.md) · [English](README_en.md)
 
-一个 deck 无关的终端刷题训练器。选一个 **deck**(一门学科),刷题、标记难题、让 agent 解释错题——全部用一条 `flip` 命令完成。
+一个由 skill 驱动 agent 加持的终端刷题工具:一句 prompt,把任意学科变成专属练习题。
 
 ## 特性
 
