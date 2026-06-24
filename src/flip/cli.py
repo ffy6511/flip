@@ -5,6 +5,7 @@ interactive TUI loops live in flip.engine_loop and are invoked verbatim.
 """
 
 from pathlib import Path
+from typing import Optional
 
 import typer
 
@@ -114,6 +115,33 @@ def list_cmd():
     typer.echo(header_line)
     for line in body_lines:
         typer.echo(line)
+
+
+@app.command("doctor")
+def doctor_cmd(
+    slug: Optional[str] = typer.Argument(None, help="Deck slug. Omit to inspect every deck."),
+):
+    """Inspect deck compatibility issues and print repair commands."""
+    from .doctor import build_doctor_report, format_report
+
+    config = load_config()
+    slugs = [slug] if slug else list_decks(config.decks_dir)
+    if not slugs:
+        typer.echo("No decks found under " + str(config.decks_dir))
+        raise typer.Exit(0)
+
+    for index, item in enumerate(slugs):
+        if index:
+            typer.echo()
+        try:
+            deck = load_deck(config.decks_dir / item)
+        except DeckError as exc:
+            _status_echo(f"deck error: {exc}", ok=False, err=True)
+            if slug:
+                raise typer.Exit(1)
+            continue
+        for line in format_report(build_doctor_report(deck)):
+            typer.echo(line)
 
 
 # ---- `flip deck <slug> ...` (nested group) ----
@@ -423,6 +451,83 @@ def deck_assign_ids(
     added = _engine.ensure_question_ids(data, prefix=slug)
     _store.save_tiku(deck, data)
     _status_echo(f"assigned {added} new id(s) to deck {slug}")
+
+
+@deck_app.command("migrate")
+def deck_migrate(
+    slug: str = typer.Argument(..., help="Deck slug."),
+    ids: bool = typer.Option(False, "--ids", help="Normalize missing/legacy question ids to UUID ids."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview migrations without writing."),
+):
+    """Migrate older deck schema details with a full backup before writes."""
+    if not ids:
+        _status_echo("no migration selected; pass --ids", ok=False, err=True)
+        raise typer.Exit(1)
+
+    import datetime
+    from . import bootstrap
+    from .doctor import LEGACY_POSITIONAL_RE, UUID_RE
+    from . import engine as _engine
+    from . import store as _store
+
+    config, deck = _resolve_deck(slug)
+    data = _store.load_tiku(deck) or {}
+    used_ids = {
+        _engine.question_id(q)
+        for _, q in _engine.iter_question_records(data)
+        if _engine.question_id(q)
+    }
+    missing = 0
+    migrated = 0
+    id_map = {}
+    for _chapter, q in _engine.iter_question_records(data):
+        qid = _engine.question_id(q)
+        should_assign = not qid
+        should_migrate = bool(qid and LEGACY_POSITIONAL_RE.fullmatch(qid))
+        if not should_assign and not should_migrate:
+            continue
+        if should_assign:
+            missing += 1
+        else:
+            migrated += 1
+        candidate = _engine.generate_question_id()
+        while candidate in used_ids or not UUID_RE.fullmatch(candidate):
+            candidate = _engine.generate_question_id()
+        if qid:
+            id_map[qid] = candidate
+            used_ids.discard(qid)
+        q["id"] = candidate
+        used_ids.add(candidate)
+
+    total = missing + migrated
+    if dry_run:
+        typer.echo(
+            f"would assign {missing} missing id(s) and migrate {migrated} legacy id(s)"
+        )
+        raise typer.Exit(0)
+    if total == 0:
+        _status_echo(f"deck {slug} already uses stable ids; nothing to migrate")
+        raise typer.Exit(0)
+
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup_dir = config.home / "backups" / f"{slug}-migrate-{stamp}"
+    _store.export_deck(deck, backup_dir)
+    bootstrap._write_backup_meta(
+        backup_dir,
+        slug=slug,
+        content_version=deck.content_version,
+        op="migrate",
+        timestamp=stamp,
+    )
+    typer.echo(f"backup: {backup_dir}")
+
+    _store.save_tiku(deck, data)
+    if id_map:
+        bootstrap._rewrite_index_keys(deck, id_map)
+    _engine._sync_marked_from_tiku(deck)
+    _status_echo(f"assigned {missing} stable id(s)")
+    if migrated:
+        _status_echo(f"migrated {migrated} legacy id(s)")
 
 
 @deck_app.command("update")

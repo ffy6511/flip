@@ -270,17 +270,17 @@ def _parse_version(value: str):
 
 
 def _migrate_legacy_ids(local_tiku: dict, bundled_tiku: dict, slug: str):
-    """Rewrite legacy positional ids in local_tiku to bundled UUIDs in place.
+    """Rewrite missing/legacy local ids to bundled UUIDs in place.
 
     Returns (id_map, unmigrated) where:
-      - id_map: {legacy_id: new_uuid} for every successfully bridged question;
-        empty when the local deck already uses UUIDs.
-      - unmigrated: list of (chapter, legacy_id, topic) for legacy-id questions
-        whose content-key found no bundled match (history will be orphaned).
+      - id_map: {legacy_id: new_uuid} for every legacy-id question that can
+        be bridged. Missing-id questions have no id-based index key to rewrite.
+      - unmigrated: list of (chapter, old_id, topic) for local questions whose
+        content-key found no bundled match (history may be orphaned).
 
-    Bridging uses the content key (chapter, topic, options, answer). Only ids
-    shaped like `<slug>-<chapter>-<NNN>` (the pre-UUID install format) are
-    treated as legacy; UUIDs (q-<hex>) and any other shape are left alone.
+    Bridging uses the content key (chapter, topic, options, answer). Missing
+    ids are included because pre-UUID live decks may have been imported before
+    `id` became part of the source-of-truth schema.
     """
     import re
     legacy_re = re.compile(r"^[a-z0-9-]+-\d+-\d{3}$")  # e.g. se-template-1-001
@@ -294,15 +294,16 @@ def _migrate_legacy_ids(local_tiku: dict, bundled_tiku: dict, slug: str):
     unmigrated = []
     for chapter, q in engine.iter_question_records(local_tiku):
         qid = engine.question_id(q)
-        if not qid or not legacy_re.match(qid):
-            continue  # already UUID-shaped, or no id — leave as is
+        if qid and not legacy_re.match(qid):
+            continue  # already UUID-shaped, or a custom id — leave as is
         ckey = engine.content_question_key(chapter, q)
         new_uuid = bundled_by_content.get(ckey)
         if new_uuid:
             q["id"] = new_uuid
-            id_map[qid] = new_uuid
+            if qid:
+                id_map[qid] = new_uuid
         else:
-            unmigrated.append((str(chapter), qid, str(q.get("topic", ""))[:80]))
+            unmigrated.append((str(chapter), qid or "(missing id)", str(q.get("topic", ""))[:80]))
     return id_map, unmigrated
 
 

@@ -37,6 +37,21 @@ from .tui import (
 # apart. It is a string (not a tuple) so it threads through the existing
 # ('previous'|'quit'|'remove') plumbing without breaking the unpack shape.
 BACK_TO_SELECTOR = 'back-to-selector'
+_DECK_HEALTH_WARNED = set()
+
+
+def _warn_deck_health_once(deck):
+    key = str(deck.path)
+    if key in _DECK_HEALTH_WARNED:
+        return
+    _DECK_HEALTH_WARNED.add(key)
+    try:
+        from .doctor import migration_warning
+        warning = migration_warning(deck)
+    except Exception:
+        return
+    if warning:
+        print(warning)
 
 
 def _terminal_height():
@@ -2581,6 +2596,7 @@ def run_train(deck, config, selector, source="tiku", ans_mode=False, filters=Non
     caller should bounce them back to the chapter picker, clearing chapters
     but keeping mode/ans/filters); otherwise 0 after printing the report.
     """
+    _warn_deck_health_once(deck)
     filters = filters or []
     selected = engine.pick_questions(deck, config, selector=selector, shuffle=not ans_mode,
                                      filters=filters, source=source)

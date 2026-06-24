@@ -85,3 +85,28 @@ def test_deck_repair_checks_wrong_without_rewriting(deck):
     assert result.exit_code == 0, result.output
     assert "wrong: files=1, records=2, resolvable=1, stale=1" in result.output
     assert store.read_json(wrong_file) == wrong_records
+
+
+def test_doctor_reports_missing_ids_and_fix_command(flip_home):
+    deck_dir = flip_home / "decks" / "noid"
+    deck_dir.mkdir(parents=True)
+    (deck_dir / "tiku.json").write_text(
+        json.dumps({"1": [
+            {"topic": "q1", "options": ["A. x"], "answer": "A"},
+            {"topic": "q2", "options": ["A. x"], "answer": "A"},
+        ]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (deck_dir / "manifest.toml").write_text(
+        '[deck]\nname = "NoId"\nslug = "noid"\nsource_lang = "en"\n'
+        'answer_alphabet = "ABCD"\nmax_display_options = 4\n\n'
+        '[explain]\nrole = "demo"\nmax_chars = 200\n',
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(app, ["doctor", "noid"])
+
+    assert result.exit_code == 0, result.output
+    assert "doctor: noid" in result.output
+    assert "missing ids: 2" in result.output
+    assert "fix: flip deck migrate noid --ids" in result.output

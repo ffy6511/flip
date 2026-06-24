@@ -193,6 +193,32 @@ def test_e_edits_answer_without_question_id(monkeypatch, tmp_path):
     assert store.load_tiku(deck)["1"][0]["answer"] == "B"
 
 
+def test_run_train_warns_when_deck_has_missing_ids(monkeypatch, tmp_path, capsys):
+    deck = _demo_deck_with(tmp_path, answer="A", qid=None)
+    engine_loop._DECK_HEALTH_WARNED.clear()
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: engine.SelectedSet([], input_is_index=False))
+
+    outcome = engine_loop.run_train(deck, None, selector=None, source="tiku")
+
+    assert outcome == 0
+    out = capsys.readouterr().out
+    assert "缺少稳定 id" in out
+    assert "flip deck migrate demo --ids" in out
+
+
+def test_run_review_warns_when_deck_has_missing_ids(monkeypatch, tmp_path, capsys):
+    deck = _demo_deck_with(tmp_path, answer="A", qid=None)
+    engine_loop._DECK_HEALTH_WARNED.clear()
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: engine.SelectedSet([], input_is_index=True))
+
+    outcome = engine_loop.run_train(deck, None, selector=None, source="wrong")
+
+    assert outcome == 0
+    out = capsys.readouterr().out
+    assert "缺少稳定 id" in out
+    assert "flip deck migrate demo --ids" in out
+
+
 def test_e_answer_edit_esc_cancels_without_writing(monkeypatch, tmp_path):
     # Esc in the answer editor cancels: nothing written, no warning.
     _stub_tty_for_keys(monkeypatch, ["\x1b[B", " ", "\x1b"])
