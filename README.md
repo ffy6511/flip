@@ -2,7 +2,7 @@
 
 [中文](README.md) · [English](README_en.md)
 
-一个 deck 无关的终端刷题训练器。选一个 **deck**(一门学科),刷题、标记难题、让 agent 解释错题——全部用一条 `flip` 命令完成。
+一个由 skill 驱动 agent 加持的终端刷题工具:一句 prompt,把任意学科变成专属练习题。
 
 ## 特性
 
@@ -14,7 +14,7 @@
 - **AI 错题解释** —— 通过可配置后端(codex / 智谱 GLM / ollama ……)对错题生成解释,角色文案来自 deck。
 - **双语翻译** —— 全局开关:`source_lang ≠ target_lang` 时显示 `t` 键、写 `zh` 字段、AI prompt 附译文。
 - **导入 / 导出 / 合并** —— 从 JSON / CSV / deck 目录导入,一键导出备份,`merge` 支持-append/-upsert/-overwrite 保留学习状态。
-- **bundled deck 按需安装** —— 内置 deck 随包发布,在 Bootstrap tab 显式勾选安装;
+- **bundled deck 按需安装** —— 内置 deck 随包发布,在 Bootstrap tab 显式安装、更新、重装和查看 changelog。
 - **配套 agent skill** —— `flip-deck-init` 从原始素材生成 deck,`flip-deck-maintain` 安全更新已有 deck。
 
 ## 安装
@@ -122,6 +122,7 @@ flip 是纯 Python,无编译依赖,在以下平台均可运行:
 
 ```bash
 flip                              # 交互:先选 deck,再选模式
+flip --version                    # 输出当前安装版本
 flip list                         # 列出已注册的 deck
 flip deck train se -c 5-10        # 训练软件工程,第 5–10 章(tiku,计分)
 flip deck review se               # 练习软件工程的错题索引(计分)
@@ -144,9 +145,10 @@ flip config                       # 查看配置和解释后端状态
 ```
 
 > 子命令顺序是 `flip deck <动词> <slug>`(动词在前,slug 在后)。
-> 章节选择器支持单章、范围、前 N 章和逗号组合:`5`、`5-10`、`-3`、`5,3-4`。
+> 章节选择器支持单章、范围、前 N 章和逗号组合:`5`、`5-10`、`-3`、`5,3-4`;按 `a` 可自动选择当前模式下 count 最少的章节。
 > 运行 `flip` 先进入 deck 选择界面(见
 > [快速开始](#快速开始)):在 **Library** tab 选 deck(↑/↓ + Enter,支持实时搜索),或在 **Bootstrap** tab(←/→ 切换)安装内置 deck。选好 deck 后再选模式——**Train**(tiku 题库)、**Review**(错题索引)、**Continue**(暂停的计分练习)或 **List**(统计)——外加 1-5 筛选/显示开关、清空次数动作和一个 **Ans 模式** 开关(直接显答案、不计分)。
+> 浏览题目时按 `e` 可编辑标准答案;AI 追加提示和用户笔记输入框支持 `Ctrl+U` 一次清空当前输入。
 
 ## 目录结构
 

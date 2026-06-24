@@ -125,6 +125,9 @@ def _prompt_ai_extra(deck, chapter, q, render_current):
         if key in {'\x7f', '\b'}:
             buffer = buffer[:-1]
             continue
+        if key == '\x15':
+            buffer = ""
+            continue
         if key == '\x1b':
             return None
         if len(key) == 1 and key.isprintable():
@@ -145,6 +148,9 @@ def _prompt_user_note(deck, chapter, q, render_current):
         if key in {'\x7f', '\b'}:
             buffer = buffer[:-1]
             continue
+        if key == '\x15':
+            buffer = ""
+            continue
         if key == '\x1b':
             return None
         if len(key) == 1 and key.isprintable():
@@ -158,6 +164,65 @@ def _edit_user_note(deck, chapter, q, render_current):
     q["user_note"] = note
     engine.save_question_field(deck, chapter, q)
     return True
+
+
+def _edit_answer(deck, chapter, q, render_current):
+    """Let the user pick a new correct answer for the current question.
+
+    Self-renders a compact option picker (↑/↓ move, space toggle, Enter save,
+    Esc cancel). The current `answer` is pre-selected. On Enter the new answer
+    is written back to tiku.json via engine.save_question_field — the question
+    UUID is untouched, so marks/notes/wrong-history stay attached. Returns True
+    if the answer actually changed.
+    """
+    options = _options(q, deck)
+    if not options:
+        return False
+    multi_select = len(str(q.get("answer", ""))) > 1
+    current_letters = set(str(q.get("answer", "")).upper())
+    selected = {i for i, opt in enumerate(options)
+                if opt[:1].upper() in current_letters}
+    cursor = min(next(iter(selected), 0), len(options) - 1)
+    from .tui.render import (
+        DIM_COLOR, RESET_COLOR, SELECTED_COLOR, WRONG_COLOR, clear_screen,
+    )
+    while True:
+        clear_screen()
+        print(SELECTED_COLOR + "@ 编辑标准答案" + RESET_COLOR)
+        print(DIM_COLOR + "  " + str(q.get("topic", "")) + RESET_COLOR)
+        print()
+        for i, opt in enumerate(options):
+            mark = "[x]" if i in selected else "[ ]"
+            line_color = SELECTED_COLOR if i == cursor else DIM_COLOR
+            print(line_color + f"  {mark} {opt}" + RESET_COLOR)
+        print()
+        print(DIM_COLOR + "  ↑/↓ 移动,空格 切换选中,Enter 保存,Esc 取消" + RESET_COLOR)
+        key = read_key()
+        if key == RESIZE_KEY:
+            continue
+        if key == '\x03':
+            raise KeyboardInterrupt
+        if key in {'\r', '\n'}:
+            if not selected:
+                print(WRONG_COLOR + "  请先选择至少一个选项。" + RESET_COLOR)
+                continue
+            new_answer = _answer_from_selected(options, selected)
+            if new_answer == str(q.get("answer", "")):
+                return False
+            q["answer"] = new_answer
+            engine.save_question_field(deck, chapter, q)
+            return True
+        if key == '\x1b':
+            return False
+        if key == ' ':
+            _toggle_answer_selection(selected, cursor, multi_select=multi_select)
+            continue
+        if key == '\x1b[A':
+            cursor = (cursor - 1) % len(options)
+            continue
+        if key == '\x1b[B':
+            cursor = (cursor + 1) % len(options)
+            continue
 
 
 def _request_ai(deck, config, chapter, q, render_current, force=False):
@@ -197,7 +262,11 @@ def _edit_current_detail(deck, config, chapter, q, detail_view, render_current):
         if _edit_user_note(deck, chapter, q, render_current):
             return ("note" if has_user_note(q) else default_detail_view(q)), ""
         return detail_view, ""
-    return detail_view, "当前没有可编辑的底部内容；按 x 生成 Agent Said 或 n 新建笔记。"
+    # detail_view == None: nothing to edit in the lower block, so `e` edits the
+    # question's correct answer instead (write back to tiku.json).
+    if _edit_answer(deck, chapter, q, render_current):
+        return detail_view, "标准答案已更新。"
+    return detail_view, ""
 
 
 def _browse_search_text(q):
@@ -1822,24 +1891,81 @@ def _edit_selector(selector, mode_name, deck=None, config=None):
         except ValueError:
             pass
     buffer = _selector_text_from_set(selected)
+    auto_select_mode = False
+    auto_select_buffer = ""
+    warning = ""
 
     while True:
         _render_chapter_picker(mode_name, chapters, titles, per_chapter,
                                wrong_per_chapter, drills_per_chapter,
-                               max_total, cursor, selected, buffer)
+                               max_total, cursor, selected, buffer,
+                               auto_select_mode=auto_select_mode,
+                               auto_select_buffer=auto_select_buffer,
+                               warning=warning)
         key = read_key()
         if key == RESIZE_KEY:
             continue
         if key == '\x03':
             raise KeyboardInterrupt
+        if auto_select_mode:
+            if key == '\x1b':
+                auto_select_mode = False
+                auto_select_buffer = ""
+                warning = ""
+                continue
+            if key in {'\r', '\n'}:
+                limit = _auto_select_limit(auto_select_buffer)
+                if limit is None:
+                    warning = "自动选择数量必须大于 0。"
+                    continue
+                computed = _auto_select_chapters(
+                    mode_name,
+                    chapters,
+                    per_chapter,
+                    wrong_per_chapter,
+                    drills_per_chapter,
+                    limit,
+                )
+                auto_select_mode = False
+                auto_select_buffer = ""
+                if not computed:
+                    warning = "当前模式下没有可自动选择的章节。"
+                    continue
+                selected = computed
+                buffer = _selector_text_from_set(selected)
+                warning = ""
+                continue
+            if key in {'\x7f', '\b'}:
+                auto_select_buffer = auto_select_buffer[:-1]
+                warning = ""
+                continue
+            if key == '\x15':
+                auto_select_buffer = ""
+                warning = ""
+                continue
+            if key in {'a', 'A'}:
+                auto_select_mode = False
+                auto_select_buffer = ""
+                warning = ""
+                continue
+            if len(key) == 1 and key.isdigit():
+                auto_select_buffer += key
+                warning = ""
+            continue
         if key == '\x1b':
             return False, selector
         if key in {'\r', '\n'}:
             return True, (buffer.strip() or None)
+        if key in {'a', 'A'}:
+            auto_select_mode = True
+            auto_select_buffer = ""
+            warning = ""
+            continue
         if key in {'\x7f', '\b'}:
             buffer = buffer[:-1]
             # Re-parse the truncated buffer back into the set.
             selected = _selector_set_from_text(buffer, chapters, max_n)
+            warning = ""
             continue
         if key == ' ' and chapters:
             # Toggle the chapter under the cursor; regenerate the buffer.
@@ -1849,16 +1975,20 @@ def _edit_selector(selector, mode_name, deck=None, config=None):
             else:
                 selected.add(ch)
             buffer = _selector_text_from_set(selected)
+            warning = ""
             continue
         if key == '\x1b[A' and chapters:
             cursor = (cursor - 1) % len(chapters)
+            warning = ""
             continue
         if key == '\x1b[B' and chapters:
             cursor = (cursor + 1) % len(chapters)
+            warning = ""
             continue
         if len(key) == 1 and (key.isdigit() or key in {'-', ','}):
             buffer += key
             selected = _selector_set_from_text(buffer, chapters, max_n)
+            warning = ""
             continue
 
 
@@ -1895,9 +2025,46 @@ def _selector_set_from_text(buffer, chapters, max_n):
     return {c for c in chapters if str(c).isdigit() and int(c) in nums}
 
 
+def _mode_specific_available_count(mode_name, chapter, per_chapter, wrong_per_chapter):
+    label = (mode_name or "").lower()
+    if "review" in label:
+        return wrong_per_chapter.get(chapter, 0)
+    return per_chapter.get(chapter, 0)
+
+
+def _auto_select_limit(buffer):
+    text = str(buffer or "").strip()
+    if not text:
+        return 1
+    limit = int(text)
+    if limit <= 0:
+        return None
+    return limit
+
+
+def _auto_select_chapters(mode_name, chapters, per_chapter, wrong_per_chapter,
+                          drills_per_chapter, limit):
+    """Pick the `limit` chapters with the lowest mode-specific drill counts."""
+    ranked = []
+    for chapter in chapters:
+        available = _mode_specific_available_count(
+            mode_name, chapter, per_chapter, wrong_per_chapter
+        )
+        if available <= 0:
+            continue
+        ranked.append((
+            drills_per_chapter.get(chapter, 0),
+            store._chapter_sort_key(chapter),
+            chapter,
+        ))
+    ranked.sort()
+    return {chapter for _count, _sort_key, chapter in ranked[:limit]}
+
+
 def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
                            wrong_per_chapter, drills_per_chapter, max_total,
-                           cursor, selected, buffer):
+                           cursor, selected, buffer, *, auto_select_mode=False,
+                           auto_select_buffer="", warning=""):
     from .tui.render import (
         DIM_COLOR, DRILL_COLOR, RESET_COLOR, SELECTED_COLOR, STAT_TOTAL_COLOR, AI_COLOR,
     )
@@ -1911,6 +2078,14 @@ def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
     else:
         print("  > " + DIM_COLOR + "(空=全部章节)" + RESET_COLOR)
     print()
+    if auto_select_mode:
+        print("  " + AI_COLOR + "自动选 count 最少章节" + RESET_COLOR)
+        if auto_select_buffer:
+            print("  auto > " + auto_select_buffer)
+        else:
+            print("  auto > " + DIM_COLOR + "(空=1)" + RESET_COLOR)
+        print("  " + DIM_COLOR + "Enter 套用最少的 n 个章节；空 Enter=1；Esc 取消" + RESET_COLOR)
+        print()
     if not chapters:
         print("  " + DIM_COLOR + "(无章节数据)" + RESET_COLOR)
     else:
@@ -1935,8 +2110,10 @@ def _render_chapter_picker(mode_name, chapters, titles, per_chapter,
             line = f"  {mark} ch{str(ch):<3} {bar}  {total:>3}题/{wrong:>2}错{title_field}  {badge}"
             print(line_color + line + RESET_COLOR)
     print()
+    if warning:
+        print("  " + AI_COLOR + warning + RESET_COLOR)
     print("  " + DIM_COLOR +
-          "↑/↓ 移动,空格 切换选中,数字/范围 直接输入,Enter 开始,Esc 返回" +
+          "↑/↓ 移动,空格 切换选中,数字/范围 直接输入,a 自动选最少 count,Enter 开始,Esc 返回" +
           RESET_COLOR)
 
 

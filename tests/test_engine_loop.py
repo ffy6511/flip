@@ -122,10 +122,185 @@ def test_x_then_x_round_trips_to_hidden_then_ai():
     assert closed is None
 
 
+# ---- e edits the correct answer when no detail block is shown ----
+#
+# detail_view == None means the lower block has nothing to edit, so `e` opens
+# the answer editor instead. This writes the new answer back to tiku.json
+# (UUID untouched, so history stays attached).
+
+def _stub_tty_for_keys(monkeypatch, keys):
+    """Wire fake keypresses into engine_loop for sub-prompt loops."""
+    key_iter = iter(keys)
+    monkeypatch.setattr(engine_loop, "save_tty", lambda: None)
+    monkeypatch.setattr(engine_loop, "restore_tty", lambda _s: None)
+    monkeypatch.setattr(engine_loop, "enter_cbreak", lambda: None)
+    monkeypatch.setattr(engine_loop, "read_key", lambda: next(key_iter))
+    monkeypatch.setattr(engine_loop, "clear_screen", lambda: None)
+
+
+def _demo_deck_with(tmp_path, answer="A", qid="q-test0000001"):
+    """A one-question deck on disk, returned with its Deck handle."""
+    import os
+    from flip import store
+    from flip.deck import Deck
+    home = tmp_path / "flip_home"
+    decks = home / "decks" / "demo"
+    decks.mkdir(parents=True)
+    store.save_tiku(Deck(slug="demo", name="Demo", path=decks, source_lang="en"),
+                    {"1": [{"id": qid, "topic": "pick", "options": ["A. x", "B. y", "C. z"], "answer": answer}]})
+    (decks / "manifest.toml").write_text(
+        '[deck]\nname="Demo"\nslug="demo"\nsource_lang="en"\nanswer_alphabet="ABC"\nmax_display_options=4\n\n[explain]\nrole="d"\nmax_chars=200\n',
+        encoding="utf-8")
+    os.environ["FLIP_HOME"] = str(home)
+    return Deck(slug="demo", name="Demo", path=decks, source_lang="en")
+
+
+def test_e_edits_answer_when_detail_view_none(monkeypatch, tmp_path):
+    # detail_view None + press e  ->  answer editor opens. Keys: down to B,
+    # space (single-select flips to B), enter to save.
+    _stub_tty_for_keys(monkeypatch, ["\x1b[B", " ", "\r"])
+    deck = _demo_deck_with(tmp_path, answer="A")
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+
+    detail_view, warning, action = engine_loop._handle_detail_keys(
+        deck, None, "1", q, None, "e", _noop_render)
+
+    assert detail_view is None           # answer edit doesn't change detail_view
+    assert action is None
+    assert "已更新" in warning
+    assert q["answer"] == "B"
+    # Persisted to disk.
+    assert store.load_tiku(deck)["1"][0]["answer"] == "B"
+
+
+def test_e_answer_edit_esc_cancels_without_writing(monkeypatch, tmp_path):
+    # Esc in the answer editor cancels: nothing written, no warning.
+    _stub_tty_for_keys(monkeypatch, ["\x1b[B", " ", "\x1b"])
+    deck = _demo_deck_with(tmp_path, answer="A")
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+
+    detail_view, warning, action = engine_loop._handle_detail_keys(
+        deck, None, "1", q, None, "e", _noop_render)
+
+    assert warning == ""
+    assert q["answer"] == "A"             # unchanged
+    assert store.load_tiku(deck)["1"][0]["answer"] == "A"
+
+
+def test_e_still_edits_note_when_detail_view_note(monkeypatch, tmp_path):
+    # When a note is showing, e edits the NOTE, not the answer. Confirms the
+    # dispatch by detail_view still wins over the new answer-edit fallback.
+    deck = _demo_deck_with(tmp_path, answer="A")
+    from flip import store
+    q = store.load_tiku(deck)["1"][0]
+    q["user_note"] = "orig note"          # a note exists -> detail_view can be "note"
+    store.save_tiku(deck, {"1": [q]})
+    # Stub the note editor to immediately return a new note.
+    monkeypatch.setattr(engine_loop, "_prompt_user_note", lambda *a, **k: "edited")
+
+    detail_view, warning, action = engine_loop._handle_detail_keys(
+        deck, None, "1", q, "note", "e", _noop_render)
+
+    assert detail_view == "note"
+    assert q["user_note"] == "edited"
+    assert q["answer"] == "A"             # answer untouched
+
+
+def test_prompt_user_note_ctrl_u_clears_entire_buffer(monkeypatch):
+    _patch_tty(monkeypatch, ["\x15", "n", "e", "w", "\r"])
+    q = {
+        "topic": "t",
+        "options": ["A. x"],
+        "answer": "A",
+        "user_note": "old note",
+    }
+
+    note = engine_loop._prompt_user_note(None, "1", q, _noop_render)
+
+    assert note == "new"
+
+
+def test_prompt_ai_extra_ctrl_u_clears_entire_buffer(monkeypatch, tmp_path):
+    _patch_tty(monkeypatch, ["a", "b", "\x15", "c", "\r"])
+    deck = _demo_deck_with(tmp_path, answer="A")
+    q = {"topic": "t", "options": ["A. x"], "answer": "A"}
+
+    extra = engine_loop._prompt_ai_extra(deck, "1", q, _noop_render)
+
+    assert extra == "c"
+
+
 def test_selector_set_from_text_uses_engine_chapter_selector():
     assert engine_loop._selector_set_from_text(
         "5,3-4", ["1", "2", "3", "4", "5"], 5
     ) == {"3", "4", "5"}
+
+
+def test_auto_select_chapters_uses_mode_specific_availability_and_count():
+    selected = engine_loop._auto_select_chapters(
+        "Review",
+        ["1", "2", "3", "4"],
+        {"1": 5, "2": 4, "3": 3, "4": 2},
+        {"1": 0, "2": 2, "3": 1, "4": 1},
+        {"1": 0, "2": 3, "3": 1, "4": 1},
+        2,
+    )
+
+    assert selected == {"3", "4"}
+
+
+def test_auto_select_chapters_caps_at_all_eligible_chapters():
+    selected = engine_loop._auto_select_chapters(
+        "Train",
+        ["1", "2", "3"],
+        {"1": 0, "2": 2, "3": 1},
+        {"1": 0, "2": 0, "3": 0},
+        {"1": 5, "2": 1, "3": 0},
+        9,
+    )
+
+    assert selected == {"2", "3"}
+
+
+def test_edit_selector_auto_mode_applies_selection_then_returns_to_normal_mode(
+    deck, config, monkeypatch
+):
+    seen_buffers = []
+    _patch_tty(monkeypatch, ["a", "2", "\r", "\x1b"])
+    monkeypatch.setattr(
+        engine_loop.engine,
+        "stats_snapshot",
+        lambda _deck: {
+            "total": 4,
+            "chapters": 4,
+            "marked": 0,
+            "note": 0,
+            "ai": 0,
+            "wrong": 0,
+            "wrong_files": 0,
+            "per_chapter": {"1": 2, "2": 2, "3": 2, "4": 2},
+            "wrong_per_chapter": {"1": 0, "2": 1, "3": 1, "4": 1},
+            "drills_per_chapter": {"1": 9, "2": 9, "3": 9, "4": 9},
+        },
+    )
+    monkeypatch.setattr(
+        engine_loop,
+        "_drills_per_chapter_for_mode",
+        lambda _deck, _mode: {"1": 3, "2": 1, "3": 1, "4": 2},
+    )
+    monkeypatch.setattr(
+        engine_loop,
+        "_render_chapter_picker",
+        lambda _mode, _chapters, _titles, _per, _wrong, _drills, _max, _cursor, _selected, buffer,
+        *args, **kwargs: seen_buffers.append(buffer),
+    )
+
+    confirmed, selector = engine_loop._edit_selector(None, "Review", deck=deck, config=config)
+
+    assert (confirmed, selector) == (False, None)
+    assert "2-3" in seen_buffers
 
 
 def test_options_respects_deck_max_display_options(deck):
