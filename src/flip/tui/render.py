@@ -627,7 +627,7 @@ def _accuracy_style(total, correct):
     return WRONG_COLOR, "先回顾本轮错题，再继续下一轮"
 
 
-def render_session_summary(summary):
+def render_session_summary(summary, *, drill=False):
     clear_screen()
     print("@ 本轮结算")
     print()
@@ -643,8 +643,13 @@ def render_session_summary(summary):
         print_wrapped("  ", f"题目总数: {total}")
         print_wrapped("  ", f"正确: {correct}  错误: {incorrect}")
         print("  正确率: " + color + rate_text + RESET_COLOR + "  " + message)
+        if summary.get("cleared"):
+            print_wrapped("  ", "全部答对，本轮错题已清零。", color=CORRECT_COLOR)
         print()
-        print_key_hint_footer("Enter 返回主界面, v 本轮错题, q 返回主界面")
+        footer = "Enter 返回主界面, v 本轮错题, q 返回主界面"
+        if drill and summary.get("wrong_items"):
+            footer = "Enter 返回主界面, v 本轮错题, d 继续刷错题, q 返回主界面"
+        print_key_hint_footer(footer)
     else:
         print_wrapped("  ", f"浏览数量: {int(summary.get('total', 0))}")
         print()

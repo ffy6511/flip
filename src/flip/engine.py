@@ -447,10 +447,12 @@ def filter_questions(records, filters):
 
 class SelectedSet:
     """Result of picking questions for an epoch/review."""
-    def __init__(self, questions, *, input_is_index, index_sources=None):
+    def __init__(self, questions, *, input_is_index, index_sources=None,
+                 in_memory=False):
         self.questions = questions
         self.input_is_index = input_is_index
         self.index_sources = index_sources or {}
+        self.in_memory = bool(in_memory)
 
 
 def pick_questions(deck, config, selector=None, shuffle=True, filters=None,
@@ -531,6 +533,23 @@ def remove_from_active_index(selected, chapter, q):
     removed = False
     for path in list(source_files):
         removed = _remove_keys_from_index_file(path, keys) or removed
+    return removed
+
+
+def remove_in_memory(selected, chapter, q):
+    if selected is None or not getattr(selected, "in_memory", False):
+        return False
+    keys = set(question_keys(chapter, q))
+    kept = []
+    removed = False
+    for existing_chapter, existing_q in selected.questions:
+        existing_keys = set(question_keys(existing_chapter, existing_q))
+        if keys & existing_keys:
+            removed = True
+            continue
+        kept.append((existing_chapter, existing_q))
+    if removed:
+        selected.questions = kept
     return removed
 
 

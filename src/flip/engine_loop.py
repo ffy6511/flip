@@ -56,12 +56,16 @@ def _window_bounds(total, cursor, visible_rows):
 
 
 def _remove_confirm_warning(selected_set):
+    if selected_set is not None and getattr(selected_set, "in_memory", False):
+        return "再次按 r 确认从本轮错题移除；不影响错题本或题库。"
     if selected_set is not None and selected_set.input_is_index:
         return "再次按 r 确认从 wrong/review 索引移除；不会删除题库。"
     return "再次按 r 确认从 tiku 题库删除；该题会从 deck 移除。"
 
 
 def _remove_question_from_selected_source(deck, selected_set, chapter, q):
+    if selected_set is not None and getattr(selected_set, "in_memory", False):
+        return engine.remove_in_memory(selected_set, chapter, q)
     if selected_set is not None and selected_set.input_is_index:
         return engine.remove_from_active_index(selected_set, chapter, q)
     return engine.remove_from_tiku(deck, chapter, q)
@@ -2234,21 +2238,26 @@ def _browse_summary(*, mode_label, selector, browse_items):
     }
 
 
-def _run_session_summary_loop(deck, config, summary):
+def _run_session_summary_loop(deck, config, summary, drill=False):
     if not sys.stdin.isatty():
-        render_session_summary(summary)
+        render_session_summary(summary, drill=drill)
         return None
     old_settings = save_tty()
     try:
         enter_alt_screen()
         enter_cbreak()
         while True:
-            render_session_summary(summary)
+            render_session_summary(summary, drill=drill)
             key = read_key()
             if key == RESIZE_KEY:
                 continue
             if key in {'\r', '\n', '\x1b', 'q', 'Q'}:
                 return None
+            if key in {'d', 'D'}:
+                if drill and summary.get("kind") == "scored" and summary.get("wrong_items"):
+                    return "drill"
+                summary["warning"] = "本轮无错题。"
+                continue
             if key in {'v', 'V'}:
                 items = summary.get("wrong_items") if summary.get("kind") == "scored" else summary.get("browse_items")
                 if items:
@@ -2259,6 +2268,50 @@ def _run_session_summary_loop(deck, config, summary):
     finally:
         restore_tty(old_settings)
         exit_alt_screen()
+
+
+def _selected_from_summary_items(items):
+    questions = []
+    seen = set()
+    for item in items:
+        chapter = str(item.get("chapter", ""))
+        q = item.get("question")
+        if not isinstance(q, dict):
+            continue
+        key = engine.question_key(chapter, q)
+        if key in seen:
+            continue
+        seen.add(key)
+        questions.append((chapter, q))
+    return engine.SelectedSet(questions, input_is_index=True, in_memory=True)
+
+
+def _run_drill_chain(deck, config, seed_wrong_items, *, mode_label, selector):
+    selected = _selected_from_summary_items(seed_wrong_items)
+    while selected.questions:
+        _count, _incorrects, status, history = epoch(deck, config, selected)
+        if status == BACK_TO_SELECTOR:
+            return BACK_TO_SELECTOR
+        if status == 'quit':
+            return 0
+
+        summary = _scored_summary(
+            deck,
+            mode_label=mode_label,
+            selector=selector,
+            total=len(history),
+            history=history,
+        )
+        if not summary.get("wrong_items"):
+            summary["cleared"] = True
+            _run_session_summary_loop(deck, config, summary, False)
+            return 0
+
+        action = _run_session_summary_loop(deck, config, summary, True)
+        if action != "drill":
+            return 0
+        selected = _selected_from_summary_items(summary["wrong_items"])
+    return 0
 
 
 def _run_session_item_list(summary, items, config):
@@ -2429,16 +2482,19 @@ def _run_scored_session(deck, config, selected, *, source, mode_label, selector,
     else:
         _record_drill(deck, selected, total=count - 1, incorrect=len(incorrects), mode=mode_label)
     store.clear_session(deck)
-    _run_session_summary_loop(
-        deck, config,
-        _scored_summary(
-            deck,
-            mode_label=mode_label,
-            selector=selector,
-            total=count - 1,
-            history=history,
-        ),
+    summary = _scored_summary(
+        deck,
+        mode_label=mode_label,
+        selector=selector,
+        total=count - 1,
+        history=history,
     )
+    action = _run_session_summary_loop(deck, config, summary, True)
+    if action == "drill":
+        return _run_drill_chain(
+            deck, config, summary.get("wrong_items", []),
+            mode_label=mode_label, selector=selector,
+        )
     return 0
 
 

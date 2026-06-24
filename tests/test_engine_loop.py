@@ -1318,6 +1318,37 @@ def test_review_questions_j_digits_enter_jumps_to_1_based_index(deck, config, mo
     assert renders[:2] == [0, 1]
 
 
+def test_selected_set_remove_in_memory(deck):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    selected = engine.SelectedSet(
+        [("1", q1), ("1", q2)],
+        input_is_index=True,
+        in_memory=True,
+    )
+
+    assert engine.remove_in_memory(selected, "1", q1) is True
+    assert selected.questions == [("1", q2)]
+    assert engine.remove_in_memory(selected, "1", q1) is False
+
+
+def test_remove_from_in_memory_does_not_touch_wrong_index(deck):
+    q1 = store.load_tiku(deck)["1"][0]
+    wrong = engine.incorrect_record("1", q1, "B", deck.answer_alphabet)
+    path = store.build_result_filename([("1", q1)], deck)
+    store.write_json(path, [wrong])
+    selected = engine.SelectedSet(
+        [("1", q1)],
+        input_is_index=True,
+        index_sources={wrong["key"]: {path}},
+        in_memory=True,
+    )
+
+    assert engine_loop._remove_question_from_selected_source(deck, selected, "1", q1) is True
+
+    assert selected.questions == []
+    assert store.read_json(path) == [wrong]
+
+
 def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypatch):
     q1, q2 = store.load_tiku(deck)["1"][:2]
     selected = engine.SelectedSet([("1", q1), ("1", q2)], input_is_index=False)
@@ -1343,6 +1374,55 @@ def test_run_train_scored_opens_summary_with_wrong_items(deck, config, monkeypat
     assert summaries[0]["total"] == 2
     assert summaries[0]["correct"] == 1
     assert summaries[0]["wrong_items"][0]["question"] is q1
+
+
+def test_run_train_scored_summary_d_starts_drill(deck, config, monkeypatch):
+    q1 = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q1)], input_is_index=False)
+    history = [
+        {"count": 1, "chapter": "1", "question": q1, "selected_answer": "B", "is_correct": False},
+    ]
+    calls = []
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "epoch", lambda *_a, **_k: (2, [], "done", history))
+    monkeypatch.setattr(engine_loop, "_record_drill", lambda *a, **k: None)
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: "drill")
+    monkeypatch.setattr(
+        engine_loop,
+        "_run_drill_chain",
+        lambda *a, **k: calls.append((a, k)) or 0,
+    )
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="tiku")
+
+    assert outcome == 0
+    assert calls
+    assert calls[0][1]["mode_label"] == "train"
+    assert calls[0][1]["selector"] == "1"
+
+
+def test_run_train_review_summary_d_starts_drill(deck, config, monkeypatch):
+    q1 = store.load_tiku(deck)["1"][0]
+    selected = engine.SelectedSet([("1", q1)], input_is_index=True)
+    history = [
+        {"count": 1, "chapter": "1", "question": q1, "selected_answer": "B", "is_correct": False},
+    ]
+    calls = []
+    monkeypatch.setattr(engine, "pick_questions", lambda *a, **k: selected)
+    monkeypatch.setattr(engine_loop, "epoch", lambda *_a, **_k: (2, [], "done", history))
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", lambda *a, **k: "drill")
+    monkeypatch.setattr(
+        engine_loop,
+        "_run_drill_chain",
+        lambda *a, **k: calls.append((a, k)) or 0,
+    )
+
+    outcome = engine_loop.run_train(deck, config, selector="1", source="wrong")
+
+    assert outcome == 0
+    assert calls
+    assert calls[0][1]["mode_label"] == "review"
+    assert calls[0][1]["selector"] == "1"
 
 
 def test_run_train_train_counts_even_with_incorrect_answers(deck, config, monkeypatch):
@@ -1518,6 +1598,95 @@ def test_session_summary_v_opens_wrong_list(deck, config, monkeypatch):
     assert list_renders
     assert list_renders[0][1] == [summary["wrong_items"][0]]
     assert list_renders[0][2] == 0
+
+
+def test_session_summary_d_returns_drill(deck, config, monkeypatch):
+    q = store.load_tiku(deck)["1"][0]
+    summary = {
+        "kind": "scored",
+        "total": 1,
+        "correct": 0,
+        "incorrect": 1,
+        "wrong_items": [{
+            "chapter": "1",
+            "question": q,
+            "selected_answer": "B",
+            "is_correct": False,
+        }],
+    }
+    _patch_tty(monkeypatch, ["d"])
+    monkeypatch.setattr(engine_loop.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(engine_loop, "enter_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "exit_alt_screen", lambda: None)
+    monkeypatch.setattr(engine_loop, "render_session_summary", lambda *_a, **_k: None)
+
+    assert engine_loop._run_session_summary_loop(deck, config, summary, True) == "drill"
+
+
+def test_drill_chain_converges_without_persistent_writes(deck, config, monkeypatch):
+    q1, q2 = store.load_tiku(deck)["1"][:2]
+    calls = []
+
+    def fake_epoch(_deck, _config, selected, **_kwargs):
+        calls.append(list(selected.questions))
+        if len(calls) == 1:
+            return 3, [], "done", [
+                {"count": 1, "chapter": "1", "question": q1, "selected_answer": "B", "is_correct": False},
+                {"count": 2, "chapter": "1", "question": q2, "selected_answer": "A", "is_correct": True},
+            ]
+        return 2, [], "done", [
+            {"count": 1, "chapter": "1", "question": q1, "selected_answer": "A", "is_correct": True},
+        ]
+
+    summaries = []
+
+    def fake_summary_loop(_deck, _config, summary, drill=False):
+        summaries.append((summary, drill))
+        return "drill" if summary.get("wrong_items") else None
+
+    monkeypatch.setattr(engine_loop, "epoch", fake_epoch)
+    monkeypatch.setattr(engine_loop, "_run_session_summary_loop", fake_summary_loop)
+    monkeypatch.setattr(
+        engine_loop,
+        "_write_wrong_report",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not write wrong report")),
+    )
+
+    outcome = engine_loop._run_drill_chain(
+        deck,
+        config,
+        [
+            {"chapter": "1", "question": q1},
+            {"chapter": "1", "question": q2},
+        ],
+        mode_label="review",
+        selector="1",
+    )
+
+    assert outcome == 0
+    assert [[q["topic"] for _ch, q in round_questions] for round_questions in calls] == [
+        [q1["topic"], q2["topic"]],
+        [q1["topic"]],
+    ]
+    assert summaries[-1][0]["cleared"] is True
+    assert summaries[-1][0]["wrong_items"] == []
+    assert store.load_history(deck) == []
+
+
+def test_drill_chain_quit_midway_does_not_record_history(deck, config, monkeypatch):
+    q1 = store.load_tiku(deck)["1"][0]
+    monkeypatch.setattr(engine_loop, "epoch", lambda *_a, **_k: (1, [], "quit", []))
+
+    outcome = engine_loop._run_drill_chain(
+        deck,
+        config,
+        [{"chapter": "1", "question": q1}],
+        mode_label="train",
+        selector="1",
+    )
+
+    assert outcome == 0
+    assert store.load_history(deck) == []
 
 
 def test_session_item_list_toggles_inline_translation(deck, config, monkeypatch):

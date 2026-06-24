@@ -168,6 +168,42 @@ def test_render_scored_session_summary_colors_accuracy(capsys):
     assert "还有提升空间，建议回看错题" in out
 
 
+def test_render_scored_session_summary_shows_drill_key(capsys):
+    summary = {
+        "kind": "scored",
+        "mode": "review",
+        "label": "1",
+        "total": 2,
+        "correct": 1,
+        "incorrect": 1,
+        "wrong_items": [{"chapter": "1", "question": _question("A")}],
+    }
+
+    render.render_session_summary(summary, drill=True)
+
+    out = _strip_ansi(capsys.readouterr().out)
+    assert "d 继续刷错题" in out
+
+
+def test_render_cleared_session_summary(capsys):
+    summary = {
+        "kind": "scored",
+        "mode": "review",
+        "label": "1",
+        "total": 1,
+        "correct": 1,
+        "incorrect": 0,
+        "wrong_items": [],
+        "cleared": True,
+    }
+
+    render.render_session_summary(summary, drill=True)
+
+    out = _strip_ansi(capsys.readouterr().out)
+    assert "全部答对，本轮错题已清零。" in out
+    assert "d 继续刷错题" not in out
+
+
 def test_render_browse_session_summary_shows_count_only(capsys):
     summary = {
         "kind": "browse",
